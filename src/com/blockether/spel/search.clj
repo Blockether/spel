@@ -1122,9 +1122,8 @@
                               ua (assoc :user-agent ua
                                    :extra-http-headers (anti-detection-headers ua)))
                 ctx         (core/new-context browser ctx-opts)
-                _           (when stealth?
-                              (set-consent-cookie! ctx)
-                              (.addInitScript ^BrowserContext ctx ^String (stealth/stealth-init-script)))
+                 _           (when stealth?
+                               (set-consent-cookie! ctx))
                 pg          (core/new-page-from-context ctx)]
             (try
               (let [;; Primary search: Google or DDG based on --ddg flag

@@ -2794,6 +2794,48 @@
         {:error (str "Lightpanda does not support --" option ". Use --engine chrome instead.")
          :error_code "unsupported_engine_option"}))))
 
+;; Spel --undetected: Patchright driver. Chromium-only, and a headless browser
+;; must not announce `HeadlessChrome` in its user agent.
+(defn- with-undetected-user-agent
+  "Sets a headed Chrome user agent in headless undetected mode.
+   `version-fn` returns the launched browser version and runs only when needed.
+   An explicit --user-agent or a --device preset user agent wins."
+  [state ctx-opts version-fn]
+  (if (and (:undetected state) (:headless state) (not (:user-agent ctx-opts)))
+    (if-let [ua (stealth/undetected-user-agent (version-fn))]
+      (assoc ctx-opts :user-agent ua)
+      ctx-opts)
+    ctx-opts))
+
+(defn- probe-browser-version
+  "Launches the configured Chromium once and returns its version string.
+   A persistent context exposes no Browser, so its version needs this probe."
+  [pw launch-opts]
+  (let [browser (check-anomaly! (core/launch-chromium pw (dissoc launch-opts :cdp))
+                  "Failed to launch browser to read its version")]
+    (try
+      (.version ^com.microsoft.playwright.Browser browser)
+      (finally
+        (.close ^com.microsoft.playwright.Browser browser)))))
+
+(defn- check-undetected-browser!
+  "Throws when --undetected is combined with a browser that Patchright does not patch."
+  [state browser-type engine]
+  (when (and (:undetected state)
+          (or (not= "chromium" browser-type) (= "lightpanda" engine)))
+    (throw (ex-info (str "--undetected supports only Chromium, not "
+                      (if (= "lightpanda" engine) "lightpanda" browser-type))
+             {:error_code "unsupported_engine_option"}))))
+
+(defn- with-undetected-channel
+  "Uses the full Chromium build in undetected mode when no browser binary is chosen.
+   Playwright otherwise runs headless Chromium as `chromium-headless-shell`, which
+   fails most fingerprint checks."
+  [state flags launch-opts]
+  (cond-> launch-opts
+    (and (:undetected state) (not (get flags "channel")) (not (get flags "executable-path")))
+    (assoc :channel "chromium")))
+
 (defn- ensure-browser!
   "Lazily starts browser on first command. Uses launch-flags from !state.
 
@@ -2883,6 +2925,7 @@
                          (get flags "allow-file-access")
                          (update :args (fnil into [])
                            ["--allow-file-access-from-files" "--allow-file-access"]))
+           launch-opts (with-undetected-channel @!state flags launch-opts)
             ;; Resolve --device "iPhone 14" etc. to a Playwright device preset.
             ;; The preset contributes viewport, device-scale-factor, is-mobile,
             ;; has-touch, and user-agent — all merged into ctx-opts. If the user
@@ -2895,6 +2938,7 @@
                                         ". Run 'spel set-device' with no args or see `devices/available-device-names`.")
                                       {:device device-name}))))
            browser-type  (get flags "browser" "chromium")
+           _             (check-undetected-browser! @!state browser-type (get flags "engine"))
            device-opts   (if (= "firefox" browser-type)
                             ;; Firefox rejects :is-mobile / :has-touch
                            (dissoc device-preset :is-mobile :has-touch)
@@ -2944,15 +2988,15 @@
                launch-opts (update launch-opts :ignore-default-args
                              (fnil into [])
                              ["--use-mock-keychain" "--password-store=basic"])
-               persistent-opts (merge launch-opts ctx-opts)
+               persistent-opts (merge launch-opts
+                                 (with-undetected-user-agent @!state ctx-opts
+                                   #(probe-browser-version pw launch-opts)))
                context         (check-anomaly!
                                  (core/launch-persistent-context
                                    (.chromium ^com.microsoft.playwright.Playwright pw)
                                    profile-dir
                                    persistent-opts)
                                  "Failed to launch persistent browser context")
-               _               (when (get flags "stealth")
-                                 (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
                browser         (.browser ^BrowserContext context)
                pg-inst         (if (seq (.pages ^BrowserContext context))
                                  (first (.pages ^BrowserContext context))
@@ -3034,16 +3078,16 @@
                                 "Failed to open a spel-owned tab in the CDP browser"))]
                (swap! !state assoc :pw pw :browser browser :context context :page pg-inst :cdp-connected true))
               ;; Normal launch: create fresh context and page as before.
-             (let [context (check-anomaly!
-                             (if (seq ctx-opts)
-                               (core/new-context browser ctx-opts)
-                               (core/new-context browser))
-                             "Failed to create browser context")
-                   _       (when (get flags "stealth")
-                             (.addInitScript ^BrowserContext context ^String (stealth/stealth-init-script)))
-                   pg-inst (check-anomaly!
-                             (new-spel-page! context)
-                             "Failed to create page")]
+             (let [ctx-opts (with-undetected-user-agent @!state ctx-opts
+                              #(.version ^com.microsoft.playwright.Browser browser))
+                   context  (check-anomaly!
+                              (if (seq ctx-opts)
+                                (core/new-context browser ctx-opts)
+                                (core/new-context browser))
+                              "Failed to create browser context")
+                   pg-inst  (check-anomaly!
+                              (new-spel-page! context)
+                               "Failed to create page")]
                (swap! !state assoc :pw pw :browser browser :context context :page pg-inst)))))
         ;; Common setup for all paths
        (when-let [pg-inst (:page @!state)]
@@ -4773,11 +4817,22 @@
       entry
       {:error (str "Page ref @" ref-id " not found")})))
 
+;; Patchright runs page scripts without Runtime.enable, so Playwright receives
+;; no console or page-error events. Say so instead of an empty list that
+;; looks like a clean page.
+(def ^:private undetected-capture-warning
+  "Console and page-error capture are not available with --undetected (Patchright driver).")
+
+(defn- with-undetected-capture-warning [result]
+  (cond-> result
+    (:undetected @!state) (assoc :warning undetected-capture-warning)))
+
 (defmethod handle-cmd "network_list" [_ {:strs [all]}]
   {:entries (tab-entries @!network-window all) :tab (current-tab)})
 
 (defmethod handle-cmd "console_list" [_ {:strs [all]}]
-  {:entries (tab-entries @!console-window all) :tab (current-tab)})
+  (with-undetected-capture-warning
+    {:entries (tab-entries @!console-window all) :tab (current-tab)}))
 
 (defmethod handle-cmd "network_route" [_ {:strs [url action_type body status content_type]}]
   (let [handler (fn [route]
@@ -4995,7 +5050,7 @@
 (defmethod handle-cmd "console_get" [_ {:strs [clear all]}]
   (let [msgs (tab-entries @!console-messages all)]
     (when clear (swap! !console-messages without-tab-entries all))
-    {:messages msgs}))
+    (with-undetected-capture-warning {:messages msgs})))
 
 (defmethod handle-cmd "console_clear" [_ {:strs [all]}]
   (swap! !console-messages without-tab-entries all)
@@ -5005,7 +5060,7 @@
 (defmethod handle-cmd "errors_get" [_ {:strs [clear all]}]
   (let [errs (tab-entries @!page-errors all)]
     (when clear (swap! !page-errors without-tab-entries all))
-    {:errors errs}))
+    (with-undetected-capture-warning {:errors errs})))
 
 (defmethod handle-cmd "errors_clear" [_ {:strs [all]}]
   (swap! !page-errors without-tab-entries all)
@@ -5147,6 +5202,7 @@
        :engine         (get launch-flags "engine" "chrome")
        :channel        (get launch-flags "channel")
        :headless       (:headless state)
+       :undetected     (boolean (:undetected state))
        :persist        (persist-enabled?)
        :tracing        (boolean (:tracing? state))
        :har_recording  (boolean (:har-recording? state))
@@ -7372,12 +7428,14 @@
      :session  - String (default 'default')
      :headless - Boolean (default true)
      :browser  - String (optional, e.g. 'firefox', 'webkit')
-     :cdp      - String (optional, CDP endpoint URL)"
+     :cdp      - String (optional, CDP endpoint URL)
+     :undetected - Boolean (optional; the process runs the Patchright driver)"
   [opts]
-  (let [session  (get opts :session "default")
-        headless (get opts :headless true)
-        browser  (get opts :browser)
-        cdp-url  (get opts :cdp)]
+  (let [session    (get opts :session "default")
+        headless   (get opts :headless true)
+        browser    (get opts :browser)
+        cdp-url    (get opts :cdp)
+        undetected (boolean (get opts :undetected))]
     ;; One log system: the daemon logs through the same sink the CLI writes to
     ;; and `spel logs` reads. Mirroring to stderr is off — the daemon's stdout
     ;; and stderr are already redirected into that same file by the CLI, so a
@@ -7387,7 +7445,8 @@
       " pid=" (.pid (java.lang.ProcessHandle/current))
       " headless=" headless
       (when browser (str " browser=" browser))
-      (when cdp-url (str " cdp=" cdp-url)))
+      (when cdp-url (str " cdp=" cdp-url))
+      (when undetected " undetected=true"))
 
     (if-let [owner (claim-session! session)]
       ;; Losing the race is a normal outcome, not a failure: the CLI that
@@ -7401,7 +7460,7 @@
         ;; session, so uptime is this daemon's age and not the native image's.
         (reset! !daemon-started-at (System/currentTimeMillis))
         ;; Store session config + initial launch flags (browser type from CLI args)
-        (swap! !state assoc :headless headless :session session)
+        (swap! !state assoc :headless headless :session session :undetected undetected)
         (when browser
           (swap! !state assoc-in [:launch-flags "browser"] browser))
         (when cdp-url

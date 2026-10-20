@@ -243,6 +243,31 @@ jobs:
             artifacts/spel-windows-amd64/spel-windows-amd64.exe
 
       # --- Deploy to Clojars (irreversible — do LAST, with existence check) ---
+      # The Patchright driver artifact goes first: spel resolves it at runtime.
+      - name: Check if the Patchright driver exists on Clojars
+        id: check-patchright
+        run: |
+          PR_VERSION="$(sed -n 's/^ *:version *"\(.*\)".*/\1/p' resources/com/blockether/spel/patchright-driver.edn)"
+          if [ -z "$PR_VERSION" ]; then
+            echo "::error::Cannot read :version from patchright-driver.edn"
+            exit 1
+          fi
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://repo.clojars.org/com/blockether/spel-patchright-driver/$PR_VERSION/spel-patchright-driver-$PR_VERSION.jar")
+          if [ "$STATUS" = "200" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::spel-patchright-driver $PR_VERSION already exists on Clojars — skipping deploy"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build & Deploy the Patchright driver to Clojars
+        if: steps.check-patchright.outputs.exists != 'true'
+        env:
+          CLOJARS_USERNAME: blockether-deployer
+          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_DEPLOY_TOKEN }}
+        run: clojure -T:build deploy-patchright-driver
+
       - name: Check if version exists on Clojars
         id: check-clojars
         run: |

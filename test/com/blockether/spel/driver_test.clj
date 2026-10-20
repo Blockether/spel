@@ -67,9 +67,10 @@
           out-dir  (.resolve tmp-dir "out")]
       (Files/write source (.getBytes "jar-bytes" StandardCharsets/UTF_8)
         (into-array java.nio.file.OpenOption []))
-      (with-redefs-fn {#'driver/resolve-artifact-path (fn [_] source)}
+      (with-redefs-fn {#'driver/resolve-artifact-path (fn [_ _] source)}
         (fn []
-          (let [dest ((var-get #'driver/materialize-artifact!) "driver" out-dir)]
+          (let [dest ((var-get #'driver/materialize-artifact!)
+                      'com.microsoft.playwright/driver "1.0.0" out-dir)]
             (expect (= (.toString (.resolve out-dir "driver.jar")) (.toString dest)))
             (expect (= "jar-bytes" (Files/readString dest))))))))
 
@@ -91,3 +92,47 @@
                 (into-array java.nio.file.LinkOption [])))
       (expect (Files/exists (.resolve tmp-dir node-name)
                 (into-array java.nio.file.LinkOption []))))))
+
+(defdescribe patchright-driver-variant-test
+  "The undetected mode uses the Patchright package with the Playwright Node runtime."
+
+  (it "reads the pinned Patchright version from the resources"
+    (expect (boolean (re-matches #"\d+\.\d+\.\d+" (driver/patchright-version)))))
+
+  (it "keeps the Patchright package on the Playwright Java minor line"
+    (let [minor #(re-find #"^\d+\.\d+" %)]
+      (expect (= (minor ((var-get #'driver/playwright-version)))
+                (minor (driver/patchright-version))))))
+
+  (it "takes the package from the Patchright artifact and Node from driver-bundle"
+    (let [coordinate (var-get #'driver/package-coordinate)]
+      (expect (= ['com.blockether/spel-patchright-driver (driver/patchright-version)]
+                (coordinate :patchright)))
+      (expect (= ['com.microsoft.playwright/driver ((var-get #'driver/playwright-version))]
+                (coordinate :playwright)))))
+
+  (it "caches the Patchright driver apart from the Playwright driver"
+    (let [driver-dir (var-get #'driver/driver-dir)
+          pw         (driver-dir :playwright)
+          pr         (driver-dir :patchright)]
+      (expect (not= pw pr))
+      (expect (= (.getParent pw) (.getParent (.getParent pr))))
+      (expect (= (str "patchright-" (driver/patchright-version))
+                (str (.getFileName (.getParent pr)))))))
+
+  (it "points playwright.cli.dir at the Patchright driver in undetected mode"
+    (let [previous  (System/getProperty "playwright.cli.dir")
+          !variants (atom [])]
+      (System/clearProperty "playwright.cli.dir")
+      (try
+        (with-redefs-fn {#'driver/driver-ready?    (fn [_] false)
+                         #'driver/assemble-driver! (fn [variant] (swap! !variants conj variant))}
+          (fn []
+            (driver/ensure-driver! {:undetected? true})
+            (expect (= [:patchright] @!variants))
+            (expect (= (str ((var-get #'driver/driver-dir) :patchright))
+                      (System/getProperty "playwright.cli.dir")))))
+        (finally
+          (if previous
+            (System/setProperty "playwright.cli.dir" previous)
+            (System/clearProperty "playwright.cli.dir")))))))

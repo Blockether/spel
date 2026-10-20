@@ -1,0 +1,9 @@
+{;; Patchright driver package for `spel --undetected`.
+ ;; `clojure -T:build patchright-driver-jar` downloads this npm tarball,
+ ;; checks the integrity hash and packs it as the Maven artifact
+ ;; com.blockether/spel-patchright-driver <:version> with the same
+ ;; `driver/package/**` layout as com.microsoft.playwright/driver.
+ ;; Keep :version on the Playwright Java minor line in deps.edn.
+ :package   "patchright-core"
+ :version   "1.61.1"
+ :integrity "sha512-d6Ju67DE6OzqlEX3WPvUX2SLEs6iMY1WERit//mpsrT98VHcztaUo0CBw2Lpxq25VdufVEiWEdcc0HnLwdiq6A=="}

@@ -1,9 +1,8 @@
 (ns com.blockether.spel.stealth-test
   "Tests for the stealth namespace.
 
-   Unit tests for Chrome launch args, default-arg suppressions, and
-   JavaScript init script content. Validates that all expected evasion
-   patches are present in the generated script."
+   Unit tests for Chrome launch args, default-arg suppressions and the
+   undetected-mode user agent."
   (:require
    [clojure.string :as str]
    [com.blockether.spel.stealth :as sut]
@@ -43,65 +42,26 @@
       (let [args (sut/stealth-ignore-default-args)]
         (expect (some #(= "--enable-automation" %) args))))))
 
+
 ;; =============================================================================
-;; Unit Tests — stealth-init-script
+;; Unit Tests — undetected-user-agent
 ;; =============================================================================
 
-(defdescribe stealth-init-script-test
-  "Unit tests for stealth-init-script — JS evasion patches"
+(defdescribe undetected-user-agent-test
+  "Unit tests for undetected-user-agent — headless user agent from the real version"
 
-  (describe "script content"
-    (it "returns a non-empty string"
-      (let [script (sut/stealth-init-script)]
-        (expect (string? script))
-        (expect (pos? (count script)))))
+  (describe "user agent string"
+    (it "uses the reduced major version of the launched browser"
+      (expect (= "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36"
+                (sut/undetected-user-agent "154.0.7720.3" "Mac OS X"))))
 
-    (it "is wrapped in IIFE"
-      (let [script (sut/stealth-init-script)]
-        (expect (str/starts-with? script "(function()"))
-        (expect (str/ends-with? script "})();"))))
+    (it "never contains HeadlessChrome"
+      (expect (not (str/includes? (sut/undetected-user-agent "149.0.1" "Linux") "Headless"))))
 
-    (it "contains navigator.webdriver patch"
-      (let [script (sut/stealth-init-script)]
-        (expect (str/includes? script "navigator"))
-        (expect (str/includes? script "webdriver"))))
+    (it "uses the frozen platform token of each OS"
+      (expect (str/includes? (sut/undetected-user-agent "149" "Linux") "(X11; Linux x86_64)"))
+      (expect (str/includes? (sut/undetected-user-agent "149" "Windows 11") "(Windows NT 10.0; Win64; x64)")))
 
-    (it "contains navigator.plugins patch"
-      (let [script (sut/stealth-init-script)]
-        (expect (str/includes? script "navigator"))
-        (expect (str/includes? script "plugins"))
-        (expect (str/includes? script "Chrome PDF Plugin"))))
-
-    (it "contains navigator.languages patch"
-      (let [script (sut/stealth-init-script)]
-        (expect (str/includes? script "languages"))
-        (expect (str/includes? script "en-US"))))
-
-    (it "contains chrome.runtime mock"
-      (let [script (sut/stealth-init-script)]
-        (expect (str/includes? script "chrome.runtime"))
-        (expect (str/includes? script "connect"))
-        (expect (str/includes? script "sendMessage"))))
-
-    (it "contains permissions.query override"
-      (let [script (sut/stealth-init-script)]
-        (expect (str/includes? script "permissions.query"))
-        (expect (str/includes? script "notifications"))))
-
-    (it "contains WebGL getParameter override"
-      (let [script (sut/stealth-init-script)]
-        (expect (str/includes? script "WebGLRenderingContext"))
-        (expect (str/includes? script "getParameter"))
-        (expect (str/includes? script "37445"))
-        (expect (str/includes? script "37446"))))
-
-    (it "contains outerWidth/outerHeight patch"
-      (let [script (sut/stealth-init-script)]
-        (expect (str/includes? script "outerWidth"))
-        (expect (str/includes? script "outerHeight"))
-        (expect (str/includes? script "innerWidth"))))
-
-    (it "contains iframe contentWindow patch"
-      (let [script (sut/stealth-init-script)]
-        (expect (str/includes? script "HTMLIFrameElement"))
-        (expect (str/includes? script "contentWindow"))))))
+    (it "returns nil without a version"
+      (expect (nil? (sut/undetected-user-agent nil "Linux")))
+      (expect (nil? (sut/undetected-user-agent "" "Linux"))))))

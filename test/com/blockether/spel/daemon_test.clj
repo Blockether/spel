@@ -3068,3 +3068,55 @@
               (expect (not (str/includes? msg "NODE_OPTIONS")))
               (expect (not (str/includes? msg "cannot be cast"))))))
         (finally (reset! state-atom before))))))
+
+(defdescribe undetected-mode-test
+  "The --undetected daemon mode: Chromium only, headless user agent from the real version."
+
+  (describe "with-undetected-user-agent"
+    (it "sets a headed Chrome user agent from the browser version in headless mode"
+      (let [opts (#'sut/with-undetected-user-agent {:undetected true :headless true} {}
+                  (constantly "154.0.7720.3"))]
+        (expect (str/includes? (:user-agent opts) "Chrome/154.0.0.0"))
+        (expect (not (str/includes? (:user-agent opts) "Headless")))))
+
+    (it "keeps an explicit or device user agent and skips the version probe"
+      (let [!probed (atom false)
+            opts    (#'sut/with-undetected-user-agent {:undetected true :headless true}
+                     {:user-agent "UA"} #(reset! !probed true))]
+        (expect (= "UA" (:user-agent opts)))
+        (expect (false? @!probed))))
+
+    (it "changes nothing when headed or without --undetected"
+      (expect (= {} (#'sut/with-undetected-user-agent {:undetected true :headless false} {}
+                     (constantly "154"))))
+      (expect (= {} (#'sut/with-undetected-user-agent {:undetected false :headless true} {}
+                     (constantly "154"))))))
+
+  (describe "check-undetected-browser!"
+    (it "accepts Chromium"
+      (expect (nil? (#'sut/check-undetected-browser! {:undetected true} "chromium" nil))))
+
+    (it "rejects Firefox, WebKit and Lightpanda"
+      (doseq [[browser engine] [["firefox" nil] ["webkit" nil] ["chromium" "lightpanda"]]]
+        (let [ex (try (#'sut/check-undetected-browser! {:undetected true} browser engine)
+                      nil
+                      (catch clojure.lang.ExceptionInfo e e))]
+          (expect (some? ex))
+          (expect (str/includes? (ex-message ex) "--undetected supports only Chromium")))))
+
+    (it "allows every browser without --undetected"
+      (expect (nil? (#'sut/check-undetected-browser! {} "firefox" nil))))))
+
+(defdescribe undetected-channel-test
+  "Undetected mode runs the full Chromium build, not chromium-headless-shell."
+  (it "selects the chromium channel when no browser binary is chosen"
+    (expect (= "chromium" (:channel (#'sut/with-undetected-channel {:undetected true} {} {})))))
+
+  (it "keeps an explicit channel or executable path"
+    (expect (= "chrome" (:channel (#'sut/with-undetected-channel {:undetected true}
+                                    {"channel" "chrome"} {:channel "chrome"}))))
+    (expect (nil? (:channel (#'sut/with-undetected-channel {:undetected true}
+                              {"executable-path" "/opt/chrome"} {})))))
+
+  (it "changes nothing without --undetected"
+    (expect (= {} (#'sut/with-undetected-channel {} {} {})))))

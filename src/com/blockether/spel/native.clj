@@ -269,6 +269,7 @@
   (println "  --ignore-https-errors     Ignore HTTPS errors")
   (println "  --allow-file-access       Allow file:// access")
   (println "  --no-stealth              Disable stealth mode (stealth is ON by default)")
+  (println "  --undetected              Use the Patchright driver (Chromium only, no console capture)")
   (println "  --timeout <ms>            Playwright action timeout in ms (default: 10000)")
   (println "  --debug                   Debug output")
   (println "  --help, -h                Show this help")
@@ -603,7 +604,8 @@
      --headed           Run browser in headed mode (internal, set by --interactive)
      --headless         Run browser headless (default)
      --browser <type>   Browser engine: chromium, firefox, webkit (default: chromium)
-     --cdp <url>        Connect via Chrome DevTools Protocol"
+     --cdp <url>        Connect via Chrome DevTools Protocol
+     --undetected       Use the Patchright driver (Chromium only)"
   [args]
   (loop [remaining (normalize-args args)
          opts {:session "default" :headless true}]
@@ -628,6 +630,9 @@
 
           (str/starts-with? arg "--browser=")
           (recur (rest remaining) (assoc opts :browser (subs arg 10)))
+
+          (= "--undetected" arg)
+          (recur (rest remaining) (assoc opts :undetected true))
 
           (= "--cdp" arg)
           (recur (drop 2 remaining) (assoc opts :cdp (second remaining)))
@@ -1426,17 +1431,19 @@
 
       ;; Daemon mode (internal — started by CLI client)
       (= "daemon" first-arg)
-      (do (driver/ensure-driver!)
-        (let [opts (parse-daemon-args (rest cmd-args))
-                ;; parse-global-flags may have consumed --session/--browser/--headed
-                ;; before they reached cmd-args; prefer global values for the daemon.
-              opts (cond-> opts
-                     (:session global) (assoc :session (:session global))
-                     (:interactive? global) (assoc :headless false)
-                     (:cdp global) (assoc :cdp (:cdp global))
-                     (and (:browser global) (not (:browser opts)))
-                     (assoc :browser (:browser global)))]
-          (daemon/start-daemon! opts)))
+      (let [opts (parse-daemon-args (rest cmd-args))
+              ;; parse-global-flags may have consumed --session/--browser/--headed
+              ;; before they reached cmd-args; prefer global values for the daemon.
+            opts (cond-> opts
+                   (:session global) (assoc :session (:session global))
+                   (:interactive? global) (assoc :headless false)
+                   (:cdp global) (assoc :cdp (:cdp global))
+                   (and (:browser global) (not (:browser opts)))
+                   (assoc :browser (:browser global)))]
+        ;; Playwright Java runs one driver per process: choose it before the
+        ;; first Playwright/create of this daemon.
+        (driver/ensure-driver! {:undetected? (boolean (:undetected opts))})
+        (daemon/start-daemon! opts))
 
       ;; Eval mode — ensure driver in case the expression uses Playwright
       ;; Supports both inline code and .clj file paths:

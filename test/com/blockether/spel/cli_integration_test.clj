@@ -1403,8 +1403,26 @@
       (let [r (cmd "session_info" {})]
         (expect (= "integ-test" (:session r)))
         (expect (true? (:headless r)))
+        (expect (false? (:undetected r)))
         (expect (str/includes? (:url r) "/test-page"))
-        (expect (= "Test Page" (:title r)))))))
+        (expect (= "Test Page" (:title r)))))
+
+    (it "warns that console and page-error capture are off in undetected mode"
+      (nav! "/test-page")
+      (let [state-a (deref #'daemon/!state)]
+        (try
+          (swap! state-a assoc :undetected true)
+          (expect (str/includes? (str (:warning (cmd "console_get" {}))) "--undetected"))
+          (expect (str/includes? (str (:warning (cmd "errors_get" {}))) "--undetected"))
+          (expect (str/includes? (str (:warning (cmd "console_list" {}))) "--undetected"))
+          (expect (true? (:undetected (cmd "session_info" {}))))
+          (finally (swap! state-a assoc :undetected false)))))
+
+    (it "gives no capture warning with the Playwright driver"
+      (nav! "/test-page")
+      (expect (nil? (:warning (cmd "console_get" {}))))
+      (expect (nil? (:warning (cmd "errors_get" {}))))
+      (expect (nil? (:warning (cmd "console_list" {})))))))
 
 ;; Regression, Blockether/vis#227: session metadata echoed OAuth credentials.
 (defdescribe cdp-url-redaction-test

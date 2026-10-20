@@ -21,11 +21,17 @@
 
    Cache: ~/.cache/spel/<version>/<platform>/
 
+   The undetected variant (`spel --undetected`) replaces only the JS package
+   with com.blockether/spel-patchright-driver, a Maven repack of the npm
+   `patchright-core` package. The Node runtime still comes from driver-bundle.
+   Its cache is <cache-root>/patchright-<patchright-version>/<platform>/.
+
    Configuration (checked in order):
      1. playwright.cli.dir system property — points to pre-installed driver dir
      2. SPEL_DRIVER_DIR env var — overrides cache location
      3. Default: ~/.cache/spel/<version>/<platform>/"
   (:require
+   [clojure.edn :as edn]
    [clojure.java.io :as io]
    [clojure.string :as str]
    [clojure.tools.deps :as deps])
@@ -59,6 +65,17 @@
           not-empty)
       (throw (ex-info "Cannot determine Playwright version from classpath metadata"
                {:resource resource})))))
+
+(def patchright-lib
+  "Maven coordinate of the Patchright driver package for `--undetected`."
+  'com.blockether/spel-patchright-driver)
+
+(defn patchright-version
+  "Returns the pinned Patchright driver version from the spel resources."
+  []
+  (let [resource "com/blockether/spel/patchright-driver.edn"]
+    (or (some-> (io/resource resource) slurp edn/read-string :version not-empty)
+      (throw (ex-info "Cannot determine the Patchright driver version" {:resource resource})))))
 
 (def ^:private no-link-opts (into-array java.nio.file.LinkOption []))
 (def ^:private no-file-attrs (into-array FileAttribute []))
@@ -106,9 +123,14 @@
         (into-array String [".cache" "spel" (playwright-version)])))))
 
 (defn- driver-dir
-  "Returns the platform-specific driver directory."
-  ^Path []
-  (.resolve (cache-dir) ^String (platform-name)))
+  "Returns the platform-specific driver directory of a driver variant."
+  (^Path [] (driver-dir :playwright))
+  (^Path [variant]
+   (let [root (cache-dir)
+         base (case variant
+                :playwright root
+                :patchright (.resolve root (str "patchright-" (patchright-version))))]
+     (.resolve ^Path base ^String (platform-name)))))
 
 (defn- driver-ready-at?
   ^Boolean [^Path dir]
@@ -120,9 +142,9 @@
       (Files/exists pkg no-link-opts))))
 
 (defn driver-ready?
-  "Checks if the driver is already extracted and ready to use."
-  []
-  (driver-ready-at? (driver-dir)))
+  "Checks if the driver of a variant (:playwright by default) is ready to use."
+  ([] (driver-ready? :playwright))
+  ([variant] (driver-ready-at? (driver-dir variant))))
 
 (defn- artifact-lib
   "Returns the Maven coordinate symbol for a Playwright driver artifact."
@@ -130,23 +152,24 @@
   (symbol "com.microsoft.playwright" artifact))
 
 (defn- resolve-artifact-path
-  "Resolves a Playwright Maven artifact through Clojure's dependency resolver.
+  "Resolves a Maven artifact through Clojure's dependency resolver.
 
    This is intentionally not a hand-rolled HTTP GET: tools.deps is the same
    resolver the `clojure` CLI uses, so local Maven cache, :mvn/repos,
    corporate mirrors and ~/.m2/settings.xml are honoured. Returns the resolved
-   jar path in the local Maven repository."
-  ^Path [^String artifact]
-  (let [version (playwright-version)
-        lib     (artifact-lib artifact)
-        basis   (deps/create-basis {:project nil
-                                    :extra   {:deps {lib {:mvn/version version}}}})
-        path    (-> basis :libs (get lib) :paths first)]
-    (when-not path
-      (throw (ex-info (str "Could not resolve Playwright artifact " lib " " version
-                        " via Clojure's dependency resolver. Check Maven repositories / mirrors.")
-               {:lib lib :version version})))
-    (Paths/get ^String path (into-array String []))))
+   jar path in the local Maven repository. The one-argument form resolves a
+   Playwright artifact at the classpath Playwright version."
+  (^Path [^String artifact]
+   (resolve-artifact-path (artifact-lib artifact) (playwright-version)))
+  (^Path [lib ^String version]
+   (let [basis (deps/create-basis {:project nil
+                                   :extra   {:deps {lib {:mvn/version version}}}})
+         path  (-> basis :libs (get lib) :paths first)]
+     (when-not path
+       (throw (ex-info (str "Could not resolve artifact " lib " " version
+                         " via Clojure's dependency resolver. Check Maven repositories / mirrors.")
+                {:lib lib :version version})))
+     (Paths/get ^String path (into-array String [])))))
 
 ;; =============================================================================
 ;; Extract helpers
@@ -212,15 +235,15 @@
 ;; =============================================================================
 
 (defn- materialize-artifact!
-  "Copies an official Playwright Maven artifact into tmp-dir.
+  "Copies a Maven artifact into tmp-dir as <artifact-name>.jar.
 
    Resolves through tools.deps instead of hardcoding Maven Central, so corporate
    mirrors and ~/.m2/settings.xml are honoured. Returns the copied file path."
-  ^Path [^String artifact ^Path tmp-dir]
-  (let [dest   (.resolve tmp-dir (str artifact ".jar"))
-        source (resolve-artifact-path artifact)]
+  ^Path [lib ^String version ^Path tmp-dir]
+  (let [dest   (.resolve tmp-dir (str (name lib) ".jar"))
+        source (resolve-artifact-path lib version)]
     (binding [*out* *err*]
-      (println (str "  - " artifact " (resolved via tools.deps: " source ")")))
+      (println (str "  - " lib " " version " (resolved via tools.deps: " source ")")))
     (Files/createDirectories (.getParent dest) no-file-attrs)
     (Files/copy source dest
       ^"[Ljava.nio.file.CopyOption;"
@@ -238,15 +261,23 @@
   (extract-zip archive tmp-dir (str "driver/" (platform-name)))
   (set-executable! (.resolve tmp-dir ^String (node-binary-name))))
 
+(defn- package-coordinate
+  "Returns the [lib version] of the JS driver package of a variant."
+  [variant]
+  (case variant
+    :playwright [(artifact-lib "driver") (playwright-version)]
+    :patchright [patchright-lib (patchright-version)]))
+
 (defn- assemble-driver!
   "Assembles the driver into a temp directory under parent, then atomically
    moves it to the final cache location.
 
-   Uses the official Playwright Java Maven artifacts:
-     1. driver.jar         → package/ directory
+   Uses Maven artifacts:
+     1. the package jar    → package/ directory
+        (com.microsoft.playwright/driver, or the Patchright repack)
      2. driver-bundle.jar  → current platform node binary"
-  []
-  (let [dir    (driver-dir)
+  [variant]
+  (let [dir    (driver-dir variant)
         parent (.getParent dir)]
     (Files/createDirectories parent no-file-attrs)
     (let [^Path tmp-dir (Files/createTempDirectory
@@ -254,18 +285,18 @@
                           (str ".tmp-" (platform-name) "-")
                           no-file-attrs)]
       (try
-        (binding [*out* *err*]
-          (println (str "spel: assembling Playwright Java driver v" (playwright-version)
-                     " for " (platform-name) "...")))
-        (let [driver-jar (.resolve tmp-dir "driver.jar")
-              bundle-jar (.resolve tmp-dir "driver-bundle.jar")]
-          (materialize-artifact! "driver" tmp-dir)
-          (extract-driver-package! driver-jar tmp-dir)
-          (Files/deleteIfExists driver-jar)
+        (let [[pkg-lib pkg-version] (package-coordinate variant)]
+          (binding [*out* *err*]
+            (println (str "spel: assembling " (name variant) " driver v" pkg-version
+                       " for " (platform-name) "...")))
+          (let [package-jar (materialize-artifact! pkg-lib pkg-version tmp-dir)]
+            (extract-driver-package! package-jar tmp-dir)
+            (Files/deleteIfExists package-jar))
 
-          (materialize-artifact! "driver-bundle" tmp-dir)
-          (extract-node! bundle-jar tmp-dir)
-          (Files/deleteIfExists bundle-jar))
+          (let [bundle-jar (materialize-artifact! (artifact-lib "driver-bundle")
+                             (playwright-version) tmp-dir)]
+            (extract-node! bundle-jar tmp-dir)
+            (Files/deleteIfExists bundle-jar)))
 
         (when-not (driver-ready-at? tmp-dir)
           (throw (ex-info "Assembled driver is incomplete"
@@ -316,15 +347,21 @@
 (defn ensure-driver!
   "Ensures the Playwright Java Node.js driver is available locally.
 
-   Materializes it from the official Playwright Java Maven artifacts on first
-   use and sets the playwright.cli.dir system property so Playwright Java uses
-   the external driver instead of trying to extract from bundled resources.
+   Materializes it from Maven artifacts on first use and sets the
+   playwright.cli.dir system property so Playwright Java uses the external
+   driver instead of trying to extract from bundled resources.
+
+   With `{:undetected? true}`, uses the Patchright package. Playwright Java
+   starts one driver per process, so call this before the first
+   `Playwright/create` of the process.
 
    No-op if playwright.cli.dir is already set (for custom installations)."
-  []
-  ;; Respect pre-configured system property
-  (when-not (System/getProperty "playwright.cli.dir")
-    (when-not (driver-ready?)
-      (assemble-driver!))
-    (System/setProperty "playwright.cli.dir"
-      (.toString (driver-dir)))))
+  ([] (ensure-driver! {}))
+  ([{:keys [undetected?]}]
+   ;; Respect pre-configured system property
+   (when-not (System/getProperty "playwright.cli.dir")
+     (let [variant (if undetected? :patchright :playwright)]
+       (when-not (driver-ready? variant)
+         (assemble-driver! variant))
+       (System/setProperty "playwright.cli.dir"
+         (.toString (driver-dir variant)))))))

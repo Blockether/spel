@@ -79,6 +79,12 @@ jobs:
         if: runner.os != 'Linux'
         run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\"]))"
 
+      # `spel --undetected` resolves com.blockether/spel-patchright-driver through
+      # tools.deps. Build it from the pinned npm package into ~/.m2, so CI tests
+      # the pin of this commit before the release publishes it.
+      - name: Install Patchright driver artifact
+        run: clojure -T:build install-patchright-driver
+
       - name: Check Clojure syntax
         run: clojure -M -e "(println \"Syntax check passed\")"
 

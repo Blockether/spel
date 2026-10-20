@@ -1760,6 +1760,9 @@
      "  --load-state PATH       Load browser state (cookies/localStorage JSON, alias: --storage-state)"
      "  --profile PATH          Chrome user data directory (persistent profile)"
      "  --no-stealth            Disable stealth mode (stealth is ON by default)"
+     "  --undetected            Use the Patchright driver: no Runtime.enable leak (Chromium only;"
+     "                          console and page-error capture are not available)"
+     "  --no-undetected         Use the standard Playwright driver (default)"
      "  --extension PATH        Load Chrome extension (repeatable, Chromium-only)"
      "  --timeout MS            Command timeout in milliseconds"
      "  --debug                 Enable debug logging"
@@ -1797,6 +1800,7 @@
      "  SPEL_JSON                Set to \"true\" for JSON output"
      "  SPEL_TIMEOUT             Command timeout in milliseconds"
      "  SPEL_STEALTH             Set to \"false\" to disable stealth mode (ON by default)"
+     "  SPEL_UNDETECTED          Set to \"true\" to use the Patchright driver (--undetected)"
      "  SPEL_PROXY               Proxy server URL"
      "  SPEL_PROXY_BYPASS        Proxy bypass patterns"
      "  SPEL_HEADERS             Default HTTP headers (JSON)"
@@ -1897,6 +1901,8 @@
                        (assoc :debug true)
                        (= "false" (System/getenv "SPEL_STEALTH"))
                        (assoc :stealth false)
+                       (= "true" (System/getenv "SPEL_UNDETECTED"))
+                       (assoc :undetected true)
                        (System/getenv "SPEL_CDP")
                        (assoc :cdp (System/getenv "SPEL_CDP"))
                        (System/getenv "SPEL_BROWSER")
@@ -2057,6 +2063,12 @@
 
                 (= "--no-stealth" arg)
                 (recur (rest args) (assoc flags :stealth false) remaining)
+
+                (= "--undetected" arg)
+                (recur (rest args) (assoc flags :undetected true) remaining)
+
+                (= "--no-undetected" arg)
+                (recur (rest args) (assoc flags :undetected false) remaining)
 
                 (= "--extension" arg)
                 (recur (drop 2 args) (update flags :extensions (fnil conj []) (second args)) remaining)
@@ -3908,7 +3920,9 @@
                     (:channel opts)
                     (into ["--channel" (:channel opts)])
                     (:cdp opts)
-                    (into ["--cdp" (:cdp opts)]))
+                    (into ["--cdp" (:cdp opts)])
+                    (:undetected opts)
+                    (conj "--undetected"))
         pb        (driver/node-process-builder
                     (daemon-launch-command
                       {:native?   (native-image?)
@@ -3930,23 +3944,42 @@
         (log/error! "daemon did not become connectable within 30s: session=" session))
       ready?)))
 
+(defn daemon-restart-reason
+  "Returns why a running daemon must restart for a request, or nil.
+
+   `info` is the `session_info` data of the running daemon. A headed request
+   restarts a headless daemon. An explicit `:undetected` value restarts a
+   daemon that runs the other driver: Playwright Java fixes the driver for the
+   whole process."
+  [opts info]
+  (when info
+    (cond
+      (and (not (:headless opts true)) (:headless info))
+      :headed
+
+      (and (some? (:undetected opts))
+        (not= (boolean (:undetected opts)) (boolean (:undetected info))))
+      :undetected)))
+
 (defn ensure-daemon!
   "Ensures a daemon is running and responsive for the given session.
    Starts one if needed. Handles:
    - No daemon running → start fresh
    - Daemon running headless but --interactive requested → restart headed
    - Daemon already headed and --interactive requested → no-op (skip restart)
+   - Daemon on the other driver than --undetected / --no-undetected → restart
    - Stale daemon (process alive but socket broken) → kill and restart
    - Dead daemon (PID file exists but process gone) → clean up and restart"
   [session opts]
-  ;; If interactive mode requested and daemon is running, only restart if
-  ;; the daemon is currently headless. Skip restart if already headed.
-  (when (and (not (:headless opts true))
+  ;; Ask a running daemon for its mode only when the request needs a mode:
+  ;; a visible window or an explicit driver choice.
+  (when (and (or (not (:headless opts true)) (some? (:undetected opts)))
           (daemon/daemon-running? session)
           (socket-connectable? session))
     (let [resp (try (send-command! session {:action "session_info"} 5000)
                     (catch Exception _ nil))]
-      (when (get-in resp [:data :headless])
+      (when-let [reason (daemon-restart-reason opts (:data resp))]
+        (log/info! "restarting daemon: session=" session " reason=" (name reason))
         (restart-daemon! session))))
 
   ;; If daemon claims to be running, verify it's actually connectable
@@ -4012,6 +4045,13 @@
     (println (str indent (apply str (repeat rule-w "─"))))
     (doseq [row rows*]
       (println (str indent (render row))))))
+
+(defn- print-data-warning!
+  "Prints a daemon `:warning` to stderr, so stdout keeps only the data."
+  [data]
+  (when-let [warning (:warning data)]
+    (binding [*out* *err*]
+      (println (str "spel: warn: " warning)))))
 
 (defn- print-result*
   "Inner renderer — writes the raw (pre-security) output to *out*. Do not
@@ -4297,13 +4337,15 @@
 
           ;; Console messages
           (:messages data)
-          (doseq [m (:messages data)]
-            (println (str "[" (:type m) "] " (:text m))))
+          (do (print-data-warning! data)
+              (doseq [m (:messages data)]
+                (println (str "[" (:type m) "] " (:text m)))))
 
           ;; Errors
           (and (contains? data :errors) (sequential? (:errors data)))
-          (doseq [e (:errors data)]
-            (println (str "ERROR: " (:message e))))
+          (do (print-data-warning! data)
+              (doseq [e (:errors data)]
+                (println (str "ERROR: " (:message e)))))
 
           ;; Frames
           (:frames data)

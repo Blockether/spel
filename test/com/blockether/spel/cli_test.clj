@@ -1076,6 +1076,16 @@
       (let [f (flags ["--no-stealth" "open" "http://x.com"])]
         (expect (false? (:stealth f))))))
 
+  (describe "--undetected / --no-undetected flags"
+    (it "leaves the driver choice unset by default"
+      (expect (nil? (:undetected (flags ["open" "http://x.com"])))))
+
+    (it "--undetected selects the Patchright driver"
+      (expect (true? (:undetected (flags ["--undetected" "open" "http://x.com"])))))
+
+    (it "--no-undetected selects the Playwright driver"
+      (expect (false? (:undetected (flags ["--no-undetected" "open" "http://x.com"]))))))
+
   (describe "--load-state flag"
     (it "sets storage-state via --load-state"
       (let [f (flags ["--load-state" "/tmp/state.json" "open" "http://x.com"])]
@@ -3138,6 +3148,34 @@
                 {:native? true :exec-path "C:/tools/spel-windows-x64.exe"
                  :classpath "" :os-name "Windows 11"}
                 ["daemon"])))))
+
+(defdescribe daemon-restart-reason-test
+  "When a running daemon must restart for the requested browser mode."
+  (it "restarts a headless daemon for a headed request"
+    (expect (= :headed (sut/daemon-restart-reason {:headless false} {:headless true}))))
+
+  (it "restarts a daemon on the other driver for an explicit driver choice"
+    (expect (= :undetected
+              (sut/daemon-restart-reason {:undetected true} {:headless true :undetected false})))
+    (expect (= :undetected
+              (sut/daemon-restart-reason {:undetected false} {:headless true :undetected true}))))
+
+  (it "keeps the daemon when the driver choice is unset or already matches"
+    (expect (nil? (sut/daemon-restart-reason {} {:headless true :undetected true})))
+    (expect (nil? (sut/daemon-restart-reason {:undetected true} {:headless true :undetected true}))))
+
+  (it "keeps the daemon when its session info is unavailable"
+    (expect (nil? (sut/daemon-restart-reason {:undetected true :headless false} nil)))))
+
+(defdescribe native-daemon-args-test
+  "The daemon process reads its driver choice from its own arguments."
+  (it "parses --undetected"
+    (expect (true? (:undetected (#'com.blockether.spel.native/parse-daemon-args
+                                  ["--session" "s1" "--undetected"])))))
+
+  (it "uses the Playwright driver without --undetected"
+    (expect (nil? (:undetected (#'com.blockether.spel.native/parse-daemon-args
+                                 ["--session" "s1"]))))))
 
 ;; =============================================================================
 ;; Native dispatch — CLI-owned flags must not hide the command

@@ -2504,6 +2504,22 @@ OUT=$("$SPEL" --session "$ISO_A" --json health 2>&1)
 assert_jq_eq "isolation test leaves no stale A daemon" "$OUT" '.status' 'down'
 
 # =============================================================================
+# UNDETECTED MODE (48)
+# =============================================================================
+section "Undetected mode (48)"
+
+UND_SESSION="undetected-$$"
+OUT=$("$SPEL" --session "$UND_SESSION" --undetected --json open 'data:text/html,<body>u</body>' 2>&1)
+assert_jq_contains "undetected session opens a page" "$OUT" '.url' 'data:text/html'
+OUT=$("$SPEL" --session "$UND_SESSION" --json session 2>&1)
+assert_jq "session info reports undetected mode" "$OUT" '.undetected == true'
+OUT=$("$SPEL" --session "$UND_SESSION" --json eval-js 'navigator.webdriver' 2>&1)
+assert_jq "undetected mode hides navigator.webdriver" "$OUT" '.result == false'
+OUT=$("$SPEL" --session "$UND_SESSION" --json console 2>/dev/null)
+assert_jq_contains "undetected console output warns about capture" "$OUT" '.warning' 'undetected'
+"$SPEL" --session "$UND_SESSION" close >/dev/null 2>&1 || true
+
+# =============================================================================
 # DAEMON HEALTH, CANCEL, KILL (22)
 # =============================================================================
 section "Daemon health (22)"

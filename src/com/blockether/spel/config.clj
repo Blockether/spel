@@ -42,6 +42,7 @@
    "ignoreHttpsErrors"   :ignore-https-errors
    "allowFileAccess"     :allow-file-access
    "stealth"             :stealth
+   "undetected"          :undetected
    "extensions"          :extensions
    "timeout"             :timeout
    "storageState"        :storage-state
