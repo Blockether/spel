@@ -1,0 +1,30 @@
+## GET http://localhost:42623/health?i=371 → 200 OK
+
+### Timing
+Request started: 2026-10-20T20:00:52.808Z
+
+### Request Headers
+```
+referer: http://localhost:42623/health
+sec-ch-ua: "HeadlessChrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "Linux"
+user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36
+```
+
+### Response Headers
+```
+content-length: 15
+content-type: application/json
+date: Tue, 20 Oct 2026 20:00:53 GMT
+```
+
+### cURL
+```bash
+curl 'http://localhost:42623/health?i=371' \
+  -H 'referer: http://localhost:42623/health' \
+  -H 'sec-ch-ua: "HeadlessChrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Linux"' \
+  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36'
+```
