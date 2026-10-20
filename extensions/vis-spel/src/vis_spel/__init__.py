@@ -80,6 +80,9 @@ _PROTECTED = {
     "--profile",
     "--user-data-dir",
     "--executable-path",
+    "--channel",
+    "--undetected",
+    "--no-undetected",
     "--args",
     "--headed",
     "--headless",
@@ -93,6 +96,16 @@ _PROTECTED = {
     "--help",
     "-h",
 }
+_CHANNELS = (
+    "chrome",
+    "chrome-beta",
+    "chrome-dev",
+    "chrome-canary",
+    "msedge",
+    "msedge-beta",
+    "msedge-dev",
+    "msedge-canary",
+)
 _COMMANDS = {
     "click",
     "dblclick",
@@ -229,6 +242,11 @@ class Spel:
                 connection.execute(
                     "ALTER TABLE reservations ADD COLUMN undetected INTEGER NOT NULL DEFAULT 0"
                 )
+            if not any(
+                row["name"] == "channel"
+                for row in connection.execute("PRAGMA table_info(reservations)")
+            ):
+                connection.execute("ALTER TABLE reservations ADD COLUMN channel TEXT")
             connection.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS reservations_profile ON reservations(profile) WHERE profile IS NOT NULL"
             )
@@ -348,6 +366,17 @@ class Spel:
         headed: bool = False,
         profile: str | None = None,
         undetected: bool = False,
+        channel: Literal[
+            "chrome",
+            "chrome-beta",
+            "chrome-dev",
+            "chrome-canary",
+            "msedge",
+            "msedge-beta",
+            "msedge-dev",
+            "msedge-canary",
+        ]
+        | None = None,
     ) -> Reservation:
         """Reserve an exclusive named session without launching a browser.
 
@@ -368,6 +397,11 @@ class Spel:
         headless browser reports a normal Chrome user agent. Console and page-error
         capture are not available in this mode. Bot checks can still block datacenter
         IP addresses; a headed browser with a profile passes the most checks.
+
+        channel="chrome" launches the installed Google Chrome instead of the bundled
+        Chromium; "msedge" and the beta, dev and canary builds also work. That browser
+        must be installed on the host. Undetected mode passes the most bot checks with a
+        headed Chrome channel, because its version and user agent match a real browser.
         """
         if browser not in ("chromium", "firefox", "webkit", "lightpanda"):
             raise ValueError("browser must be chromium, firefox, webkit or lightpanda")
@@ -390,6 +424,11 @@ class Spel:
                 raise ValueError("Call spel.prepare_profile(name) before reserving it")
         if undetected and browser != "chromium":
             raise ValueError("undetected=True requires Chromium")
+        if channel is not None:
+            if browser != "chromium":
+                raise ValueError("A browser channel requires Chromium")
+            if channel not in _CHANNELS:
+                raise ValueError("channel must be one of " + ", ".join(_CHANNELS))
         installation = self.installed()
         if installation is None:
             raise SpelError(
@@ -417,7 +456,7 @@ class Spel:
         try:
             with self._db() as db:
                 db.execute(
-                    "INSERT INTO reservations (id,name,label,executable,browser,headed,profile,undetected) VALUES (?,?,?,?,?,?,?,?)",
+                    "INSERT INTO reservations (id,name,label,executable,browser,headed,profile,undetected,channel) VALUES (?,?,?,?,?,?,?,?,?)",
                     (
                         identifier,
                         name,
@@ -427,6 +466,7 @@ class Spel:
                         int(headed),
                         str(profile_path) if profile_path is not None else None,
                         int(undetected),
+                        channel,
                     ),
                 )
         except sqlite3.IntegrityError:
@@ -479,6 +519,8 @@ class Spel:
             flags += ["--profile", row["profile"]]
         if row["undetected"]:
             flags.append("--undetected")
+        if row["channel"] and not row["cdp"]:
+            flags += ["--channel", row["channel"]]
         if not diagnostic:
             with self._db() as db:
                 db.execute("UPDATE reservations SET started=1 WHERE id=?", (session,))
@@ -768,7 +810,7 @@ class Spel:
         installation = self.installed()
         with self._db() as db:
             rows = db.execute(
-                "SELECT label, browser, headed, cdp, profile, undetected, started FROM reservations ORDER BY label"
+                "SELECT label, browser, headed, cdp, profile, channel, undetected, started FROM reservations ORDER BY label"
             ).fetchall()
         return BrowserResult(
             "",
@@ -788,6 +830,7 @@ class Spel:
                         "profile": Path(row["profile"]).name
                         if row["profile"]
                         else None,
+                        "channel": row["channel"],
                         "undetected": bool(row["undetected"]),
                         "started": bool(row["started"]),
                     }

@@ -134,6 +134,30 @@ def test_undetected_reservation_passes_the_patchright_flag(client):
     spel.release(plain.id)
 
 
+def test_channel_reservation_launches_the_selected_browser_build(client):
+    spel, calls = client
+    with pytest.raises(ValueError, match="Chromium"):
+        spel.reserve(browser="firefox", channel="chrome")
+    with pytest.raises(ValueError, match="channel"):
+        spel.reserve(channel="safari")
+    assert not calls
+    with spel._db() as db:
+        db.execute("UPDATE installation SET version='0.9.47'")
+    lease = spel.reserve("branded", headed=True, undetected=True, channel="chrome")
+    plain = spel.reserve("plain")
+    Spel(spel._home).open(lease.id, "https://example.com/")
+    argv = calls[-1][1]
+    assert argv[argv.index("--channel") + 1] == "chrome"
+    assert "--undetected" in argv and "--headed" in argv
+    Spel(spel._home).open(plain.id, "https://example.com/")
+    assert "--channel" not in calls[-1][1]
+    rows = {row["label"]: row for row in spel.health().data["reservations"]}
+    assert rows["branded"]["channel"] == "chrome"
+    assert rows["plain"]["channel"] is None
+    spel.release(lease.id)
+    spel.release(plain.id)
+
+
 def test_managed_profiles_are_private_and_keep_existing_data(client):
     spel, calls = client
     prepared = spel.prepare_profile("work")
@@ -261,6 +285,8 @@ def test_argv_and_stdin_preserve_javascript(client):
         ["click", "--all-sessions"],
         ["get", "url", "--json"],
         ["tab", "list", "--provider=ios"],
+        ["click", "#go", "--channel", "msedge"],
+        ["click", "#go", "--no-undetected"],
     ],
 )
 def test_command_cannot_escape_reservation(client, arguments):
@@ -382,6 +408,7 @@ def test_health_without_session_reports_spel_and_reservations_without_ids(
             "headed": False,
             "cdp": False,
             "profile": None,
+            "channel": None,
             "undetected": False,
             "started": True,
         },
@@ -391,6 +418,7 @@ def test_health_without_session_reports_spel_and_reservations_without_ids(
             "headed": True,
             "cdp": False,
             "profile": "work",
+            "channel": None,
             "undetected": False,
             "started": False,
         },

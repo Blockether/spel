@@ -9,7 +9,7 @@ Requires Vis / `vis-agent` **0.2.45+**, Python 3.12+, Git and uv.
 Extensions run with your user permissions; review the source before using `--trust`.
 
 ```sh
-vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --version 0.1.19 --trust
+vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --version 0.1.20 --trust
 ```
 
 Start Vis or run `/reload`. The extension registers `spel.*` tools; it does not
@@ -26,7 +26,7 @@ Use the repository and project folder to manage installed versions:
 
 ```sh
 vis-agent extension versions Blockether/spel --subdirectory extensions/vis-spel
-vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.19 --trust
+vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.20 --trust
 # To roll back: vis-agent extension rollback Blockether/spel --subdirectory extensions/vis-spel --version 0.1.1 --trust
 ```
 
@@ -127,9 +127,21 @@ await spel.open(lease.id, "https://example.com/")
 
 Spel then uses its Patchright driver. Pages cannot see the CDP signals, and a
 headless browser reports a normal Chrome user agent. Console and page-error
-capture are not available in this mode. A headed browser with a managed
-profile passes the most bot checks. A datacenter IP address can still get a
+capture are not available in this mode. A datacenter IP address can still get a
 challenge: this mode changes the browser, not the network.
+
+The bundled Chromium is older than the current Chrome release, and some checks
+compare the versions. For the most checks passed, use the installed Google Chrome
+with a headed window:
+
+```python
+lease = await spel.reserve("research", headed=True, undetected=True, channel="chrome")
+```
+
+`channel` also accepts `msedge` and the `-beta`, `-dev` and `-canary` builds of
+Chrome and Edge. The browser must be installed on the same computer as Vis. On a
+server without a display, start Xvfb and set `DISPLAY` for Vis before you use
+`headed=True`.
 
 To combine Spel with another extension, call both tool sets from the same
 `python_execution` block, for example `spel.*` with `gh.*`. Vis Spel imports

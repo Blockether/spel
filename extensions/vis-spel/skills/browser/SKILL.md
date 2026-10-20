@@ -18,6 +18,7 @@ description: Use this skill when you need authorized browser navigation, CDP, sn
    authorized endpoint; never scan or discover endpoints automatically.
    For an authorized site that blocks automation, reserve Chromium with `undetected=True`
    (Spel 0.9.47+). It hides CDP automation signals but turns off console and error capture.
+   Add `headed=True, channel="chrome"` to use the installed Google Chrome; it passes the most checks.
 4. Open the URL, then snapshot before you click. Target the returned refs; snapshot again
    after navigation or a rerender. `command` takes an argv list; JavaScript and SCI have
    their own stdin tools. Read `spel.help("spel.command")` for action syntax and examples,
