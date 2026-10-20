@@ -110,6 +110,30 @@ def test_lightpanda_rejects_headed_profiles_and_external_cdp(client):
     spel.release(lease.id)
 
 
+def test_undetected_reservation_passes_the_patchright_flag(client):
+    spel, calls = client
+    with pytest.raises(ValueError, match="Chromium"):
+        spel.reserve(browser="firefox", undetected=True)
+    with spel._db() as db:
+        db.execute("UPDATE installation SET version='0.9.46'")
+    with pytest.raises(SpelError, match="Spel 0.9.47 or newer"):
+        spel.reserve(undetected=True)
+    assert not calls
+    with spel._db() as db:
+        db.execute("UPDATE installation SET version='0.9.47'")
+    lease = spel.reserve("stealthy", undetected=True)
+    plain = spel.reserve("plain")
+    Spel(spel._home).open(lease.id, "https://example.com/")
+    assert "--undetected" in calls[-1][1]
+    Spel(spel._home).open(plain.id, "https://example.com/")
+    assert "--undetected" not in calls[-1][1]
+    rows = {row["label"]: row for row in spel.health().data["reservations"]}
+    assert rows["stealthy"]["undetected"] is True
+    assert rows["plain"]["undetected"] is False
+    spel.release(lease.id)
+    spel.release(plain.id)
+
+
 def test_managed_profiles_are_private_and_keep_existing_data(client):
     spel, calls = client
     prepared = spel.prepare_profile("work")
@@ -358,6 +382,7 @@ def test_health_without_session_reports_spel_and_reservations_without_ids(
             "headed": False,
             "cdp": False,
             "profile": None,
+            "undetected": False,
             "started": True,
         },
         {
@@ -366,6 +391,7 @@ def test_health_without_session_reports_spel_and_reservations_without_ids(
             "headed": True,
             "cdp": False,
             "profile": "work",
+            "undetected": False,
             "started": False,
         },
     ]

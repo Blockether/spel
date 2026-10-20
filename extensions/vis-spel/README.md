@@ -113,6 +113,24 @@ Saving a profile does not make automation indistinguishable from a person,
 bypass a challenge, or guarantee that a site will keep a session active. Use
 only accounts and sites you are authorized to automate.
 
+### Reduce automation signals
+
+Some sites block a browser that shows automation signals, such as
+`navigator.webdriver` or the Chrome DevTools Protocol calls that Playwright
+makes. With **native Spel 0.9.47+**, reserve a Chromium session with
+`undetected=True`:
+
+```python
+lease = await spel.reserve("research", undetected=True)
+await spel.open(lease.id, "https://example.com/")
+```
+
+Spel then uses its Patchright driver. Pages cannot see the CDP signals, and a
+headless browser reports a normal Chrome user agent. Console and page-error
+capture are not available in this mode. A headed browser with a managed
+profile passes the most bot checks. A datacenter IP address can still get a
+challenge: this mode changes the browser, not the network.
+
 To combine Spel with another extension, call both tool sets from the same
 `python_execution` block, for example `spel.*` with `gh.*`. Vis Spel imports
 only the Vis SDK, not other extensions' code.

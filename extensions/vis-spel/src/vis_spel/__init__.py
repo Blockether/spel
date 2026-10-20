@@ -222,6 +222,13 @@ class Spel:
                 for row in connection.execute("PRAGMA table_info(reservations)")
             ):
                 connection.execute("ALTER TABLE reservations ADD COLUMN profile TEXT")
+            if not any(
+                row["name"] == "undetected"
+                for row in connection.execute("PRAGMA table_info(reservations)")
+            ):
+                connection.execute(
+                    "ALTER TABLE reservations ADD COLUMN undetected INTEGER NOT NULL DEFAULT 0"
+                )
             connection.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS reservations_profile ON reservations(profile) WHERE profile IS NOT NULL"
             )
@@ -340,6 +347,7 @@ class Spel:
         browser: Literal["chromium", "firefox", "webkit", "lightpanda"] = "chromium",
         headed: bool = False,
         profile: str | None = None,
+        undetected: bool = False,
     ) -> Reservation:
         """Reserve an exclusive named session without launching a browser.
 
@@ -354,6 +362,12 @@ class Spel:
         cannot be combined with CDP, which uses the context of an external browser
         instead. Keep the returned id. Holding the id allows a deliberate handover of
         control.
+
+        undetected=True uses Spel's Patchright driver (Spel 0.9.47+, Chromium only).
+        Pages then cannot see CDP automation leaks such as Runtime.enable, and a
+        headless browser reports a normal Chrome user agent. Console and page-error
+        capture are not available in this mode. Bot checks can still block datacenter
+        IP addresses; a headed browser with a profile passes the most checks.
         """
         if browser not in ("chromium", "firefox", "webkit", "lightpanda"):
             raise ValueError("browser must be chromium, firefox, webkit or lightpanda")
@@ -374,6 +388,8 @@ class Spel:
             profile_path = self._profile_path(profile)
             if not profile_path.is_dir():
                 raise ValueError("Call spel.prepare_profile(name) before reserving it")
+        if undetected and browser != "chromium":
+            raise ValueError("undetected=True requires Chromium")
         installation = self.installed()
         if installation is None:
             raise SpelError(
@@ -392,12 +408,16 @@ class Spel:
             map(int, installation.version.split("."))
         ) < (0, 9, 41):
             raise SpelError("Lightpanda requires Spel 0.9.41 or newer. Upgrade first.")
+        if undetected and tuple(map(int, installation.version.split("."))) < (0, 9, 47):
+            raise SpelError(
+                "undetected=True requires Spel 0.9.47 or newer. Upgrade first."
+            )
         identifier = uuid.uuid4().hex
         name = f"agent-{int(time.time())}-{identifier[:12]}"
         try:
             with self._db() as db:
                 db.execute(
-                    "INSERT INTO reservations (id,name,label,executable,browser,headed,profile) VALUES (?,?,?,?,?,?,?)",
+                    "INSERT INTO reservations (id,name,label,executable,browser,headed,profile,undetected) VALUES (?,?,?,?,?,?,?,?)",
                     (
                         identifier,
                         name,
@@ -406,6 +426,7 @@ class Spel:
                         browser,
                         int(headed),
                         str(profile_path) if profile_path is not None else None,
+                        int(undetected),
                     ),
                 )
         except sqlite3.IntegrityError:
@@ -456,6 +477,8 @@ class Spel:
             flags += ["--cdp", row["cdp"]]
         if row["profile"]:
             flags += ["--profile", row["profile"]]
+        if row["undetected"]:
+            flags.append("--undetected")
         if not diagnostic:
             with self._db() as db:
                 db.execute("UPDATE reservations SET started=1 WHERE id=?", (session,))
@@ -745,7 +768,7 @@ class Spel:
         installation = self.installed()
         with self._db() as db:
             rows = db.execute(
-                "SELECT label, browser, headed, cdp, profile, started FROM reservations ORDER BY label"
+                "SELECT label, browser, headed, cdp, profile, undetected, started FROM reservations ORDER BY label"
             ).fetchall()
         return BrowserResult(
             "",
@@ -765,6 +788,7 @@ class Spel:
                         "profile": Path(row["profile"]).name
                         if row["profile"]
                         else None,
+                        "undetected": bool(row["undetected"]),
                         "started": bool(row["started"]),
                     }
                     for row in rows
