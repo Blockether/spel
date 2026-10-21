@@ -21,14 +21,12 @@ Spel is a Clojure Playwright library with SCI and CLI/daemon surfaces. Implement
 - Playwright evaluation returns Java maps and lists, not Clojure maps and vectors.
 - Do not remove an unused public var only to satisfy lint; it can be API.
 
-## Fixing a reported bug: reproduce, RED, then GREEN
+## Fixing a reported bug: reproduce first
 
 - Reproduce first, from the report's steps, before you change the implementation. If it does not reproduce, that IS the finding: narrow or refute the report, and do not fix something adjacent.
 - Reproduce on the report's surface. A JVM-green reproduction proves nothing about a bug in the native `spel` binary: URL protocols, reflection and resources fail only there. Rebuild and drive the binary, or run `./test-cli.sh`, before you believe it.
-- Make the reproduction a suite test. See it **fail against the unfixed code** (RED) for the reported reason, not for a typo, a missing require or a different error. A regression test that nobody saw red proves nothing.
-- Then apply the fix and rerun the same test unchanged (GREEN). In a managed REPL: load the pre-fix namespace, run the test, keep the failure text, reload the fixed namespace, rerun. Report both. Narrow with `clojure -M:test -n com.blockether.spel.my-test` or `--var com.blockether.spel.my-test/my-test`.
-- Name the issue in a comment **on each regression test**: `;; Regression, issue #N: <what used to happen>` directly above the `defdescribe`/`it`/`deftest`, or a section banner with `(issue #N)`. Describe the wrong behavior, not what the code does now. After the merge, it is the only link back to the report.
-- Ship the fix and its test in the same commit. A fix without a red-then-green test is unfinished; do not commit it.
+- Run the same reproduction again after the fix, on the same surface. Report both results.
+- Add a regression test only where nearby tests show a place for it. Name the issue in its comment: `;; Regression, issue #N: <what used to happen>` above the `defdescribe`/`it`/`deftest`. Describe the wrong behavior, not what the code does now.
 
 ## Tests and generated files
 

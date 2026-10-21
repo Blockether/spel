@@ -21,7 +21,7 @@ Continue through verification, not just a plan or script. Ask only when intent c
 
 - **Explore/extract:** answer from observed page content; create files only for the requested deliverable.
 - **Automate:** run the flow and verify its observable result.
-- **Fix/test:** reproduce at the reported surface, keep a regression test and run it. Do not conceal failures with sleeps, inflated timeouts or removed assertions.
+- **Fix/test:** reproduce at the reported surface before the fix and again after it. Run the nearest existing tests. Do not conceal failures with sleeps, inflated timeouts or removed assertions.
 - **Bug report:** give reproduction, expected/actual behavior, impact and evidence; label unconfirmed findings.
 - **Formal report:** use bundled assets only when useful; resolve placeholders and verify artifact paths.
 
