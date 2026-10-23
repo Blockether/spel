@@ -1529,7 +1529,7 @@
           (try
             (let [info (core/cdp-send sess "Target.getTargetInfo")]
               (when-not (core/anomaly? info)
-                (let [tid (get-in (json/read-json (str info)) ["targetInfo" "targetId"])]
+                (let [tid (get-in info ["targetInfo" "targetId"])]
                   (when (string? tid)
                     (swap! !state update :cdp-tabs assoc p tid)
                     tid))))

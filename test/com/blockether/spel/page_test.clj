@@ -183,6 +183,53 @@
           (try
             (let [res (core/cdp-send sess "Page.getNavigationHistory")]
               (expect (not (anomaly/anomaly? res))))
+            (finally (core/cdp-detach! sess))))))
+
+    ;; Regression, user report: cdp-send sent every parameter value as a string, so
+    ;; CDP refused any command with a number or a boolean as "Invalid parameters".
+    (it "sends numbers and booleans with their JSON types and returns Clojure data"
+      (core/with-testing-page [pg]
+        (sut/navigate pg "data:text/html,<div style='height:5000px'>tall</div>")
+        (let [sess (sut/new-cdp-session pg)]
+          (try
+            (let [wheel  (core/cdp-send sess "Input.dispatchMouseEvent"
+                           {:type "mouseWheel" :x 20 :y 20 :deltaX 0 :deltaY 400})
+                  scroll (fn []
+                           (get-in (core/cdp-send sess "Runtime.evaluate"
+                                     {:expression "window.scrollY" :returnByValue true})
+                             ["result" "value"]))]
+              (expect (= {} wheel))
+              (expect (pos? (or (some (fn [_] (Thread/sleep 50) (let [y (scroll)] (when (pos? y) y)))
+                                  (range 40))
+                              0))))
+            (finally (core/cdp-detach! sess))))))
+
+    ;; Regression, user report: cdp-on handed the raw Gson object to the handler, so
+    ;; (get event "sessionId") was nil and a screencast stopped without its frame ack.
+    (it "hands cdp-on handlers the event as a map with string keys"
+      (core/with-testing-page [pg]
+        (sut/navigate pg "data:text/html,<h1>frames</h1>")
+        (let [sess   (sut/new-cdp-session pg)
+              frames (atom [])]
+          (try
+            (core/cdp-on sess "Page.screencastFrame"
+              (fn [event]
+                (swap! frames conj event)
+                (core/cdp-send sess "Page.screencastFrameAck" {:sessionId (get event "sessionId")})))
+            (core/cdp-send sess "Page.bringToFront")
+            (expect (= {} (core/cdp-send sess "Page.startScreencast"
+                            {:format "jpeg" :quality 30 :maxWidth 200 :everyNthFrame 1})))
+            ;; Chromium sends a frame only after a paint, so repaint until one arrives.
+            (expect (some (fn [i]
+                            (sut/evaluate pg (str "document.querySelector('h1').textContent = 'frame " i "'"))
+                            (Thread/sleep 50)
+                            (seq @frames))
+                      (range 200)))
+            (core/cdp-send sess "Page.stopScreencast")
+            (let [event (first @frames)]
+              (expect (map? event))
+              (expect (string? (get event "data")))
+              (expect (number? (get event "sessionId"))))
             (finally (core/cdp-detach! sess))))))))
 
 ;; =============================================================================

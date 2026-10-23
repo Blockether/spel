@@ -13,6 +13,7 @@
     
     Operations return anomaly maps by default. Use with-throw-on-error to propagate exceptions."
   (:require
+   [charred.api :as json]
    [clojure.java.io :as io]
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
@@ -32,7 +33,7 @@
     PlaywrightException Selectors TimeoutError Tracing Tracing$StartOptions Tracing$StopOptions Video]
    [com.microsoft.playwright.impl TargetClosedError]
    [com.microsoft.playwright.options FormData RequestOptions]
-   [com.google.gson JsonObject]))
+   [com.google.gson JsonElement JsonObject JsonParser]))
 
 ;; =============================================================================
 ;; Event handler safety
@@ -2685,23 +2686,35 @@
 ;; CDPSession
 ;; =============================================================================
 
+(defn- ->cdp-params
+  "Encodes CDP parameters as a Gson object. Numbers, booleans, nested maps and
+   vectors keep their JSON types: CDP rejects a number that arrives as a string."
+  ^JsonObject [params]
+  (if (instance? JsonObject params)
+    params
+    (.getAsJsonObject (JsonParser/parseString (json/write-json-str params)))))
+
+(defn- cdp->clj
+  "Converts a Gson CDP payload to Clojure data with string keys, as CDP names them."
+  [^JsonElement element]
+  (when element
+    (json/read-json (.toString element))))
+
 (defn cdp-send
   "Sends a Chrome DevTools Protocol command.
    
    Params:
    `session` - CDPSession instance.
    `method`  - String. CDP method name.
-   `params`  - Map, optional. CDP parameters.
+   `params`  - Map, optional. CDP parameters. Keys are keywords or strings;
+               values keep their JSON types.
    
    Returns:
-   JSON result or anomaly map."
+   The result as a map with string keys, or an anomaly map."
   ([^CDPSession session ^String method]
-   (safe (.send session method)))
+   (safe (cdp->clj (.send session method))))
   ([^CDPSession session ^String method params]
-   (let [json-obj (JsonObject.)]
-     (doseq [[k v] params]
-       (.addProperty json-obj (name k) (str v)))
-     (safe (.send session method json-obj)))))
+   (safe (cdp->clj (.send session method (->cdp-params params))))))
 
 (defn cdp-detach!
   "Detaches the CDP session.
@@ -2717,11 +2730,11 @@
    Params:
    `session` - CDPSession instance.
    `event`   - String. Event name.
-   `handler` - Function that receives the event data."
+   `handler` - Function that receives the event data as a map with string keys."
   [^CDPSession session ^String event handler]
   (.on session event
     (reify java.util.function.Consumer
-      (accept [_ data] (handler data)))))
+      (accept [_ data] (handler (cdp->clj data))))))
 
 ;; =============================================================================
 ;; Tracing
