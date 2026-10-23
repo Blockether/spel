@@ -1,0 +1,44 @@
+## GET https://example.org/ → 200 
+
+### Timing
+Request started: 2026-10-23T21:27:05.266Z
+
+### Request Headers
+```
+sec-ch-ua: "HeadlessChrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "Linux"
+upgrade-insecure-requests: 1
+user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36
+```
+
+### Response Headers
+```
+age: 1196
+allow: GET, HEAD
+alt-svc: h3=":443"; ma=86400
+cache-control: max-age=14400
+cf-cache-status: HIT
+cf-ray: a4f3d2e17a616d20-LAX
+content-encoding: br
+content-type: text/html; charset=utf-8
+date: Fri, 23 Oct 2026 21:27:05 GMT
+last-modified: Wed, 21 Oct 2026 19:59:02 GMT
+server: cloudflare
+```
+
+### Response Body
+```html
+<!doctype html><html lang=en><head><meta charset=utf-8><link rel=icon href=data:,><meta name=viewport content="width=device-width,initial-scale=1"><title>Example Domain</title><style>html{color-scheme:light dark;background:light-dark(#eee,#222)}body{font:16px/1.6 system-ui,sans-serif;max-width:26em;margin:auto;padding:25vh 2em 2em;text-align:center}</style></head><body><p>This domain is for use in documentation examples without needing permission. This is not a service; avoid relying on it for testing and monitoring purposes.</p><script src=/s.js></script></body></html>
+
+```
+
+### cURL
+```bash
+curl 'https://example.org/' \
+  -H 'sec-ch-ua: "HeadlessChrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Linux"' \
+  -H 'upgrade-insecure-requests: 1' \
+  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36'
+```
