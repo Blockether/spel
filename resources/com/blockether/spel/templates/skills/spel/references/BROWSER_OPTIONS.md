@@ -208,10 +208,15 @@ Wrapped functions return value on success, anomaly map on failure. Check with `a
 (page/clock-pause-at!        (page/page-clock pg) "2024-01-01")
 (page/clock-resume!          (page/page-clock pg))
 
-;; CDP (Chromium only)
-(let [session (core/cdp-send pg "Runtime.evaluate" {:expression "1+1"})])
-;; core/cdp-on session "Network.requestWillBeSent" handler
-;; core/cdp-detach! session
+;; CDP (Chromium only). Params keep their JSON types; results and events are
+;; maps with string keys, as CDP names them.
+(let [session (page/new-cdp-session pg)]
+  (core/cdp-on session "Network.requestWillBeSent"
+    (fn [event] (println (get-in event ["request" "url"]))))
+  (core/cdp-send session "Network.enable")
+  (get-in (core/cdp-send session "Runtime.evaluate" {:expression "1+1" :returnByValue true})
+    ["result" "value"])  ;; => 2
+  (core/cdp-detach! session))
 
 ;; Video object
 (let [v (page/video pg)]
