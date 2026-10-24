@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.48] - 2026-10-24
+
+### Changed
+- fix(cdp): keep JSON types in cdp-send and convert payloads
+- docs(agents): reproduce bugs without forced RED/GREEN tests
+- chore(vis-spel): release v0.1.20
+- feat(vis-spel): choose the browser channel of a reservation
+- chore(vis-spel): release v0.1.19
+
+
 ## [v0.9.47] - 2026-10-20
 
 ### Changed
@@ -1939,7 +1949,7 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.47...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.48...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -2041,3 +2051,4 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 [v0.9.45]: https://github.com/Blockether/spel/releases/tag/v0.9.45
 [v0.9.46]: https://github.com/Blockether/spel/releases/tag/v0.9.46
 [v0.9.47]: https://github.com/Blockether/spel/releases/tag/v0.9.47
+[v0.9.48]: https://github.com/Blockether/spel/releases/tag/v0.9.48
