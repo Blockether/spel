@@ -242,6 +242,30 @@ jobs:
           check "#144 the daemon is gone after close" "$out" "$s: down*"
           exit "$failed"
 
+      # Regression, issue #144: Windows quotes an executable path that holds a
+      # space. Start the daemon from such a path, in PowerShell like the report.
+      - name: CLI regression tests (Windows, PowerShell, path with a space)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'spel dir'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $spel = Join-Path $dir 'spel.exe'
+          Copy-Item target/spel.exe $spel
+          $s = "ci-pwsh-$env:GITHUB_RUN_ID"
+          $failed = 0
+          function Check($name, $got, $pattern) {
+            if ($got -like $pattern) { "ok   $name" } else { "FAIL ${name}: got [$got]"; $script:failed = 1 }
+          }
+          & $spel --session $s open 'https://example.com/?a=1' | Out-Null
+          Check '#143 open keeps a URL with a scheme and a query' ((& $spel --session $s get url) -join "`n") 'https://example.com/`?a=1'
+          Get-CimInstance Win32_Process -Filter "Name='spel.exe'" |
+            Where-Object CommandLine -like '* daemon *' | ForEach-Object { "daemon: $($_.ProcessId) $($_.CommandLine)" }
+          Check '#144 health verifies the daemon at a quoted path' ((& $spel --session $s health) -join "`n") "${s}: ok*"
+          Check '#144 close stops the daemon at a quoted path' ((& $spel --session $s close) -join "`n") "${s}: closed*"
+          Check '#144 the daemon is gone after close' ((& $spel --session $s health) -join "`n") "${s}: down*"
+          exit $failed
+
       - name: Upload spel binary (Unix)
         if: runner.os != 'Windows'
         uses: actions/upload-artifact@v7
