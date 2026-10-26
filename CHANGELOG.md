@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.49] - 2026-10-26
+
+### Changed
+- ci(windows): give the PowerShell check a Windows browsers path
+- ci(windows): check a quoted daemon path from PowerShell, #144
+- fix(windows): open URLs and verify daemon identity, #143 #144
+- ci(windows): check open URLs and daemon identity, #143 #144
+- chore(vis-spel): release v0.1.21
+- docs(cdp): open a CDP session before cdp-send in the skill
+
+
 ## [v0.9.48] - 2026-10-24
 
 ### Changed
@@ -1949,7 +1960,7 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.48...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.49...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -2052,3 +2063,4 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 [v0.9.46]: https://github.com/Blockether/spel/releases/tag/v0.9.46
 [v0.9.47]: https://github.com/Blockether/spel/releases/tag/v0.9.47
 [v0.9.48]: https://github.com/Blockether/spel/releases/tag/v0.9.48
+[v0.9.49]: https://github.com/Blockether/spel/releases/tag/v0.9.49
