@@ -216,6 +216,32 @@ jobs:
           target/spel.exe -h
           echo "=== All CLI smoke tests passed ==="
 
+      # Regression, issues #143 and #144: on Windows `spel open https://…` threw
+      # InvalidPathException, and `health`/`close` called the session's own
+      # daemon an unrelated process. Every check runs, then the step fails.
+      - name: CLI regression tests (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          s="ci-win-$GITHUB_RUN_ID"
+          failed=0
+          check() {
+            if [[ "$2" == $3 ]]; then echo "ok   $1"; else echo "FAIL $1: got [$2]"; failed=1; fi
+          }
+          out=$(target/spel.exe --session "$s" open "https://example.com/?a=1" 2>&1 | tr -d '\r') || true
+          url=$(target/spel.exe --session "$s" get url 2>&1 | tr -d '\r') || true
+          check "#143 open keeps a URL with a scheme and a query" "$url" "https://example.com/?a=1"
+          out=$(target/spel.exe --session "$s" open "example.com/?b=2" 2>&1 | tr -d '\r') || true
+          url=$(target/spel.exe --session "$s" get url 2>&1 | tr -d '\r') || true
+          check "#143 open adds https to a bare host with a query" "$url" "https://example.com/?b=2"
+          out=$(target/spel.exe --session "$s" health 2>&1 | tr -d '\r') || true
+          echo "$out"
+          check "#144 health verifies the session's own daemon" "$out" "$s: ok*"
+          out=$(target/spel.exe --session "$s" close 2>&1 | tr -d '\r') || true
+          check "#144 close stops the session's own daemon" "$out" "$s: closed*"
+          out=$(target/spel.exe --session "$s" health 2>&1 | tr -d '\r') || true
+          check "#144 the daemon is gone after close" "$out" "$s: down*"
+          exit "$failed"
+
       - name: Upload spel binary (Unix)
         if: runner.os != 'Windows'
         uses: actions/upload-artifact@v7
