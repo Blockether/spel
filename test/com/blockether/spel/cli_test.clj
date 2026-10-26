@@ -236,6 +236,14 @@
         (expect (= "example.org" (:raw-input c)))
         (expect (= "https://example.org" (:url c)))))
 
+    ;; Regression, issue #143: on Windows a URL with a scheme or a query string
+    ;; threw InvalidPathException, because it went through Path/of first.
+    (it "keeps a URL with a scheme and a query string"
+      (expect (= "https://example.com/?a=1" (:url (cmd ["open" "https://example.com/?a=1"])))))
+
+    (it "adds https to a bare host with a query string"
+      (expect (= "https://example.com/?a=1" (:url (cmd ["open" "example.com/?a=1"])))))
+
     (it "parses open with no URL"
       (let [c (cmd ["open"])]
         (expect (= "navigate" (:action c)))
@@ -2883,6 +2891,12 @@
       (expect (= "w2" (:session (sut/daemon-process-entry
                                   50 "C:\\\\dl\\\\spel-windows-x64.exe daemon --session w2")))))
 
+    ;; Regression, issue #144: on Windows health called the session's own daemon
+    ;; an unrelated process. Windows quotes an executable path with a space.
+    (it "matches a quoted Windows path that holds a space"
+      (expect (= "w3" (:session (sut/daemon-process-entry
+                                  53 "\"C:\\Users\\Jan Nowak\\bin\\spel.exe\" daemon --session w3")))))
+
     (it "matches a release asset invoked with --session before the subcommand"
       (expect (= "a3" (:session (sut/daemon-process-entry
                                   51 "/tmp/dl/spel-linux-x64 --session a3 daemon"))))))
@@ -2899,6 +2913,10 @@
     (it "leaves an unrelated process that merely says daemon alone"
       (expect (nil? (sut/daemon-process-entry
                       46 "node /some/daemon-runner --session foo"))))
+
+    (it "leaves a quoted Windows CLIENT invocation alone"
+      (expect (nil? (sut/daemon-process-entry
+                      54 "\"C:\\Program Files\\spel\\spel.exe\" --session victim open https://example.com"))))
 
     (it "leaves a release-asset CLIENT invocation alone"
       (expect (nil? (sut/daemon-process-entry

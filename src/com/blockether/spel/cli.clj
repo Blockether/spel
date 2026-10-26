@@ -57,12 +57,15 @@
     (str/starts-with? s "localhost")))
 
 (defn- navigation-url
-  "Preserves supported URLs, resolves existing files, and defaults to HTTPS."
+  "Preserves supported URLs, resolves existing files, and defaults to HTTPS.
+
+   The scheme check comes before any path check. On Windows `Path/of` throws
+   for `:` outside a drive prefix and for `?`, so `https://example.com` and
+   `example.com/?a=1` failed before navigation (issue #143). A string that is
+   not a valid path is not a file, so it is a URL."
   [raw-url]
   (when raw-url
-    (let [local-path (Path/of raw-url (into-array String []))]
-      (cond
-        (or (str/starts-with? raw-url "http://")
+    (if (or (str/starts-with? raw-url "http://")
           (str/starts-with? raw-url "https://")
           (str/starts-with? raw-url "file://")
           (str/starts-with? raw-url "data:")
@@ -70,13 +73,13 @@
           (str/starts-with? raw-url "chrome:")
           (str/starts-with? raw-url "javascript:")
           (str/starts-with? raw-url "blob:"))
-        raw-url
-
-        (.isFile (.toFile local-path))
-        (str (.toUri (.normalize (.toAbsolutePath local-path))))
-
-        :else
-        (str "https://" raw-url)))))
+      raw-url
+      (let [local-path (try
+                         (Path/of raw-url (into-array String []))
+                         (catch java.nio.file.InvalidPathException _ nil))]
+        (if (and local-path (.isFile (.toFile ^Path local-path)))
+          (str (.toUri (.normalize (.toAbsolutePath ^Path local-path))))
+          (str "https://" raw-url))))))
 
 ;; =============================================================================
 ;; Per-Command Help
@@ -3733,6 +3736,87 @@
            (when hint   [(str "  hint:      " hint)]))
       (str/join "\n"))))
 
+(def ^:private windows-os?
+  "Whether this OS is Windows, where the JDK reports no process arguments."
+  (str/starts-with? (str/lower-case (System/getProperty "os.name" "")) "windows"))
+
+(defonce ^:private !windows-command-lines (atom nil))
+
+(def ^:private windows-command-lines-ttl-ms
+  "How long one CIM query answers command-line lookups. A pid that is missing
+   from the query, such as a daemon that started after it, starts a new query."
+  5000)
+
+(def ^:private windows-command-lines-script
+  "PowerShell that prints `<pid><TAB><command line>` for every process."
+  (str "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)\n"
+    "Get-CimInstance Win32_Process | ForEach-Object {\n"
+    "  [string]$_.ProcessId + [char]9 + ([string]$_.CommandLine -replace '[\\r\\n]+', ' ')\n"
+    "}\n"))
+
+(defn- query-windows-command-lines
+  "Reads every process's command line from CIM (`Win32_Process`).
+
+   Returns a map of pid to command line (nil when CIM hides it), or nil when
+   the query fails. The failure goes to the log."
+  []
+  (let [^Path out (Files/createTempFile "spel-cim-" ".txt"
+                    (make-array java.nio.file.attribute.FileAttribute 0))]
+    (try
+      (let [root    (or (System/getenv "SystemRoot") "C:\\Windows")
+            ps-file (io/file root "System32" "WindowsPowerShell" "v1.0" "powershell.exe")
+            ps      (if (.isFile ps-file) (.getPath ps-file) "powershell.exe")
+            encoded (.encodeToString (java.util.Base64/getEncoder)
+                      (.getBytes ^String windows-command-lines-script
+                        java.nio.charset.StandardCharsets/UTF_16LE))
+            ^java.util.List argv [ps "-NoProfile" "-NonInteractive" "-EncodedCommand" encoded]
+            pb      (doto (ProcessBuilder. argv)
+                      (.redirectErrorStream true)
+                      (.redirectOutput (.toFile out)))
+            proc    (.start pb)]
+        (.close (.getOutputStream proc))
+        (if-not (.waitFor proc 20 java.util.concurrent.TimeUnit/SECONDS)
+          (do (.destroyForcibly proc)
+            (log/warn! "windows command lines: CIM query timed out after 20s")
+            nil)
+          (let [text (String. (Files/readAllBytes out)
+                       java.nio.charset.StandardCharsets/UTF_8)]
+            (if (zero? (.exitValue proc))
+              (into {}
+                (keep (fn [line]
+                        (when-let [[_ pid cmd] (re-matches #"(\d+)\t(.*)" (str/trim-newline line))]
+                          [(Long/parseLong pid) (not-empty (str/trim cmd))])))
+                (str/split-lines text))
+              (do (log/warn! "windows command lines: CIM query exited " (.exitValue proc)
+                    ": " (subs text 0 (min 500 (count text))))
+                nil)))))
+      (catch Exception e
+        (log/warn! "windows command lines: CIM query failed: " e)
+        nil)
+      (finally
+        (try
+          (Files/deleteIfExists out)
+          (catch Exception e
+            (log/warn! "windows command lines: cannot delete " out ": " e)))))))
+
+(defn- windows-command-line
+  "The command line of process `pid` on Windows, or nil.
+
+   The JDK fills only the executable on Windows: `ProcessHandle.Info` has no
+   arguments there, so `commandLine` is always empty. A live daemon then never
+   showed `daemon --session <name>`, health called the session's own daemon
+   an unrelated process, and close refused to stop it (issue #144). CIM keeps
+   the whole command line, and one query answers many lookups."
+  ^String [pid]
+  (let [{:keys [at table]} @!windows-command-lines
+        fresh? (and at (< (- (System/currentTimeMillis) (long at))
+                         (long windows-command-lines-ttl-ms)))]
+    (if (and fresh? (or (nil? table) (contains? table pid)))
+      (get table pid)
+      (let [table (query-windows-command-lines)]
+        (reset! !windows-command-lines {:at (System/currentTimeMillis) :table table})
+        (get table pid)))))
+
 (def ^:private proc-cmdline-os?
   "Whether this OS keeps a process's whole argv in /proc/<pid>/cmdline."
   (str/starts-with? (str/lower-case (System/getProperty "os.name" "")) "linux"))
@@ -3744,8 +3828,9 @@
    fixed-size read of /proc/<pid>/cmdline, while a daemon started from a JVM
    carries 7288 characters of classpath before its `--session <name>` (measured
    here), so the part that names the session never arrives and the daemon looks
-   like a bystander. The kernel keeps the whole argv; macOS and Windows have no
-   such limit and answer through the JDK (issue #132).
+   like a bystander. The kernel keeps the whole argv (issue #132). Windows
+   gives the JDK no arguments at all, so CIM answers there (issue #144). macOS
+   answers through the JDK.
 
    Params:
    `ph` - ProcessHandle to describe.
@@ -3762,6 +3847,8 @@
                 str/trim
                 not-empty)))
           (catch Exception _ nil)))
+    (when windows-os?
+      (windows-command-line (.pid ph)))
     (let [cl (.commandLine (.info ph))]
       (when (.isPresent cl) (str (.get cl))))))
 
@@ -3774,11 +3861,13 @@
    subcommand is what separates them. The executable's file name is NOT a
    reliable marker: release assets are published as `spel-macos-arm64`,
    `spel-windows-x64.exe` and friends, so a daemon started from a downloaded
-   asset used to look like a bystander and was refused instead of killed."
+   asset used to look like a bystander and was refused instead of killed.
+   Windows quotes an executable path that holds a space, so a closing quote
+   can follow the file name."
   [pid ^String cmd]
   (when (and cmd
           (str/includes? cmd "--session")
-          (or (re-find #"(?:^|\s)(?:\S*[/\\\\])?spel(?:-[\w.-]+)?(?:\.exe)?\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)
+          (or (re-find #"(?:^|\s)(?:\S*[/\\\\])?spel(?:-[\w.-]+)?(?:\.exe)?\"?\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)
             (re-find #"com\.blockether\.spel\.native\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)))
     {:pid     (str pid)
      :session (second (re-find #"--session[\s=]+(\S+)" cmd))}))
