@@ -1,0 +1,5 @@
+Blockether report generated: /tmp/spel-139-4996785416548712640/report/index.html
+  1 tests: 0 passed, 1 failed, 0 broken, 0 skipped
+  Duration: 0.0s
+  Pass rate: 0%
+  Started: 1970-01-01 00:00:00
