@@ -248,6 +248,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          # The job-wide value is a Git Bash path (/c/Users/...); PowerShell needs the Windows form.
+          $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $env:USERPROFILE '.cache\ms-playwright'
           $dir = Join-Path $env:RUNNER_TEMP 'spel dir'
           New-Item -ItemType Directory -Force $dir | Out-Null
           $spel = Join-Path $dir 'spel.exe'
