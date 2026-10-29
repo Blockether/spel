@@ -1,1 +1,0 @@
-{"id":"2d30f4dfbfabdc18b1aba8c4a806ce5b","fullName":"com.blockether.spel.ios-test.native gestures reuse the window size until the device rotates.reads it again after a rotation","name":"native gestures reuse the window size until the device rotates > reads it again after a rotation","status":"passed","testResultsByEnv":{"default":"3c96bf3ac3fbc3c6d2be1173b16de6d6"}}

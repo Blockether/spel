@@ -1,8 +1,0 @@
-[PAGEERROR] Error: mapped
-Error: mapped
-    at window.makeError (http://127.0.0.1:35283/glms/app.cljs:10:1)
-    at http://127.0.0.1:35283/glms/app.cljs:10:1
-[PAGEERROR] Error: mapped
-Error: mapped
-    at window.makeError (http://127.0.0.1:35283/glms/app.cljs:10:1)
-    at http://127.0.0.1:35283/glms/app.cljs:10:1
