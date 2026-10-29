@@ -179,7 +179,7 @@
       "  -C, --cursor         Include cursor/pointer elements"
       "  -F, --flat           Flat output (no nesting, all elements at same level)"
       "  -d, --depth N        Limit tree depth to N levels"
-      "  -s, --selector SEL   Scope snapshot to CSS selector"
+      "  -s, --selector SEL   Scope snapshot to CSS selector (alias: --scope)"
       "  -a, --all            Include all iframes in snapshot"
       "  -S, --styles         Include computed CSS styles per element"
       "      --minimal        Styles: 16 core properties (with -S)"
@@ -538,7 +538,7 @@
       "  --dimensions, --dims      Add WxH to each mark"
       "  --no-boxes                Hide bounding boxes"
       "  --text                    Also mark text containers (off by default)"
-      "  -s, --scope SEL           Scope annotations to selector"])
+      "  -s, --scope SEL           Scope annotations to selector (alias: --selector)"])
 
    "unannotate"
    (str/join \newline
@@ -629,7 +629,7 @@
       "  spel inspect --max -s \"#main\""
       ""
       "Flags:"
-      "  -s, --scope SEL            Scope inspect snapshot to selector"
+      "  -s, --scope SEL            Scope inspect snapshot to selector (alias: --selector)"
       "  --minimal                  Use minimal style detail"
       "  --max                      Use max style detail"])
 
@@ -652,7 +652,7 @@
       "  --dimensions, --dims      Add WxH to each mark"
       "  --no-boxes                Hide bounding boxes"
       "  --text                    Also mark text containers (off by default)"
-      "  -s, --scope SEL           Scope overview annotations to selector"])
+      "  -s, --scope SEL           Scope overview annotations to selector (alias: --selector)"])
 
    "debug"
    (str/join \newline
@@ -1849,6 +1849,24 @@
     (str/starts-with? arg "\u2013") (str "--" (subs arg 1))
     :else arg))
 
+(def ^:private scope-flags
+  "Flags that name the subtree a command reads. Commands named this flag
+   `--selector` or `--scope`, so each one accepts every name (issue #147)."
+  ["-s" "--scope" "--selector"])
+
+(defn- assoc-flag-value
+  "Assocs `k` with the value after any flag of `names` in `cmd-args`. When the
+   flags give different values, assocs :error instead: the target would be
+   ambiguous. A flag without a value adds nothing."
+  [m cmd-args names k]
+  (let [args   (vec cmd-args)
+        values (distinct (keep-indexed (fn [^long i arg] (when (some #{arg} names) (get args (inc i)))) args))]
+    (cond
+      (empty? values) m
+      (next values)   (assoc m :error (str "Conflicting values for " (str/join ", " names) ": "
+                                        (str/join ", " values)))
+      :else           (assoc m k (first values)))))
+
 (defn parse-args
   "Parses CLI argv into a command map suitable for sending to the daemon.
 
@@ -2319,15 +2337,8 @@
                                              (try (Integer/parseInt (nth cmd-args (inc idx)))
                                                   (catch Exception _ nil)))))
                          ;; Parse -s <sel>
-                           (some #{"-s" "--selector"} cmd-args)
-                           (assoc :selector (let [v    (vec cmd-args)
-                                                  idx1 (long (.indexOf ^java.util.List v "-s"))
-                                                  idx2 (long (.indexOf ^java.util.List v "--selector"))
-                                                  idx  (long (cond (>= idx1 0) idx1
-                                                                   (>= idx2 0) idx2
-                                                                   :else -1))]
-                                              (when (>= idx 0)
-                                                (nth cmd-args (inc idx) nil))))
+                           true
+                           (assoc-flag-value cmd-args scope-flags :selector)
                          ;; Parse --max-nodes <n>: the capture's own element budget.
                            (some #{"--max-nodes"} cmd-args)
                            (assoc :max_nodes (let [v   (vec cmd-args)
@@ -2549,11 +2560,8 @@
                          (some #{"--text"} cmd-args)
                          (assoc :show-text true)
                          ;; Parse -s <selector-or-ref>
-                         (some #{"-s" "--scope"} cmd-args)
-                         (assoc :selector (let [idx (long (or (.indexOf ^java.util.List (vec cmd-args) "-s")
-                                                            (.indexOf ^java.util.List (vec cmd-args) "--scope")))]
-                                            (when (>= idx 0)
-                                              (nth cmd-args (inc idx) nil)))))
+                         true
+                         (assoc-flag-value cmd-args scope-flags :selector))
 
           ;; Unannotate (remove overlays from the page)
             "unannotate" {:action "unannotate"}
@@ -2561,10 +2569,8 @@
           ;; Survey (full-page screenshot sweep)
             "survey" (cond-> {:action "survey"}
                        (some #{"-a" "--annotate"} cmd-args) (assoc :annotate true)
-                       (some #{"-o" "--output-dir"} cmd-args)
-                       (assoc :output-dir (let [idx (long (or (.indexOf ^java.util.List (vec cmd-args) "-o")
-                                                            (.indexOf ^java.util.List (vec cmd-args) "--output-dir")))]
-                                            (when (>= idx 0) (nth cmd-args (inc idx) nil))))
+                       true
+                       (assoc-flag-value cmd-args ["-o" "--output-dir"] :output-dir)
                        (some #{"--overlap"} cmd-args)
                        (assoc :overlap (let [idx (long (.indexOf ^java.util.List (vec cmd-args) "--overlap"))]
                                          (when (>= idx 0) (Long/parseLong (nth cmd-args (inc idx) "0")))))
@@ -2595,16 +2601,17 @@
 
           ;; Inspect (interactive snapshot with styles - agent view)
             "inspect" (cond-> {:action "inspect"}
-                        (some #{"--scope" "-s"} cmd-args)
-                        (assoc :scope (let [idx (long (or (.indexOf ^java.util.List (vec cmd-args) "-s")
-                                                        (.indexOf ^java.util.List (vec cmd-args) "--scope")))]
-                                        (when (>= idx 0) (nth cmd-args (inc idx) nil))))
+                        true
+                        (assoc-flag-value cmd-args scope-flags :scope)
                         (some #{"--minimal"} cmd-args) (assoc :style-detail "minimal")
                         (some #{"--max"} cmd-args) (assoc :style-detail "max"))
 
           ;; Overview (annotated full-page screenshot)
-            "overview" (let [path-args (remove #(str/starts-with? % "-") cmd-args)
-                             path      (first path-args)]
+            "overview" (let [;; A scope value such as `#main` or `@e1` is not the path.
+                             scope-at  (set (keep-indexed (fn [^long i arg] (when (some #{arg} scope-flags) (inc i))) cmd-args))
+                             path      (first (keep-indexed (fn [i ^String arg]
+                                                              (when-not (or (str/starts-with? arg "-") (scope-at i)) arg))
+                                                cmd-args))]
                          (cond-> {:action "overview"}
                            path (assoc :path (resolve-path path))
                            (some #{"-a" "--all"} cmd-args) (assoc :all true)
@@ -2612,10 +2619,8 @@
                            (some #{"--dimensions" "--dims"} cmd-args) (assoc :show-dimensions true)
                            (some #{"--no-boxes"} cmd-args) (assoc :show-boxes false)
                            (some #{"--text"} cmd-args) (assoc :show-text true)
-                           (some #{"-s" "--scope"} cmd-args)
-                           (assoc :scope (let [idx (long (or (.indexOf ^java.util.List (vec cmd-args) "-s")
-                                                           (.indexOf ^java.util.List (vec cmd-args) "--scope")))]
-                                           (when (>= idx 0) (nth cmd-args (inc idx) nil))))))
+                           true
+                           (assoc-flag-value cmd-args scope-flags :scope)))
 
           ;; Debug (page diagnostic snapshot)
             "debug" (cond-> {:action "debug"}

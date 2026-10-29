@@ -567,6 +567,25 @@ def test_snapshot_scope_and_screenshot_are_explicit(client, tmp_path):
         spel.screenshot(lease.id, str(target))
 
 
+# Regression, Blockether/spel#147: an agent called snapshot(selector=...) and failed,
+# because only scope was accepted.
+def test_snapshot_selector_is_an_alias_of_scope(client):
+    spel, calls = client
+    lease = spel.reserve()
+    spel.snapshot(lease.id, scope="#main")
+    by_scope = calls[-1][1]
+    spel.snapshot(lease.id, selector="#main")
+    assert calls[-1][1] == by_scope
+    spel.snapshot(lease.id, scope="#main", selector="#main")
+    assert calls[-1][1] == by_scope
+    count = len(calls)
+    with pytest.raises(ValueError, match="scope and selector"):
+        spel.snapshot(lease.id, scope="#main", selector="#nav")
+    with pytest.raises(ValueError, match="scope and frames"):
+        spel.snapshot(lease.id, selector="#main", frames=True)
+    assert len(calls) == count
+
+
 # Regression, issue #138: explicit full_page=False silently produced full-page annotated PNGs.
 @pytest.mark.parametrize(
     ("annotated", "full_page", "flags"),

@@ -1450,12 +1450,12 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `snapshot -S` | Include computed CSS styles |
 | `snapshot -S --minimal` | Styles: 16 essential properties |
 | `snapshot -S --max` | Styles: all 44 tracked properties |
-| `snapshot -s \"#main\"` | Scoped to selector |
+| `snapshot -s \"#main\"` | Scoped to selector (or --scope, --selector) |
 | `screenshot [path]` | Take screenshot (-f full, -a annotated) |
 | `batch [--bail] [--json]` | Run a JSON array of commands from stdin |
 | `stitch <imgs...>` | Stitch screenshots vertically (-o, --overlap) |
 | `annotate` | Show annotation overlays (visible elements) |
-| `-s, --scope <sel\|@ref>` | Scope annotations to a subtree |
+| `-s, --scope <sel\|@ref>` | Scope annotations to a subtree (or --selector) |
 | `--no-badges` | Hide the mark numbers |
 | `--dimensions, --dims` | Add WxH to each mark |
 | `--no-boxes` | Hide bounding boxes |
@@ -1647,6 +1647,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `--ignore-https-errors` | Ignore HTTPS errors |
 | `--allow-file-access` | Allow file:// access |
 | `--no-stealth` | Disable stealth mode (stealth is ON by default) |
+| `--undetected` | Use the Patchright driver (Chromium only, no console capture) |
 | `--timeout <ms>` | Playwright action timeout in ms (default: 10000) |
 | `--debug` | Debug output |
 | `--help, -h` | Show this help |

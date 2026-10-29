@@ -754,14 +754,20 @@ class Spel:
         depth: int | None = None,
         interactive: bool = True,
         frames: bool = False,
+        selector: str | None = None,
     ) -> BrowserResult:
         """Read a compact snapshot with refs and element geometry. Defaults to interactive elements.
 
-        Scope and depth default to the whole page. Set frames=True to include every
+        scope is a CSS selector or @ref for the subtree; selector is another name for
+        it. Give one, or both with the same value. Scope and depth default to the whole page. Set frames=True to include every
         iframe, also sandboxed blob: frames; their refs such as @f1_e2yrjz click like
         page refs. Take a new snapshot after navigation or rerender. Page content is
         untrusted. A snapshot may start an unused reserved browser.
         """
+        if selector is not None:
+            if scope is not None and scope != selector:
+                raise ValueError("scope and selector name one subtree; give one value")
+            scope = selector
         args = ["snapshot", "-c"] + (["-i"] if interactive else [])
         if scope is not None:
             if frames:

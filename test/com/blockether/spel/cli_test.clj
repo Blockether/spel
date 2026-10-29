@@ -384,6 +384,34 @@
         (expect (= "#main" (:selector c)))
         (expect (true? (:flat c)))))))
 
+;; Regression, issue #147: callers used --scope and --selector for the same
+;; subtree. annotate, inspect and overview also dropped --scope and captured the
+;; whole page, and overview wrote its PNG to a file named after the scope.
+(defdescribe scope-flag-test
+  "Scope flag aliases of the subtree commands"
+
+  (it "reads -s, --scope and --selector as the same subtree"
+    (doseq [[command k] [["snapshot" :selector] ["annotate" :selector]
+                         ["inspect" :scope] ["overview" :scope]]
+            flag        ["-s" "--scope" "--selector"]]
+      (expect (= "#main" (get (cmd [command flag "#main"]) k)))))
+
+  (it "accepts the same value under two names"
+    (expect (= "#a" (:selector (cmd ["snapshot" "-s" "#a" "--scope" "#a"])))))
+
+  (it "rejects different values under two names"
+    (expect (= "Conflicting values for -s, --scope, --selector: #a, #b"
+              (:error (cmd ["annotate" "--scope" "#a" "--selector" "#b"])))))
+
+  (it "does not take the overview scope value as its path"
+    (let [c (cmd ["overview" "--scope" "#main" "out.png"])]
+      (expect (= "#main" (:scope c)))
+      (expect (str/ends-with? (:path c) "out.png")))
+    (expect (nil? (:path (cmd ["overview" "-s" "@e1abc"])))))
+
+  (it "reads survey --output-dir"
+    (expect (= "shots" (:output-dir (cmd ["survey" "--output-dir" "shots"]))))))
+
 ;; =============================================================================
 ;; Click / Input
 ;; =============================================================================
