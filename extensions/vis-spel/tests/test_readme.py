@@ -115,3 +115,59 @@ def test_browser_skill_follows_the_extension_setting():
 def test_readme_python_examples_compile():
     for code in re.findall(r"```python\n(.*?)```", README, re.DOTALL):
         compile(code, "README.md", "exec", ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)
+
+
+# Regression, vis#425: a domain tool picked its own cached binary and ran raw
+# `spel --session` commands, because no example showed the managed vis.tools path.
+def test_readme_domain_tool_example_uses_the_managed_reservation(tmp_path, monkeypatch):
+    import json
+
+    import blockether.vis.extension as vis
+    import pytest
+
+    import vis_spel
+    from vis_spel import Spel, SpelError
+
+    (code,) = [
+        block
+        for block in re.findall(r"```python\n(.*?)```", README, re.DOTALL)
+        if "class Portal" in block
+    ]
+    spel = Spel(tmp_path)
+    binary = tmp_path / "spel"
+    binary.write_text("test executable")
+    with spel._db() as db:
+        db.execute(
+            "INSERT INTO installation VALUES (1, ?, ?, 1)", ("0.9.48", str(binary))
+        )
+    answers = []
+
+    def execute(binary, arguments, **kwargs):
+        return answers.pop(0) if answers else (0, json.dumps({"result": None}), "")
+
+    monkeypatch.setattr(vis_spel, "_execute", execute)
+    monkeypatch.setattr(
+        vis_spel, "_caller", lambda: "11111111-1111-4111-8111-111111111111"
+    )
+    monkeypatch.setattr(vis, "tools", Mock(spel=spel), raising=False)
+    registered = []
+    monkeypatch.setattr(vis, "register_extension", registered.append)
+    namespace = {}
+    exec(compile(code, "README.md", "exec"), namespace)
+    assert [extension.name for extension in registered] == ["portal"]
+    portal = namespace["Portal"]()
+
+    session = portal.sign_in()
+    # A reload or a new turn finds the same reservation, not a second profile.
+    assert namespace["Portal"]().sign_in() == session
+    with pytest.raises(RuntimeError, match="Finish the sign-in"):
+        portal.balance(session)
+    answers.append((1, json.dumps({"error": "page crashed"}), ""))
+    with pytest.raises(SpelError, match="page crashed"):
+        portal.balance(session)
+    answers.append((0, json.dumps({"result": "42.00 EUR"}), ""))
+    assert portal.balance(session) == "42.00 EUR"
+    # The reservation survived the waits and failures above.
+    assert [row.id for row in spel.reservations()] == [session]
+    portal.finish(session)
+    assert spel.reservations() == ()

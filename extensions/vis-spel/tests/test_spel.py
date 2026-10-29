@@ -45,6 +45,107 @@ def test_reservations_survive_workers_and_reload(client):
     assert spel.reserve("checkout").id != lease.id
 
 
+SESSION_A = "11111111-1111-4111-8111-111111111111"
+SESSION_B = "22222222-2222-4222-8222-222222222222"
+
+
+@pytest.fixture
+def caller(monkeypatch):
+    """Set the calling Vis session; None is a call outside Vis."""
+    current = {"id": SESSION_A}
+    monkeypatch.setattr(vis_spel, "_caller", lambda: current["id"])
+    return current
+
+
+# Regression, vis#425: a second session that knew only the profile name got
+# "That label or profile is already reserved" with no holder and no way on,
+# so it prepared a second profile and signed in again.
+def test_conflicts_name_the_holder_and_the_handover(client, caller):
+    spel, _ = client
+    spel.prepare_profile("work")
+    owner = spel.reserve("sign-in", profile="work", headed=True)
+    caller["id"] = SESSION_B
+    with pytest.raises(SpelError) as profile_error:
+        spel.reserve("receiver", profile="work")
+    message = str(profile_error.value)
+    assert message.startswith("Profile 'work' is already reserved as 'sign-in'")
+    assert f"Vis session {SESSION_A}" in message
+    assert f"spel.hand_over(id, '{SESSION_B}')" in message
+    assert owner.id not in message
+    with pytest.raises(SpelError, match="^Label 'sign-in' is already reserved"):
+        spel.reserve("sign-in")
+    caller["id"] = SESSION_A
+    with pytest.raises(SpelError, match=f"by this session as 'sign-in', id {owner.id}"):
+        Spel(spel._home).reserve("again", profile="work")
+
+
+def test_only_the_owner_sees_the_id_after_reload(client, caller):
+    spel, _ = client
+    spel.prepare_profile("work")
+    owner = spel.reserve("sign-in", profile="work")
+    (mine,) = Spel(spel._home).reservations(profile="work")
+    assert (mine.label, mine.profile, mine.owner) == ("sign-in", "work", SESSION_A)
+    assert mine.is_owned and mine.id == owner.id and mine.created
+    caller["id"] = SESSION_B
+    (theirs,) = spel.reservations(label="sign-in")
+    assert (theirs.owner, theirs.is_owned, theirs.id) == (SESSION_A, False, None)
+    assert spel.reservations(label="other") == ()
+
+
+def test_handover_moves_ownership_and_keeps_the_browser(client, caller):
+    spel, calls = client
+    spel.prepare_profile("work")
+    lease = spel.reserve("sign-in", profile="work", headed=True)
+    spel.open(lease.id, "about:blank")
+    started = len(calls)
+    assert spel.hand_over(lease.id, f"vis_session_id#{SESSION_B}") == lease
+    assert len(calls) == started
+    assert spel.reservations()[0].id is None
+    caller["id"] = SESSION_B
+    (received,) = spel.reservations(profile="work")
+    assert (received.id, received.owner, received.started) == (
+        lease.id,
+        SESSION_B,
+        True,
+    )
+    spel.release(received.id)
+    assert spel.reservations() == ()
+
+
+@pytest.mark.parametrize("target", ["", "default", SESSION_B[:-1], "x" + SESSION_B])
+def test_handover_needs_a_session_id(client, caller, target):
+    spel, _ = client
+    lease = spel.reserve("sign-in")
+    with pytest.raises(ValueError, match="Vis session id"):
+        spel.hand_over(lease.id, target)
+    assert spel.reservations()[0].owner == SESSION_A
+
+
+def test_failed_release_keeps_the_reservation_and_its_owner(
+    client, caller, monkeypatch
+):
+    spel, _ = client
+    lease = spel.reserve("sign-in")
+    monkeypatch.setattr(
+        vis_spel, "_execute", lambda *a, **k: (1, json.dumps({"error": "busy"}), "")
+    )
+    with pytest.raises(SpelError, match="close failed"):
+        spel.release(lease.id)
+    (kept,) = spel.reservations()
+    assert (kept.id, kept.owner) == (lease.id, SESSION_A)
+
+
+def test_reservations_outside_vis_have_no_owner(client, caller):
+    spel, _ = client
+    caller["id"] = None
+    lease = spel.reserve("cli")
+    (row,) = spel.reservations()
+    assert (row.owner, row.is_owned, row.id) == (None, False, None)
+    with pytest.raises(SpelError, match="outside Vis or before vis-spel 0.1.22"):
+        spel.reserve("cli")
+    spel.release(lease.id)
+
+
 def test_concurrent_reservation_is_atomic(client):
     spel, _ = client
 

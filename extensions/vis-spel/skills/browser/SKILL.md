@@ -14,6 +14,10 @@ description: Use this skill when you need authorized browser navigation, CDP, sn
    Reserve one session for the whole task and keep its ID across calls. Never use
    another task's reservation or the native default session. Release a reservation
    explicitly; a reload does not close it. Only one reservation can use a profile.
+   After a reload, find your own id with `spel.reservations()`. If a label or profile is
+   taken, ask the session named in the error to release it or to call
+   `spel.hand_over(id, your_session_id)`. Never prepare a second profile for it.
+   In your own extension, call `vis.tools.spel.*`; never run a native `spel` binary.
    CDP needs a fresh Chromium reservation **without** a managed profile and an explicitly
    authorized endpoint; never scan or discover endpoints automatically.
    For an authorized site that blocks automation, reserve Chromium with `undetected=True`

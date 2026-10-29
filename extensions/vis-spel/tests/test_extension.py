@@ -60,7 +60,7 @@ def test_registration_and_all_activity_states(extension):
     assert declaration.alias == "spel"
     contract = declaration.symbols[0].contract
     assert contract["name"] == "spel"
-    assert len(contract["members"]) == 18
+    assert len(contract["members"]) == 20
     for member in contract["members"]:
         method = getattr(Spel, member["name"].split(".")[-1])
         activity = method.__vis_symbol_activity__
