@@ -4619,7 +4619,28 @@
           (expect (false? (:alive? found))))
         (finally
           (.close chan)
-          (java.nio.file.Files/deleteIfExists path))))))
+          (java.nio.file.Files/deleteIfExists path)))))
+
+  ;; Regression, issue #146: a long session name has a hashed socket file that
+  ;; does not contain the name, so a scan of socket names alone lost it.
+  (it "names a session whose socket path is hashed"
+    (let [nm   (str "disc-" (System/currentTimeMillis) "-" (apply str (repeat 100 "x")))
+          path (daemon/socket-path nm)
+          pid  (daemon/pid-file-path nm)
+          chan (java.nio.channels.ServerSocketChannel/open
+                 java.net.StandardProtocolFamily/UNIX)]
+      (try
+        (.bind chan (java.net.UnixDomainSocketAddress/of path))
+        ;; A PID that names no live process.
+        (spit (str pid) "2147483646")
+        (let [found (filter #(= nm (:name %)) (daemon/discover-session-files))]
+          (expect (= [(str path)] (map :socket found)))
+          (expect (false? (:alive? (first found))))
+          (expect (not-any? #(str/starts-with? (:name %) "ipc-") (daemon/discover-session-files))))
+        (finally
+          (.close chan)
+          (java.nio.file.Files/deleteIfExists path)
+          (java.nio.file.Files/deleteIfExists pid))))))
 
 (it "serializes browser work while health and cancel stay responsive"
   (nav! "/test-page")

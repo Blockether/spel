@@ -4581,6 +4581,16 @@
           (nil? cmd-name) (println (top-level-help))
           :else           (println (str "Unknown command: " cmd-name ". Run 'spel --help' for usage."))))
       (System/exit 0))
+    ;; Issue #146: a socket path past the Unix limit started a
+    ;; daemon that could never bind, then waited 30s and retried five times.
+    ;; Resolve it once here, so the client, daemon, health and close agree.
+    (try
+      (daemon/socket-path session)
+      (catch clojure.lang.ExceptionInfo e
+        (if (:json flags)
+          (println (json/write-json-str {:success false :error (.getMessage e)} :escape-slash false))
+          (binding [*out* *err*] (println (str "Error: " (.getMessage e)))))
+        (System/exit 1)))
 
     ;; Install — handled directly, not via daemon
     (when (= "install" (:action command))

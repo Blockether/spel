@@ -47,6 +47,99 @@
       (let [p (str (sut/socket-path "work"))]
         (expect (str/includes? p "spel-work.sock"))))))
 
+(defn- bindable?
+  "True when a Unix server socket can bind `path`. Removes the file again."
+  [path]
+  (let [ch (java.nio.channels.ServerSocketChannel/open java.net.StandardProtocolFamily/UNIX)]
+    (try
+      (.bind ch (java.net.UnixDomainSocketAddress/of (str path)))
+      true
+      (catch java.io.IOException _ false)
+      (finally
+        (.close ch)
+        (Files/deleteIfExists (java.nio.file.Path/of (str path) (into-array String [])))))))
+
+(defn- short-temp-root
+  "A fresh directory under /tmp, short enough to hold a fallback socket."
+  ^String []
+  (str (Files/createTempDirectory (java.nio.file.Path/of "/tmp" (into-array String []))
+         "s146" (into-array java.nio.file.attribute.FileAttribute []))))
+
+(defn- utf8-bytes ^long [p] (alength (.getBytes (str p) "UTF-8")))
+
+(defn- delete-tree!
+  "Deletes `root` and everything under it."
+  [^String root]
+  (doseq [^java.io.File f (reverse (file-seq (File. root)))]
+    (.delete f)))
+
+;; Regression, issue #146: a long session name or TMPDIR made a socket path
+;; past the Unix limit. The daemon died with "Unix domain path too long", and
+;; the client waited 30s and restarted it five times.
+(defdescribe socket-path-limit-test
+  "Socket paths fit the Unix domain socket limit"
+
+  (describe "under the 48-byte macOS default TMPDIR"
+    (let [tmp  "/var/folders/67/5js7xvyn2t14v8zq9rrzb8m40000gn/T/"
+          root "/tmp"
+          path #(#'sut/resolve-socket-path tmp root %)]
+      (it "keeps the readable path while it fits"
+        (expect (= (str tmp "spel-" (apply str (repeat 43 "a")) ".sock")
+                  (str (path (apply str (repeat 43 "a"))))))
+        (expect (= 102 (utf8-bytes (path (apply str (repeat 43 "a")))))))
+
+      (it "hashes a name one byte past the limit, a long name and a Unicode name"
+        (doseq [session [(apply str (repeat 44 "a"))
+                         (str "repro-" (apply str (repeat 102 "0")))
+                         (apply str (repeat 30 "ż"))]]
+          (let [p (str (path session))]
+            (expect (str/starts-with? p (str tmp "spel-ipc-")))
+            (expect (<= (utf8-bytes p) 102)))))
+
+      (it "gives different sessions different paths"
+        (let [a (str "Long-" (apply str (repeat 60 "x")))
+              b (str "long-" (apply str (repeat 60 "x")))
+              h (subs (.getName (.toFile ^java.nio.file.Path (path a))) 5
+                  (- (count (.getName (.toFile ^java.nio.file.Path (path a)))) 5))]
+          (expect (not= (str (path a)) (str (path b))))
+          ;; A session NAMED like a hashed file never takes that file.
+          (expect (not= (str (path a)) (str (path h))))))))
+
+  (it "binds a hashed path on this host"
+    (let [p (sut/socket-path (str "repro-" (apply str (repeat 102 "0"))))]
+      (expect (bindable? p))))
+
+  (it "uses one private directory when TMPDIR itself is too long"
+    (let [tmp  (str "/private/var/folders/" (apply str (repeat 90 "x")) "/T")
+          root (short-temp-root)
+          p1   (#'sut/resolve-socket-path tmp root "default")
+          p2   (#'sut/resolve-socket-path tmp root "default")
+          dir  (.getParent ^java.nio.file.Path p1)]
+      (try
+        (expect (= p1 p2))
+        (expect (str/starts-with? (str p1) root))
+        (expect (= "rwx------" (java.nio.file.attribute.PosixFilePermissions/toString
+                                 (Files/getPosixFilePermissions dir (into-array java.nio.file.LinkOption [])))))
+        (expect (bindable? p1))
+        (finally (delete-tree! root)))))
+
+  (it "refuses a fallback directory that other users can enter"
+    (let [tmp  (str "/private/var/folders/" (apply str (repeat 90 "x")) "/T")
+          root (short-temp-root)
+          dir  (.getParent ^java.nio.file.Path (#'sut/resolve-socket-path tmp root "default"))]
+      (try
+        (Files/setPosixFilePermissions dir (java.nio.file.attribute.PosixFilePermissions/fromString "rwxr-xr-x"))
+        (expect (= ::sut/socket-path
+                  (try (#'sut/resolve-socket-path tmp root "default") nil
+                       (catch clojure.lang.ExceptionInfo e (:type (ex-data e))))))
+        (finally (delete-tree! root)))))
+
+  (it "fails at once with the fix to apply when no path fits"
+    (let [tmp  (str "/private/var/folders/" (apply str (repeat 90 "x")) "/T")
+          msg  (try (#'sut/resolve-socket-path tmp (str "/" (apply str (repeat 100 "r"))) "default") nil
+                    (catch clojure.lang.ExceptionInfo e (ex-message e)))]
+      (expect (str/includes? (str msg) "Set TMPDIR to a shorter")))))
+
 (defdescribe pid-file-path-test
   "Unit tests for pid-file-path"
 

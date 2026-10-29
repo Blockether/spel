@@ -45,7 +45,10 @@
    [java.lang ProcessBuilder$Redirect]
    [java.net HttpURLConnection StandardProtocolFamily UnixDomainSocketAddress URL]
    [java.nio.channels Channels ServerSocketChannel SocketChannel]
-   [java.nio.file FileAlreadyExistsException Files Path StandardOpenOption]
+   [java.nio.charset StandardCharsets]
+   [java.nio.file FileAlreadyExistsException Files LinkOption Path StandardOpenOption]
+   [java.nio.file.attribute FileAttribute PosixFileAttributes PosixFilePermissions]
+   [java.security MessageDigest]
    [java.util Base64]
    [java.util.concurrent ExecutorService Executors ScheduledExecutorService ScheduledFuture TimeUnit]
    [java.util.concurrent.locks ReentrantLock]
@@ -66,37 +69,128 @@
 ;; Paths
 ;; =============================================================================
 
+(def ^:private ^:const socket-path-max-bytes
+  "Longest Unix domain socket path, in UTF-8 bytes, that the JDK binds and
+   connects. sun_path holds 104 bytes on macOS and the BSDs and 108 on Linux
+   and Windows. The JDK keeps 2 of them, so 102 holds on every platform."
+  102)
+
+(def ^:private hashed-socket-name-re
+  "Session part of a hashed socket file name: `spel-ipc-<24 hex>.sock`."
+  #"ipc-[0-9a-f]{24}")
+
+(defn- utf8-length
+  "Length of `s` in UTF-8 bytes, the unit sun_path limits."
+  ^long [^String s]
+  (alength (.getBytes s StandardCharsets/UTF_8)))
+
+(defn- socket-token
+  "First 96 bits of the SHA-256 of `s`, as 24 lowercase hex characters. Hex
+   keeps the file name ASCII and distinct on a case-insensitive file system."
+  ^String [^String s]
+  (let [digest (.digest (MessageDigest/getInstance "SHA-256") (.getBytes s StandardCharsets/UTF_8))]
+    (apply str (map #(format "%02x" (bit-and (long %) 0xff)) (take 12 digest)))))
+
+(defn- socket-path-error
+  "Actionable error for a session whose socket path cannot fit or be made
+   private. Raised before any daemon start: the daemon could never bind it."
+  [^String session ^String reason]
+  (ex-info (str "Cannot use session '" session "': " reason
+             " Set TMPDIR to a shorter private directory, or use a shorter session name.")
+    {:type ::socket-path :session session}))
+
+(defn- ensure-private-socket-dir!
+  "Creates `dir` as rwx------ when absent, then checks that it is a real
+   directory (not a link) that only the current user owns and can enter."
+  ^Path [^String session ^Path dir]
+  (let [no-follow  (into-array LinkOption [LinkOption/NOFOLLOW_LINKS])
+        owner-only (PosixFilePermissions/fromString "rwx------")]
+    (when-not (Files/exists dir no-follow)
+      (try
+        (Files/createDirectory dir
+          (into-array FileAttribute [(PosixFilePermissions/asFileAttribute owner-only)]))
+        (catch FileAlreadyExistsException _ nil)))
+    (let [^PosixFileAttributes attrs (Files/readAttributes dir PosixFileAttributes ^"[Ljava.nio.file.LinkOption;" no-follow)]
+      (when-not (and (.isDirectory attrs)
+                  (= (System/getProperty "user.name") (.getName (.owner attrs)))
+                  (= owner-only (.permissions attrs)))
+        (throw (socket-path-error session
+                 (str "socket directory " dir " is not a private directory (rwx------) of the current user."))))
+      dir)))
+
+(defn- resolve-socket-path
+  "Socket path for `session` under `tmp-dir`, at most `socket-path-max-bytes`.
+
+   1. `<tmp-dir>/spel-<session>.sock`, the readable path, when it fits.
+   2. `<tmp-dir>/spel-ipc-<sha>.sock`, with the session's SHA-256 prefix.
+   3. `<fallback-root>/spel-<user sha>/ipc-<sha>.sock`, in a private directory,
+      when even `tmp-dir` is too long. POSIX only.
+
+   A session named like a hashed name always takes the hashed form, so a
+   `spel-ipc-<sha>.sock` file always belongs to the session with that hash.
+   Throws an actionable ex-info when no form fits (issue #146)."
+  ^Path [^String tmp-dir ^String fallback-root ^String session]
+  (let [fits?  (fn [^Path p] (<= (utf8-length (str p)) (long socket-path-max-bytes)))
+        path   (fn [^String dir ^String file-name] (Path/of dir (into-array String [file-name])))
+        token  (socket-token session)
+        named  (path tmp-dir (str "spel-" session ".sock"))
+        hashed (path tmp-dir (str "spel-ipc-" token ".sock"))]
+    (cond
+      (and (not (re-matches hashed-socket-name-re session)) (fits? named)) named
+      (fits? hashed) hashed
+      :else
+      (let [posix?  (contains? (.supportedFileAttributeViews (java.nio.file.FileSystems/getDefault)) "posix")
+            ^Path dir (path fallback-root
+                        (str "spel-" (subs (socket-token (System/getProperty "user.name" "")) 0 8)))
+            private (.resolve dir (str "ipc-" token ".sock"))]
+        (when-not (and posix? (fits? private))
+          (throw (socket-path-error session
+                   (str "its Unix socket path is longer than " socket-path-max-bytes
+                     " bytes under " tmp-dir "."))))
+        (ensure-private-socket-dir! session dir)
+        private))))
+
 (defn socket-path
-  "Returns the Unix socket path for a session."
+  "Returns the Unix socket path for a session. The path always fits the Unix
+   socket limit: a long session name or TMPDIR gets a short hashed path. Throws
+   an actionable ex-info when no path fits (issue #146)."
   ^Path [^String session]
-  (Path/of (str (System/getProperty "java.io.tmpdir")
-             File/separator
-             "spel-" session ".sock")
-    (into-array String [])))
+  (resolve-socket-path (System/getProperty "java.io.tmpdir") "/tmp" session))
 
 (defn discover-session-files
   "Single source of truth for enumerating spel session state on disk.
-   Scans the tmpdir for `spel-<name>.sock` files and returns a seq of
+   Scans the tmpdir for `spel-<name>.sock` files, and for `spel-<name>.pid`
+   files whose session socket exists under a hashed name. Returns a seq of
    `{:name :socket :alive?}` maps — `:alive?` is true when the owning PID
    file points to a running process. Pure; does NOT start any daemon."
   []
-  (let [tmp-dir (java.io.File. (System/getProperty "java.io.tmpdir"))]
-    (->> (or (.listFiles tmp-dir) (into-array java.io.File []))
-      (keep (fn [^java.io.File f]
-              ;; NOT `.isFile`: a Unix domain socket is not a regular file, so
-              ;; `.isFile` was false for every live session and this scan found
-              ;; nothing at all — `session list` showed no sessions and every
-              ;; --all-sessions sweep swept nothing.
-              (when (and (not (.isDirectory f))
-                      (str/starts-with? (.getName f) "spel-")
-                      (str/ends-with? (.getName f) ".sock"))
-                (let [sess (-> (.getName f)
-                             (str/replace "spel-" "")
-                             (str/replace ".sock" ""))]
-                  {:name sess
-                   :socket (.getAbsolutePath f)
-                   :alive? (boolean (daemon-running? sess))}))))
-      (into []))))
+  (let [tmp-dir   (java.io.File. (System/getProperty "java.io.tmpdir"))
+        files     (vec (or (.listFiles tmp-dir) (into-array java.io.File [])))
+        session-of (fn [^java.io.File f ^String suffix]
+                     (let [n (.getName f)]
+                       (when (and (str/starts-with? n "spel-") (str/ends-with? n suffix))
+                         (subs n 5 (- (count n) (count suffix))))))
+        ;; NOT `.isFile`: a Unix domain socket is not a regular file, so
+        ;; `.isFile` was false for every live session and this scan found
+        ;; nothing at all — `session list` showed no sessions and every
+        ;; --all-sessions sweep swept nothing.
+        by-socket (keep (fn [^java.io.File f]
+                          (when-not (.isDirectory f)
+                            (when-let [sess (session-of f ".sock")]
+                              ;; A hashed socket does not name its session.
+                              (when-not (re-matches hashed-socket-name-re sess)
+                                {:name sess :socket (.getAbsolutePath f)}))))
+                    files)
+        seen      (set (map :name by-socket))
+        by-pid    (keep (fn [^java.io.File f]
+                          (when-let [sess (session-of f ".pid")]
+                            (when-not (contains? seen sess)
+                              (when-let [sock (try (socket-path sess) (catch Exception _ nil))]
+                                (when (Files/exists sock (into-array LinkOption [LinkOption/NOFOLLOW_LINKS]))
+                                  {:name sess :socket (str sock)})))))
+                    files)]
+    (mapv #(assoc % :alive? (boolean (daemon-running? (:name %))))
+      (concat by-socket by-pid))))
 
 (defn pid-file-path
   "Returns the PID file path for a session."
