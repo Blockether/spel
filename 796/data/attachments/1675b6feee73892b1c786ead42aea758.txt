@@ -1,7 +1,0 @@
-Blockether report generated: /tmp/spel-139-746264497023335004/report/index.html
-  1 tests: 0 passed, 1 failed, 0 broken, 0 skipped
-  Duration: 0.0s
-  Pass rate: 0%
-  Started: 1970-01-01 00:00:00
-Issue #139 report bytes: 606562
-Issue #139 navigation: {"name":"http://127.0.0.1:37699/index.html","entryType":"navigation","startTime":0,"duration":199,"initiatorType":"navigation","deliveryType":"","nextHopProtocol":"http/1.1","renderBlockingStatus":"non-blocking","contentType":"","contentEncoding":"","workerStart":0,"workerRouterEvaluationStart":0,"workerCacheLookupStart":0,"workerMatchedSourceType":"","workerFinalSourceType":"","redirectStart":0,"redirectEnd":0,"fetchStart":0.10000000009313226,"domainLookupStart":2.2999999998137355,"domainLookupEnd":2.2999999998137355,"connectStart":2.2999999998137355,"secureConnectionStart":0,"connectEnd":2.5,"requestStart":2.8999999999068677,"responseStart":5.100000000093132,"firstInterimResponseStart":0,"finalResponseHeadersStart":5.100000000093132,"responseEnd":12.799999999813735,"transferSize":606862,"encodedBodySize":606562,"decodedBodySize":606562,"responseStatus":200,"serverTiming":[],"unloadEventStart":0,"unloadEventEnd":0,"domInteractive":191.29999999981374,"domContentLoadedEventStart":191.29999999981374,"domContentLoadedEventEnd":193.79999999981374,"domComplete":198.70000000018626,"loadEventStart":199,"loadEventEnd":199,"type":"navigate","redirectCount":0,"activationStart":0,"criticalCHRestart":0,"notRestoredReasons":null,"confidence":{"randomizedTriggerRate":0.4994798,"value":"high"}}
