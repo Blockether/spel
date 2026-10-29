@@ -1,2 +1,0 @@
-[viewport: 800x600]
-- button "Positioned Button" [@e0s3u5] [pos:200,100 150×50]
