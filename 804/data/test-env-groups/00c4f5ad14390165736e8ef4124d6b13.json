@@ -1,1 +1,0 @@
-{"id":"00c4f5ad14390165736e8ef4124d6b13","fullName":"com.blockether.spel.ios-test.stop! releases only owned resources.releases the lock and never shuts down a user-booted simulator","name":"stop! releases only owned resources > releases the lock and never shuts down a user-booted simulator","status":"passed","testResultsByEnv":{"default":"281a1d9b59a82fafe8713cfaa29a1a03"}}

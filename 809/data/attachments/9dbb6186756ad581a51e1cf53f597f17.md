@@ -1,0 +1,38 @@
+## PUT http://localhost:36473/echo → 200 OK
+
+### Request Body
+```json
+{
+  "name": "Alice Updated",
+  "email": "alice2@example.org"
+}
+```
+
+### Response Headers
+```
+content-length: 92
+content-type: application/json
+date: Fri, 30 Oct 2026 16:41:27 GMT
+```
+
+### Response Body
+```json
+{
+  "method": "PUT",
+  "path": "/echo",
+  "body": {
+    "name": "Alice Updated",
+    "email": "alice2@example.org"
+  }
+}
+```
+
+### cURL
+```bash
+curl 'http://localhost:36473/echo' \
+  -X PUT \
+  -d '{
+  "name": "Alice Updated",
+  "email": "alice2@example.org"
+}'
+```
