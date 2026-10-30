@@ -578,6 +578,17 @@
       (.close context)
       (throw e))))
 
+(defn- with-full-chromium
+  "Runs a Chromium profile in the full Chromium build when no browser binary is chosen.
+   Playwright otherwise runs headless Chromium as `chromium-headless-shell`. That build
+   cannot read cookies that full Chromium wrote, and it deletes them (issue #149)."
+  [^BrowserType browser-type opts]
+  (cond-> opts
+    (and (= "chromium" (.name browser-type))
+      (not (:channel opts))
+      (not (:executable-path opts)))
+    (assoc :channel "chromium")))
+
 (defn launch-persistent-context
   "Launches a browser with a persistent user data directory (Chrome profile).
 
@@ -587,6 +598,9 @@
 
    Returns a BrowserContext directly (not a Browser). Closing the context
    automatically closes the browser.
+
+   Chromium uses the full build in headed and headless mode, unless `:channel` or
+   `:executable-path` chooses a browser. Both modes then read the same cookies.
 
    Params:
    `browser-type` - BrowserType instance (from `chromium`, `firefox`, `webkit`).
@@ -603,13 +617,13 @@
    (launch-persistent-context (chromium pw) \"/tmp/my-profile\"
      {:headless false :user-agent \"MyAgent/1.0\"})"
   (^BrowserContext [^BrowserType browser-type ^String user-data-dir]
-   (safe (.launchPersistentContext browser-type
-           (java.nio.file.Paths/get user-data-dir (into-array String [])))))
+   (launch-persistent-context browser-type user-data-dir {}))
   (^BrowserContext [^BrowserType browser-type ^String user-data-dir opts]
    (safe (configure-context!
            (.launchPersistentContext browser-type
              (java.nio.file.Paths/get user-data-dir (into-array String []))
-             (opts/->launch-persistent-context-options opts))
+             (opts/->launch-persistent-context-options
+               (with-full-chromium browser-type opts)))
            opts))))
 
 ;; =============================================================================

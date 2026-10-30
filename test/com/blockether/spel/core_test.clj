@@ -572,6 +572,7 @@
                     (setDefaultNavigationTimeout [ms]
                       (swap! seen assoc :navigation-timeout ms)))
           browser-type (proxy [BrowserType] []
+                         (name [] "chromium")
                          (launchPersistentContext [_ _] context))]
       (expect (identical? context
                 (sut/launch-persistent-context browser-type ""

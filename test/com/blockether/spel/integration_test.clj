@@ -535,7 +535,32 @@
               (let [cookie (page/evaluate pg2 "document.cookie")]
                 (expect (str/includes? (str cookie) "profile_test=persisted")))
               (finally
-                (.close ^BrowserContext ctx2)))))))))
+                (.close ^BrowserContext ctx2)))))))
+
+    ;; Regression, issue #149: a headless reopening ran chromium-headless-shell,
+    ;; which could not read cookies that full Chromium wrote and deleted them.
+    (it "headless reopening keeps cookies that full Chromium wrote"
+      (core/with-testing-page [_]
+        (let [profile-dir (str (System/getProperty "java.io.tmpdir") "/spel-profile-149-"
+                            (System/currentTimeMillis))
+              ;; The daemon's profile mode drops these defaults to use the OS keychain.
+              keychain    {:ignore-default-args ["--use-mock-keychain" "--password-store=basic"]}
+              cookie-in   (fn [opts js]
+                            (let [ctx (core/launch-persistent-context
+                                        (core/chromium core/*testing-pw*) profile-dir
+                                        (merge keychain opts))
+                                  pg  (if (seq (.pages ^BrowserContext ctx))
+                                        (first (.pages ^BrowserContext ctx))
+                                        (core/new-page-from-context ctx))]
+                              (try
+                                (page/navigate pg "https://example.org")
+                                (str (page/evaluate pg js))
+                                (finally
+                                  (.close ^BrowserContext ctx)))))]
+          (cookie-in {:headless true :channel "chromium"}
+            "document.cookie = 'mode_test=kept; path=/; max-age=3600'")
+          (expect (str/includes? (cookie-in {:headless true} "document.cookie")
+                    "mode_test=kept")))))))
 
 ;; =============================================================================
 ;; Reload & Navigation History
