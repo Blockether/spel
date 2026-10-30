@@ -1889,6 +1889,12 @@ assert_contains "eval-sci → page title is Example Domain" "$TITLE_OUT" "Exampl
 URL_OUT=$("$SPEL" eval-sci '(page/url (spel/page))' 2>&1)
 assert_contains "eval-sci → page URL contains example.com" "$URL_OUT" "example.com"
 
+# Regression, issue #148: direct Java interop on Playwright objects failed in the
+# native binary. The short overloads were not found, and methods of non-public
+# *Impl classes could not be called.
+INTEROP_OUT=$("$SPEL" eval-sci '(do (.move (spel/mouse) 5.0 5.0) (.wheel (spel/mouse) 0.0 0.0) (.press (spel/keyboard) "Shift") [(.count (.locator (spel/page) "h1")) (pos? (count (.pages (.context (spel/page)))))])' 2>&1)
+assert_contains "eval-sci → Java interop on Playwright objects" "$INTEROP_OUT" "[1 true]"
+
 # Clean up: close the daemon session
 "$SPEL" eval-sci '(do nil)' --autoclose >/dev/null 2>&1 || true
 

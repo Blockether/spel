@@ -5,6 +5,8 @@
    without a browser. Integration tests use SCI eval to drive a
    real Playwright session."
   (:require
+   [charred.api :as json]
+   [clojure.java.io :as io]
    [com.blockether.spel.sci-env :as sut]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.core :as core]
@@ -889,3 +891,21 @@
         ((core/guarded-handler "console" handler) "guarded")
         (expect (empty? (core/handler-errors)))
         (expect (= "[console] guarded\n" (str sink)))))))
+
+;; Regression, issue #148: in the native binary, `(.move (spel/mouse) 1.0 2.0)`
+;; and `(.press (spel/keyboard) "Tab")` found no matching method, and `(.wheel ...)`
+;; could not call a method of the non-public `MouseImpl`. Only the `*Impl` classes
+;; had reflection metadata, and their public interfaces had none.
+(defdescribe native-interop-reflection-test
+  "Reflection metadata for the Playwright types that eval-sci code calls"
+
+  (describe "reflect-config.json"
+    (it "registers the public methods of every Playwright type that sci-env imports"
+      (let [cfg        (json/read-json (slurp (io/resource "META-INF/native-image/com.blockether/spel/reflect-config.json")))
+            registered (set (keep #(when (get % "allPublicMethods") (get % "name")) cfg))
+            imported   (->> (vals (ns-imports 'com.blockether.spel.sci-env))
+                         (map #(.getName ^Class %))
+                         (filter #(re-matches #"com\.microsoft\.playwright\.(assertions\.)?[A-Za-z]+" %))
+                         set)]
+        (expect (contains? imported "com.microsoft.playwright.Mouse"))
+        (expect (empty? (remove registered imported)))))))

@@ -213,8 +213,128 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "com.microsoft.playwright.APIRequest",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.APIRequestContext",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.APIResponse",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.Browser",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.BrowserContext",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.BrowserType",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.CDPSession",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.ConsoleMessage",
+    "allPublicMethods": true
+  },
+  {
     "name": "com.microsoft.playwright.Dialog",
-    "allDeclaredMethods": true
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.Download",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.ElementHandle",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.Frame",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.FrameLocator",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.JSHandle",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.Keyboard",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.Locator",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.Mouse",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.Page",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.Playwright",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.Request",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.Response",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.Route",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.Touchscreen",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.Tracing",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.WebSocket",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.WebSocketFrame",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.WebSocketRoute",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.assertions.PlaywrightAssertions",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.assertions.LocatorAssertions",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.assertions.PageAssertions",
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microsoft.playwright.assertions.APIResponseAssertions",
+    "allPublicMethods": true
   },
   {
     "name": "com.microsoft.playwright.impl.DialogImpl",
