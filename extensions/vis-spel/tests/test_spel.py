@@ -674,7 +674,7 @@ def test_install_runs_verified_binary_before_recording(client, monkeypatch):
     monkeypatch.setattr(vis_spel, "_execute", run)
     installed = spel.install()
     assert installed.browsers_installed
-    assert installed.version == DEFAULT_VERSION == "0.9.50"
+    assert installed.version == DEFAULT_VERSION == "0.9.51"
     assert calls == [["version"], ["install"]]
     assert spel.installed() == installed
 
