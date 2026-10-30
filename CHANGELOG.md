@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.51] - 2026-10-30
+
+### Changed
+- fix(sci): let eval-sci call Playwright interface methods, #148
+- chore(vis-spel): release v0.1.22
+
+
 ## [v0.9.50] - 2026-10-29
 
 ### Changed
@@ -1968,7 +1975,7 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.50...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.51...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -2073,3 +2080,4 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 [v0.9.48]: https://github.com/Blockether/spel/releases/tag/v0.9.48
 [v0.9.49]: https://github.com/Blockether/spel/releases/tag/v0.9.49
 [v0.9.50]: https://github.com/Blockether/spel/releases/tag/v0.9.50
+[v0.9.51]: https://github.com/Blockether/spel/releases/tag/v0.9.51
