@@ -236,22 +236,37 @@ class Spel:
         """
         return vis.Catalog([vis.Symbol(self, name="spel")]).spec(name)
 
-    def help(self, name: str) -> str:
+    def help(self, name: str | None = None) -> str:
         """Read browser tool documentation without installing Spel or starting a browser.
 
-        Use help("spel") to list tools. Use help("spel.command") for browser action
-        syntax and examples, including set viewport. Use a full tool name such as
-        help("spel.screenshot") for its options. It uses the same SDK contracts as Vis
-        doc(). No subprocess, configuration, database or browser IO occurs. Unknown
-        names raise ValueError with a help route, and non-strings raise TypeError.
-        Returns the reference as plain text.
+        Use help() to list tools, one line each. Use help("spel.command") for browser
+        action syntax and examples, including set viewport. Use a full tool name such
+        as help("spel.screenshot") for its options, or help("spel") for all of them.
+        It uses the same SDK contracts as Vis doc(). No subprocess, configuration,
+        database or browser IO occurs. Unknown names raise ValueError with a help
+        route, and other non-strings raise TypeError. Returns plain text.
         """
         catalog = vis.Catalog([vis.Symbol(self, name="spel")])
+        if name is None:
+            namespace = catalog.spec("spel")
+            assert isinstance(namespace, vis.NamespaceSpec)
+            lines = [
+                f"{tool.name} — {tool.description.splitlines()[0]}"
+                for tool in namespace.members
+            ]
+            return "\n".join(
+                [
+                    "Spel browser tools. Read one with spel.help('spel.<tool>');",
+                    "spel.help('spel.command') gives action syntax, including set viewport.",
+                    "",
+                    *lines,
+                ]
+            )
         try:
             return catalog.help(name).text
         except ValueError as error:
             raise ValueError(
-                f"{error}. Use spel.help('spel') to list tools or "
+                f"{error}. Use spel.help() to list tools or "
                 "spel.help('spel.command') for browser action syntax, including set viewport."
             ) from None
 
@@ -868,7 +883,7 @@ class Spel:
         Mutations, uploads, downloads and page code require user authorization.
         Timeout defaults to 60 seconds and never triggers an automatic retry.
         Browser-global flags, `--help`, session adoption and all-session shutdown
-        are refused. Use `spel.help("spel")` to find dedicated tools for opening
+        are refused. Use `spel.help()` to find dedicated tools for opening
         URLs, snapshots, JS/SCI, screenshots, health, cancel and release.
         """
         if (

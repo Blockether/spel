@@ -193,7 +193,7 @@ await spel.snapshot(lease.id)
 Pass each argument as a string, without shell quotes. `viewport` is a setting
 under `set`, not a separate action or SDK tool. Use
 `await spel.help("spel.screenshot")` for screenshot options and
-`await spel.help("spel")` to list tools. `--help` is not a browser action.
+`await spel.help()` to list tools. `--help` is not a browser action.
 
 For CDP, call `spel.connect(lease.id, "http://127.0.0.1:9222")` on a fresh reservation.
 Spel creates its own tab and leaves the external browser running on release.

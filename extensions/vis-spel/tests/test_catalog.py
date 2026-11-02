@@ -96,3 +96,17 @@ def test_catalog_help_and_registry_share_public_names_and_tags():
         spel.spec(42)  # pyright: ignore[reportArgumentType]
     with pytest.raises(TypeError):
         spel.help(42)  # pyright: ignore[reportArgumentType]
+
+
+# Regression, user report 2026-11: spel.help() without a name raised TypeError,
+# so agents that guessed the doc() form got no tool list and no help route.
+def test_help_without_name_lists_each_tool_on_its_own_line():
+    spel = Spel()
+    listing = spel.help()
+    (namespace,) = spel.spec()
+    lines = listing.splitlines()
+    for member in namespace.members:
+        summary = member.description.splitlines()[0]
+        assert any(member.name in line and summary in line for line in lines)
+    assert "spel.help('spel.command')" in listing
+    assert len(listing) < len(spel.help("spel")) / 4

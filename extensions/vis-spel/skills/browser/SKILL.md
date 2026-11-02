@@ -27,7 +27,7 @@ description: Use this skill when you need authorized browser navigation, CDP, sn
    after navigation or a rerender. `command` takes an argv list; JavaScript and SCI have
    their own stdin tools. Read `spel.help("spel.command")` for action syntax and examples,
    such as `["set", "viewport", "361", "800"]`. Help needs no installation or reservation;
-   `spel.help("spel")` lists the tools. `--help` is not a browser action.
+   `spel.help()` lists the tools. `--help` is not a browser action.
    For iframes, use `spel.snapshot(lease.id, frames=True)`; its `@f1_…` refs click like page
    refs. `["frame", "<name|css|url part>"]` scopes later actions to one frame until
    `["frame", "main"]`.

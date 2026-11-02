@@ -22,6 +22,7 @@
                 spec ((#'fixtures/symbol-fn ext 'spel.spec) "spel.snapshot")
                 help ((#'fixtures/symbol-fn ext 'spel.help) "spel.snapshot")
                 command-help ((#'fixtures/symbol-fn ext 'spel.help) "spel.command")
+                listing ((#'fixtures/symbol-fn ext 'spel.help))
                 releases ((#'fixtures/symbol-fn ext 'spel.releases))]
             (is (:success? spec) (pr-str spec))
             (is (= "spel.snapshot" (get-in spec [:result "__vis_attrs__" "name"])))
@@ -33,7 +34,10 @@
             (is (re-find #"spel.snapshot" (:result help)))
             ;; Regression, issue #137: the help tool did not document browser actions.
             (is (:success? command-help) (pr-str command-help))
-            (is (re-find #"set viewport <width> <height>" (:result command-help))))))))))
+            (is (re-find #"set viewport <width> <height>" (:result command-help)))
+            ;; Regression, user report 2026-11: spel.help() without a name raised TypeError.
+            (is (:success? listing) (pr-str listing))
+            (is (re-find #"(?m)^spel\.snapshot — " (:result listing))))))))))
 
 (deftest native-browser-through-trusted-worker
   (let [package (.getParentFile (.getParentFile (io/file (io/resource "vis_spel_host_test.clj"))))
