@@ -103,7 +103,10 @@ def test_catalog_help_and_registry_share_public_names_and_tags():
 def test_help_without_name_lists_each_tool_on_its_own_line():
     spel = Spel()
     listing = spel.help()
-    (namespace,) = spel.spec()
+    namespaces = spel.spec()
+    assert isinstance(namespaces, tuple)
+    (namespace,) = namespaces
+    assert isinstance(namespace, vis.NamespaceSpec)
     lines = listing.splitlines()
     for member in namespace.members:
         summary = member.description.splitlines()[0]
