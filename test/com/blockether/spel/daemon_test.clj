@@ -1913,6 +1913,17 @@
                        (range 20))]
         (expect (some #(= "the entry under test" (:text %)) window))
         (expect (= 3 (count (filterv #(= "t2" (:tab %)) window))))))))
+
+;; Regression, issue #150: `network requests` must list only refs that
+;; `network get` answers. The summary buffer can outlive the window detail.
+(defdescribe network-requests-live-ref-test
+  "A request summary keeps its ref only while the window holds its detail."
+
+  (it "keeps a live ref and drops a ref whose detail left the window"
+    (let [with-live-ref (var-get #'sut/with-live-ref)
+          full          {"n2" {:ref "@n2"}}]
+      (expect (= "@n2" (:ref (with-live-ref full {:url "/a" :ref "@n2"}))))
+      (expect (= {:url "/b"} (with-live-ref full {:url "/b" :ref "@n1"}))))))
 ;; Regression, issue #125: every command that touched the page registered ANOTHER
 ;; console, page-error and response listener on it. `console_start` twice left two
 ;; live console listeners, and a long-lived session accumulated one more copy of

@@ -4456,9 +4456,10 @@
           (let [reqs (:requests data)]
             (when (seq reqs)
               (render-table
-                ["METHOD" "STATUS" "TYPE" "URL"]
+                ["REF" "METHOD" "STATUS" "TYPE" "URL"]
                 (for [r reqs]
-                  [(:method r "GET")
+                  [(:ref r "")
+                   (:method r "GET")
                    (str (:status r ""))
                    (:resource-type r "")
                    (:url r)]))))

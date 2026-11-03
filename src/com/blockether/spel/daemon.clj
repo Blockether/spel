@@ -2079,7 +2079,10 @@
    response — a burst of a few hundred subresources exhausts the stack and every
    response is lost to a StackOverflowError. The Response is parked in
    `!network-responses` so `network get @nN` can read the full headers and body
-   later, from the command thread where blocking is safe."
+   later, from the command thread where blocking is safe.
+
+   Returns:
+   The entry's ref (\"@n3\"), or nil when the capture budget is spent."
   [^Response resp tab]
   (when (capture-budget-left?)
     (let [^Request req (.request resp)
@@ -2125,7 +2128,8 @@
       ;; window still lists can be fetched, and its handle is released with it.
       (swap! !network-responses assoc entry-no resp)
       (track-in-window! !network-window !network-full !network-responses entry)
-      (swap! !session-entry-count inc))))
+      (swap! !session-entry-count inc)
+      (:ref entry))))
 
 (defn- materialize-network-entry!
   "Fills in a tracked entry's full headers and response body, on demand.
@@ -2185,17 +2189,21 @@
 
 (defn- track-response!
   "Appends a response summary to the tracked-requests ring buffer, capped at
-   `max-tracked-requests` most-recent entries. Also feeds the TASK-013 sliding window."
+   `max-tracked-requests` most-recent entries. Also feeds the TASK-013 sliding window.
+
+   The summary carries the window entry's `:ref`, so `network get @nN` can read
+   one request out of a `network requests` listing (issue #150)."
   [^Response resp tab]
   (let [^Request req (.request resp)
-        entry {:url    (.url req)
-               :method (.method req)
-               :status (.status resp)
-               :resource-type (.resourceType req)
-               :tab tab}]
-    (swap! !tracked-requests conj-tab-window entry max-tracked-requests)
-    ;; TASK-013: also track into enriched sliding window
-    (track-network-entry! resp tab)))
+        ;; TASK-013: track into the enriched sliding window first, for its ref.
+        entry-ref (track-network-entry! resp tab)
+        entry (cond-> {:url    (.url req)
+                       :method (.method req)
+                       :status (.status resp)
+                       :resource-type (.resourceType req)
+                       :tab tab}
+                entry-ref (assoc :ref entry-ref))]
+    (swap! !tracked-requests conj-tab-window entry max-tracked-requests)))
 
 (defn- track-failed-request!
   "Tracks a request that ended without a response: DNS failure, refused
@@ -2213,38 +2221,40 @@
   (let [failure (or (try (.failure req) (catch Exception _ nil)) "request failed")
         resource-type (try (.resourceType req) (catch Exception _ "other"))
         method (try (.method req) (catch Exception _ "GET"))
-        url (try (.url req) (catch Exception _ ""))]
+        url (try (.url req) (catch Exception _ ""))
+        entry-ref (when (capture-budget-left?)
+                    (let [entry-no (long (swap! !network-counter inc))
+                          ref-id (str "n" entry-no)
+                          page-url (try (.url (.page (.frame req))) (catch Exception _ "unknown"))
+                          req-headers (try (into {} (.headers req)) (catch Exception _ {}))
+                          post-data (try (.postData req) (catch Exception _ nil))
+                          base {:ref (str "@" ref-id)
+                                :tab tab
+                                :method method
+                                :url url
+                                :resource_type resource-type
+                                :status 0
+                                :error failure
+                                :duration_ms (request-elapsed-ms req)
+                                :timestamp (System/currentTimeMillis)
+                                :page page-url
+                                :page_ref (current-page-ref page-url)}
+                          entry (assoc base :preview {:request  {:headers (truncate-keys req-headers 5)
+                                                                 :body    (safe-parse-json-body post-data 500)}
+                                                      :response {:headers {}
+                                                                 :body    nil}})
+                          full-entry (assoc base
+                                       :request {:headers req-headers :body post-data}
+                                       :response {:headers {} :body nil})]
+                      (swap! !network-full assoc ref-id full-entry)
+                      (track-in-window! !network-window !network-full !network-responses entry)
+                      (swap! !session-entry-count inc)
+                      (:ref entry)))]
     (swap! !tracked-requests conj-tab-window
-      {:url url :method method :status 0 :error failure
-       :resource-type resource-type :tab tab}
-      max-tracked-requests)
-    (when (capture-budget-left?)
-      (let [entry-no (long (swap! !network-counter inc))
-            ref-id (str "n" entry-no)
-            page-url (try (.url (.page (.frame req))) (catch Exception _ "unknown"))
-            req-headers (try (into {} (.headers req)) (catch Exception _ {}))
-            post-data (try (.postData req) (catch Exception _ nil))
-            base {:ref (str "@" ref-id)
-                  :tab tab
-                  :method method
-                  :url url
-                  :resource_type resource-type
-                  :status 0
-                  :error failure
-                  :duration_ms (request-elapsed-ms req)
-                  :timestamp (System/currentTimeMillis)
-                  :page page-url
-                  :page_ref (current-page-ref page-url)}
-            entry (assoc base :preview {:request  {:headers (truncate-keys req-headers 5)
-                                                   :body    (safe-parse-json-body post-data 500)}
-                                        :response {:headers {}
-                                                   :body    nil}})
-            full-entry (assoc base
-                         :request {:headers req-headers :body post-data}
-                         :response {:headers {} :body nil})]
-        (swap! !network-full assoc ref-id full-entry)
-        (track-in-window! !network-window !network-full !network-responses entry)
-        (swap! !session-entry-count inc)))))
+      (cond-> {:url url :method method :status 0 :error failure
+               :resource-type resource-type :tab tab}
+        entry-ref (assoc :ref entry-ref))
+      max-tracked-requests)))
 
 ;; Tabs this session has driven: Page -> the tab key ("t1", "t2", ...) every
 ;; entry captured from it is tagged with. Playwright keeps every listener until
@@ -5048,8 +5058,19 @@
           (release-cdp-route-lock-if-owned!)
           {:all_routes_removed true}))))
 
+(defn- with-live-ref
+  "Drops the `:ref` of a request summary when its detail left the network window.
+
+   The summary buffer and the window evict on different limits, so an old
+   summary can outlive its detail. A listed ref must answer `network get`."
+  [full entry]
+  (let [entry-ref (:ref entry)]
+    (cond-> entry
+      (and entry-ref (not (contains? full (subs entry-ref 1)))) (dissoc :ref))))
+
 (defmethod handle-cmd "network_requests" [_ {:strs [filter type method status all]}]
-  (let [reqs     (tab-entries @!tracked-requests all)
+  (let [full     @!network-full
+        reqs     (mapv #(with-live-ref full %) (tab-entries @!tracked-requests all))
         filtered (cond->> reqs
                    filter (filterv #(re-find (re-pattern filter) (str (:url %))))
                    type   (filterv #(= (:resource-type %) type))

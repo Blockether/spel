@@ -3905,7 +3905,33 @@
           ;; The listing hands out a ref, so the detail behind it must answer.
           (let [detail (cmd "network_get_ref" {"ref" (:ref failed)})]
             (expect (str/includes? (str (:url detail)) "never-answers"))
-            (expect (not (str/blank? (str (:error detail)))))))))))
+            (expect (not (str/blank? (str (:error detail))))))
+          ;; Issue #150: `network requests` lists the same ref for it.
+          (expect (= [(:ref failed)]
+                    (mapv :ref (:requests (cmd "network_requests" {"filter" "never-answers"}))))))))))
+
+;; Regression, issue #150: `network requests` entries carried no `@nN` ref, so
+;; `network get` could not read one request. Two POSTs to one URL differ only in
+;; their body, and nothing in the listing could tell them apart.
+(defdescribe network-requests-ref-test
+  "Every `network requests` entry has a ref that `network get` resolves."
+
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
+  (describe "two POSTs to the same URL"
+
+    (it "lists a ref for each, and network get returns that POST body"
+      (nav! "/test-page")
+      (cmd "evaluate" {"script" (str "Promise.all(['{\"q\":\"a\"}', '{\"q\":\"ab\"}'].map(b =>"
+                                  " fetch('/test-page?issue150', {method: 'POST', body: b})"
+                                  ".then(r => r.status, () => 0)))")})
+      (Thread/sleep 500)
+      (let [reqs (:requests (cmd "network_requests" {"filter" "issue150"}))]
+        (expect (= 2 (count reqs)))
+        (expect (every? #(re-matches #"@n\d+" (str (:ref %))) reqs))
+        (expect (= #{"{\"q\":\"a\"}" "{\"q\":\"ab\"}"}
+                  (set (map #(get-in (cmd "network_get_ref" {"ref" (:ref %)}) [:request :body])
+                         reqs))))))))
 
 ;; =============================================================================
 ;; TASK-013: Console list
