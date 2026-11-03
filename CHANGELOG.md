@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.53] - 2026-11-03
+
+### Changed
+- fix(network): give network requests entries an @n ref, #150
+- chore(vis-spel): release v0.1.25
+- test(vis-spel): narrow the help listing test for pyright
+- fix(vis-spel): list tools when help gets no name
+- chore(vis-spel): release v0.1.24
+
+
 ## [v0.9.52] - 2026-10-30
 
 ### Changed
@@ -1982,7 +1992,7 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.52...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.53...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -2089,3 +2099,4 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 [v0.9.50]: https://github.com/Blockether/spel/releases/tag/v0.9.50
 [v0.9.51]: https://github.com/Blockether/spel/releases/tag/v0.9.51
 [v0.9.52]: https://github.com/Blockether/spel/releases/tag/v0.9.52
+[v0.9.53]: https://github.com/Blockether/spel/releases/tag/v0.9.53
