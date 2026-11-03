@@ -1,0 +1,1 @@
+  - com.microsoft.playwright/driver 1.0.0 (resolved via tools.deps: /tmp/spel-driver-test12854567717487515140/source.jar)
