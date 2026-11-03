@@ -410,7 +410,7 @@ def test_command_help_failures_recommend_help(client):
 def _batch_report(rows):
     """Fake native batch: echo each stdin step with the given (success, error)."""
 
-    def execute(binary, arguments, *, stdin=None, **kwargs):
+    def execute(binary, arguments, *, stdin: str, **kwargs):
         steps = json.loads(stdin)
         results = [
             {"cmd": step, "success": ok, "data": {"echo": step}, "error": error}
