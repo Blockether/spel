@@ -227,8 +227,9 @@ or an object with an `id` and a `command`:
 
 ```python
 flow = json.loads(Path("login.json").read_text())
-await spel.batch(lease.id, flow["steps"], until="submit",
-                 secrets={"PASSWORD": "Example password"})
+await spel.batch(
+    lease.id, flow["steps"], until="submit", secrets={"PASSWORD": "Example password"}
+)
 ```
 
 - `until` stops after the step with that id.
