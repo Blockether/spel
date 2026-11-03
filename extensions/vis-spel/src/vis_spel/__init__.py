@@ -165,6 +165,10 @@ _COMMANDS = {
     "storage",
     "download",
 }
+# Steps of spel.batch: a session-scoped action, or a step that its own tool validates.
+_BATCH_COMMANDS = _COMMANDS | {"open", "snapshot", "eval-js", "auth"}
+_SECRET = re.compile(r"\$\{([A-Z][A-Z0-9_]*)\}")
+_URL_SCHEMES = ("http", "https", "file", "data", "about")
 _MAX_OUTPUT = 4 * 1024 * 1024
 _VIS_SESSION = re.compile(
     r"(?:vis_session_id#)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
@@ -216,6 +220,41 @@ def _execute(
             stream.seek(0)
             outputs.append(stream.read().decode("utf-8", errors="replace"))
         return process.returncode, *outputs
+
+
+def _ask_secrets(labels: dict[str, str]) -> dict[str, str]:
+    """Ask the person for each secret in one masked form; return plaintext by name."""
+    answer = vis.ask(
+        "Browser step secrets",
+        [
+            {"name": name, "type": "password", "label": label}
+            for name, label in labels.items()
+        ],
+        description="Spel types these values into the page. The model sees only their names.",
+    )
+    if not answer:
+        raise SpelError(f"No secrets were given ({answer.reason}); no step ran.")
+    values = {}
+    for name in labels:
+        value = answer.reveal(name)
+        vis.forget(answer[name])
+        if not value:
+            raise SpelError(f"Secret {name} is empty; no step ran.")
+        values[name] = value
+    return values
+
+
+def _redact(value: Any, secrets: dict[str, str]) -> Any:
+    """Replace each secret value in strings, lists and dicts with its ${NAME}."""
+    if isinstance(value, str):
+        for name, secret in sorted(secrets.items(), key=lambda item: -len(item[1])):
+            value = value.replace(secret, "${" + name + "}")
+        return value
+    if isinstance(value, list):
+        return [_redact(item, secrets) for item in value]
+    if isinstance(value, dict):
+        return {key: _redact(item, secrets) for key, item in value.items()}
+    return value
 
 
 class Spel:
@@ -697,11 +736,13 @@ class Spel:
             raise SpelError(
                 f"Spel returned non-JSON output for {args[0]}; not retried. {warnings[:1000]}"
             ) from None
+        # A failed health or batch step still returns its JSON report.
         if code and not (
-            diagnostic
-            and args[0] == "health"
-            and isinstance(data, dict)
-            and "status" in data
+            isinstance(data, dict)
+            and (
+                (diagnostic and args[0] == "health" and "status" in data)
+                or (args[0] == "batch" and "results" in data)
+            )
         ):
             message = (
                 data.get("error", "Native command failed")
@@ -757,7 +798,7 @@ class Spel:
         Only explicit http(s), file, data or about URLs are accepted. Navigation and
         page scripts may have effects. Visit only targets that the user authorized.
         """
-        if urlsplit(url).scheme not in ("http", "https", "file", "data", "about"):
+        if urlsplit(url).scheme not in _URL_SCHEMES:
             raise ValueError("Supply an explicit http(s), file, data or about URL")
         return self._run(session, ["open", url])
 
@@ -913,6 +954,132 @@ class Spel:
                 raise ValueError(
                     "Arguments cannot override reservation or browser-global flags"
                 )
+
+    def batch(
+        self,
+        session: str,
+        steps: list,
+        *,
+        until: str | None = None,
+        bail: bool = True,
+        secrets: dict[str, str] | None = None,
+        timeout: float = 300,
+    ) -> BrowserResult:
+        """Run a list of browser steps in order in one native call, for a replayable flow.
+
+        A step is an argument list, as for `spel.command`, or
+        `{"id": "submit", "command": [...]}`. Steps can also use `open <url>`,
+        `snapshot ...`, `eval-js <code>` and `auth login <name>`. `until` stops after
+        the step with that id. `bail=True` stops at the first failed step. Save a flow
+        as JSON and pass the list again to replay it.
+
+        Use stable locators in a saved flow, such as `find role button click --name
+        Save`; `@e` refs change with each snapshot. `${NAME}` in an argument is a
+        secret: give `secrets={"NAME": "label"}`. The person then types each value in
+        a masked form. The model and the result see only `${NAME}`. A signed-in
+        profile or `auth login <name>`, saved with native `spel auth save`, needs no
+        form.
+
+        ```python
+        flow = json.loads(Path("login.json").read_text())
+        await spel.batch(lease.id, flow["steps"], until="submit",
+                         secrets={"PASSWORD": "Example password"})
+        ```
+
+        Returns `{count, success, results}`; each result has `id`, `cmd`, `success`,
+        `data` and `error`. A failed step raises SpelError with its id, and is not
+        retried. Steps have the effects of their actions; get authorization first.
+        """
+        if not isinstance(steps, list) or not steps:
+            raise ValueError("steps must be a non-empty list of steps")
+        ids: list[str | None] = []
+        commands: list[list[str]] = []
+        for step in steps:
+            identifier, arguments = None, step
+            if isinstance(step, dict):
+                if "command" not in step or set(step) - {"id", "command"}:
+                    raise ValueError('A step object has "command" and an optional "id"')
+                identifier, arguments = step.get("id"), step["command"]
+                if not isinstance(identifier, str | None) or identifier == "":
+                    raise ValueError("A step id is a non-empty string")
+                if identifier is not None and identifier in ids:
+                    raise ValueError(f"Step id {identifier!r} is not unique")
+            self._validate_step(arguments)
+            ids.append(identifier)
+            commands.append(arguments)
+        if until is not None:
+            if until not in ids:
+                raise ValueError(f"No step has the id {until!r}")
+            ids = ids[: ids.index(until) + 1]
+            commands = commands[: len(ids)]
+        names = sorted(
+            {name for args in commands for arg in args for name in _SECRET.findall(arg)}
+        )
+        labels = secrets or {}
+        missing = [name for name in names if name not in labels]
+        if missing:
+            raise ValueError(
+                f"Give secrets a label for {', '.join(missing)}; the person types the value"
+            )
+        values = _ask_secrets({name: labels[name] for name in names}) if names else {}
+        resolved = [
+            [_SECRET.sub(lambda match: values[match.group(1)], arg) for arg in args]
+            for args in commands
+        ]
+        try:
+            result = self._run(
+                session,
+                ["batch"] + (["--bail"] if bail else []),
+                stdin=json.dumps(resolved),
+                timeout=timeout,
+            )
+        except SpelError as error:
+            raise SpelError(_redact(str(error), values)) from None
+        data = _redact(result.data, values)
+        rows = data.get("results") if isinstance(data, dict) else None
+        if not isinstance(rows, list):
+            raise SpelError("Spel batch returned no step results; not retried.")
+        for row, identifier, args in zip(rows, ids, commands, strict=False):
+            row["id"] = identifier
+            row["cmd"] = args
+        failed = [(index, row) for index, row in enumerate(rows) if not row["success"]]
+        if failed:
+            index, row = failed[0]
+            name = ids[index] or " ".join(commands[index][:2])
+            raise SpelError(
+                f"batch step {name!r} ({index + 1} of {len(commands)}) failed: "
+                f"{str(row.get('error') or 'no error text').rstrip('.')}. {len(failed)} step(s) failed; "
+                "earlier steps ran and nothing was retried."
+            )
+        return BrowserResult(
+            result.session, "batch", data, _redact(result.warnings, values)
+        )
+
+    @staticmethod
+    def _validate_step(arguments):
+        if (
+            not isinstance(arguments, list)
+            or not arguments
+            or arguments[0] not in _BATCH_COMMANDS
+        ):
+            raise ValueError(
+                "A step is a list that starts with a spel.command action, open, "
+                "snapshot, eval-js or auth"
+            )
+        Spel._validate(arguments)
+        if "--stdin" in arguments:
+            raise ValueError(
+                "A step cannot read stdin; pass JavaScript as one argument"
+            )
+        if arguments[0] == "open" and (
+            len(arguments) != 2 or urlsplit(arguments[1]).scheme not in _URL_SCHEMES
+        ):
+            raise ValueError("Supply an explicit http(s), file, data or about URL")
+        if arguments[0] == "auth" and arguments[1:2] not in (["login"], ["list"]):
+            raise ValueError(
+                "A step can use auth login <name> or auth list; save a login with "
+                "native spel auth save --password-stdin"
+            )
 
     def evaluate(
         self, session: str, javascript: str, *, timeout: float = 60
@@ -1192,6 +1359,7 @@ _BINDINGS: list[tuple[str, str, bool, Literal["observation", "mutation"]]] = [
     ("open", "Open browser page", True, "mutation"),
     ("snapshot", "Read browser snapshot", True, "observation"),
     ("command", "Run browser action", True, "mutation"),
+    ("batch", "Run browser steps", True, "mutation"),
     ("evaluate", "Run page JavaScript", True, "mutation"),
     ("sci", "Run Spel Clojure", True, "mutation"),
     ("screenshot", "Capture browser screenshot", True, "mutation"),

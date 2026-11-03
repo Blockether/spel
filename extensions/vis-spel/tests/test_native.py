@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from vis_spel import Spel, _execute
+from vis_spel import Spel, SpelError, _execute
 from vis_spel.install import DEFAULT_VERSION
 
 pytestmark = [
@@ -152,6 +152,44 @@ def test_native_browser_workflow(tmp_path, monkeypatch, with_node_options):
     finally:
         client.release(lease.id)
     assert not Path(str(lease.name) + ".png").exists()
+
+
+def test_native_batch_replays_until_a_step_and_names_a_failed_step():
+    client = Spel()
+    assert client.installed() is not None
+    lease = client.reserve()
+    page = (
+        "data:text/html,<label>Name <input id=name></label>"
+        "<button onclick=\"document.title='saved:'+document.getElementById('name').value\">Save</button>"
+    )
+    steps = [
+        {"id": "open", "command": ["open", page]},
+        {"id": "name", "command": ["find", "label", "Name", "fill", "Ada"]},
+        {
+            "id": "save",
+            "command": ["find", "role", "button", "click", "--name", "Save"],
+        },
+        {"id": "title", "command": ["get", "title"]},
+    ]
+    try:
+        first = client.batch(lease.id, steps, until="name")
+        assert [row["id"] for row in first.data["results"]] == ["open", "name"]
+        assert client.evaluate(lease.id, "document.title").data["result"] == ""
+        full = client.batch(lease.id, steps)
+        assert full.data["results"][-1]["data"] == {"title": "saved:Ada"}
+        with pytest.raises(SpelError, match=r"step 'missing' \(1 of 2\) failed"):
+            client.batch(
+                lease.id,
+                [
+                    {
+                        "id": "missing",
+                        "command": ["click", "#missing", "--timeout", "500"],
+                    },
+                    {"id": "after", "command": ["reload"]},
+                ],
+            )
+    finally:
+        client.release(lease.id)
 
 
 def test_native_managed_profile_persists_auth_storage_across_sessions(tmp_path):

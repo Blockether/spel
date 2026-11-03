@@ -209,6 +209,39 @@ actions can submit forms and write files; obtain authorization for those effects
 and complete authentication privately.
 See the [browser skill](skills/browser/SKILL.md) for the task workflow.
 
+## Replay browser steps
+
+Save a flow as a JSON list of steps. Each step is a `spel.command` argument list,
+or an object with an `id` and a `command`:
+
+```json
+{"steps": [
+  {"id": "open", "command": ["open", "https://app.example.com/login"]},
+  {"id": "email", "command": ["find", "label", "Email", "fill", "ada@example.com"]},
+  {"id": "password", "command": ["find", "label", "Password", "fill", "${PASSWORD}"]},
+  {"id": "submit", "command": ["find", "role", "button", "click", "--name", "Sign in"]}
+]}
+```
+
+`spel.batch` runs the steps in order in one native `spel batch` call:
+
+```python
+flow = json.loads(Path("login.json").read_text())
+await spel.batch(lease.id, flow["steps"], until="submit",
+                 secrets={"PASSWORD": "Example password"})
+```
+
+- `until` stops after the step with that id.
+- `bail=True`, the default, stops at the first failed step. The error names the step.
+- Use stable locators such as `find role` or `find label`. Snapshot `@e` refs change.
+- Steps can also use `open`, `snapshot`, `eval-js <code>`, `auth login <name>` and `auth list`.
+
+`${NAME}` marks a secret. Vis asks the person for each value in a masked form.
+The model and the result get only `${NAME}`. To keep a login, use a managed
+profile, or save it once in the encrypted Spel vault with
+`spel auth save <name> --url <url> --username <user> --password-stdin`. Then use
+the step `["auth", "login", "<name>"]`.
+
 ## Continue or hand over a reservation
 
 A reservation belongs to the Vis session that made it. After a reload or a new

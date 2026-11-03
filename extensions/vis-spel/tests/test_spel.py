@@ -407,6 +407,114 @@ def test_command_help_failures_recommend_help(client):
     assert not calls
 
 
+def _batch_report(rows):
+    """Fake native batch: echo each stdin step with the given (success, error)."""
+
+    def execute(binary, arguments, *, stdin=None, **kwargs):
+        steps = json.loads(stdin)
+        results = [
+            {"cmd": step, "success": ok, "data": {"echo": step}, "error": error}
+            for step, (ok, error) in zip(steps, rows, strict=False)
+        ]
+        ok = all(row["success"] for row in results)
+        report = {"count": len(results), "success": ok, "results": results}
+        return (0 if ok else 1), json.dumps(report), ""
+
+    return execute
+
+
+def test_batch_runs_steps_until_an_id(client, monkeypatch):
+    spel, calls = client
+    sent = []
+
+    def execute(binary, arguments, **kwargs):
+        sent.append((arguments, json.loads(kwargs["stdin"])))
+        return _batch_report([(True, None)] * 3)(binary, arguments, **kwargs)
+
+    monkeypatch.setattr(vis_spel, "_execute", execute)
+    steps = [
+        {"id": "open", "command": ["open", "https://example.com"]},
+        ["find", "label", "Email", "fill", "ada@example.com"],
+        {
+            "id": "submit",
+            "command": ["find", "role", "button", "click", "--name", "Go"],
+        },
+        {"id": "ready", "command": ["wait", "--text", "Dashboard"]},
+    ]
+    result = spel.batch(spel.reserve().id, steps, until="submit")
+    arguments, stdin = sent[-1]
+    assert arguments[-2:] == ["batch", "--bail"]
+    assert stdin == [
+        step["command"] if isinstance(step, dict) else step for step in steps[:3]
+    ]
+    assert [row["id"] for row in result.data["results"]] == ["open", None, "submit"]
+
+
+def test_batch_failure_names_the_step(client, monkeypatch):
+    spel, _ = client
+    monkeypatch.setattr(
+        vis_spel, "_execute", _batch_report([(True, None), (False, "no element")])
+    )
+    steps = [["open", "about:blank"], {"id": "save", "command": ["click", "#save"]}]
+    with pytest.raises(SpelError, match=r"step 'save' \(2 of 2\) failed: no element"):
+        spel.batch(spel.reserve().id, steps)
+
+
+def test_batch_secret_reaches_the_page_but_not_the_result(client, monkeypatch):
+    spel, _ = client
+    secret = "hunter2-secret"
+    sent = []
+
+    class Answer:
+        def __bool__(self):
+            return True
+
+        def __getitem__(self, name):
+            return f"vis-secret:{name}"
+
+        def reveal(self, name):
+            return secret
+
+    forgotten = []
+    monkeypatch.setattr(vis_spel.vis, "ask", lambda *args, **kwargs: Answer())
+    monkeypatch.setattr(vis_spel.vis, "forget", forgotten.append)
+    report = _batch_report([(True, None)])
+
+    def execute(binary, arguments, **kwargs):
+        sent.append(json.loads(kwargs["stdin"]))
+        return report(binary, arguments, **kwargs)
+
+    monkeypatch.setattr(vis_spel, "_execute", execute)
+    step = ["find", "label", "Password", "fill", "${PASSWORD}"]
+    result = spel.batch(spel.reserve().id, [step], secrets={"PASSWORD": "Password"})
+    assert sent == [[step[:-1] + [secret]]]
+    assert secret not in json.dumps(result.data)
+    assert result.data["results"][0]["cmd"] == step
+    assert forgotten == ["vis-secret:PASSWORD"]
+
+
+@pytest.mark.parametrize(
+    ("steps", "options"),
+    [
+        ([], {}),
+        ([["click", "#go", "--session", "other"]], {}),
+        ([["close"]], {}),
+        ([["open", "javascript:alert(1)"]], {}),
+        ([["auth", "save", "site"]], {}),
+        ([["eval-js", "--stdin"]], {}),
+        ([{"id": "a", "command": ["reload"]}, {"id": "a", "command": ["reload"]}], {}),
+        ([["reload"]], {"until": "missing"}),
+        ([["fill", "#password", "${PASSWORD}"]], {}),
+    ],
+)
+def test_batch_refuses_unsafe_steps_before_running(client, steps, options):
+    spel, calls = client
+    lease = spel.reserve()
+    with pytest.raises(ValueError):
+        spel.batch(lease.id, steps, **options)
+    assert not calls
+
+
 def test_command_preserves_arguments_without_shell(client):
     spel, calls = client
     text = "text; $(not-a-command) ' quoted"
