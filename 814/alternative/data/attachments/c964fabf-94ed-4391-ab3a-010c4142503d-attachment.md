@@ -1,0 +1,20 @@
+## GET http://localhost:36581/status/401 → 401 Unauthorized
+
+### Response Headers
+```
+content-length: 14
+content-type: application/json
+date: Tue, 03 Nov 2026 22:22:51 GMT
+```
+
+### Response Body
+```json
+{
+  "status": 401
+}
+```
+
+### cURL
+```bash
+curl 'http://localhost:36581/status/401'
+```
