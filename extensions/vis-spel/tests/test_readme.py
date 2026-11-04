@@ -88,16 +88,16 @@ def test_readme_management_selects_the_repository_and_project_folder():
 
 def test_registration_sdk_requirement_matches_docs_and_lock():
     # SDKs before 0.2.31 reject the skill table that hides its settings switch.
-    # SDK 0.2.45 pins the LiteLLM build that corporate Artifactory mirrors serve.
+    # SDK 0.5.2 is the release that this extension is tested against.
     project = tomllib.loads((PROJECT / "pyproject.toml").read_text())["project"]
     requirement = next(
         dependency
         for value in project["dependencies"]
         if (dependency := Requirement(value)).name == "vis-agent"
     )
-    assert "0.2.45" in requirement.specifier
-    assert "0.2.44" not in requirement.specifier
-    assert "Vis / `vis-agent` **0.2.45+**" in README
+    assert "0.5.2" in requirement.specifier
+    assert "0.5.1" not in requirement.specifier
+    assert "Vis / `vis-agent` **0.5.2+**" in README
     locked_sdk = next(
         package
         for package in tomllib.loads((PROJECT / "uv.lock").read_text())["package"]
