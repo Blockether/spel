@@ -1,0 +1,41 @@
+name: DIAG windows deep DOM (temporary)
+
+on:
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    strategy:
+      fail-fast: false
+      matrix:
+        playwright: ["1.61.0", "1.64.0"]
+    runs-on: windows-latest
+    name: diag (playwright ${{ matrix.playwright }})
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - name: Normalize Playwright browsers path
+        run: echo "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" >> "$GITHUB_ENV"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: DeLaGuardo/setup-clojure@13.6.1
+        with:
+          cli: latest
+      - name: Install Chromium
+        run: |
+          clojure -Sdeps '{:deps {com.microsoft.playwright/playwright {:mvn/version "${{ matrix.playwright }}"}}}' \
+            -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\" \"chromium\"]))"
+      - name: Probe deep DOM
+        timeout-minutes: 40
+        run: |
+          clojure -Sdeps '{:deps {com.microsoft.playwright/playwright {:mvn/version "${{ matrix.playwright }}"}}}' \
+            -M dev/diag_deep_dom.clj 2>&1 | tee diag.txt
+          grep '^DIAG\|^chromium' diag.txt
