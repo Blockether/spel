@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.54] - 2026-11-04
+
+### Changed
+- fix(windows): run headless Chromium in the full build on Windows
+- test(windows): make the Clojure suite portable to Windows
+- build(graalvm): build with pinned GraalVM CE 25.5.5.0.3
+- build(playwright): bump to 1.64.0 and Patchright to 1.64.3
+- chore(vis-spel): release v0.1.27
+- fix(vis-spel): read the session owner when vis.session raises
+- feat(vis-spel): add batch start, log output and pause steps
+- test(vis-spel): type the fake batch stdin for pyright
+- docs(vis-spel): format the batch example for ruff
+- feat(vis-spel): add spel.batch for replayable step flows
+- chore(vis-spel): release v0.1.26
+
+
 ## [v0.9.53] - 2026-11-03
 
 ### Changed
@@ -1992,7 +2008,7 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.53...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.54...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -2100,3 +2116,4 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 [v0.9.51]: https://github.com/Blockether/spel/releases/tag/v0.9.51
 [v0.9.52]: https://github.com/Blockether/spel/releases/tag/v0.9.52
 [v0.9.53]: https://github.com/Blockether/spel/releases/tag/v0.9.53
+[v0.9.54]: https://github.com/Blockether/spel/releases/tag/v0.9.54
