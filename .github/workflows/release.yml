@@ -44,11 +44,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # GraalVM CE at the version in .graalvm-version.
       - name: Setup GraalVM
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '25'
-          distribution: 'graalvm'
+        uses: ./.github/actions/setup-graalvm-ce
 
       - uses: DeLaGuardo/setup-clojure@13.6.1
         with:

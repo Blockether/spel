@@ -1,0 +1,79 @@
+name: 'Set up GraalVM CE (pinned)'
+description: >-
+  Installs GraalVM Community Edition at the exact version in `.graalvm-version`.
+  graalvm/setup-graalvm cannot resolve the CE innovation release names, so this
+  action downloads the pinned graalvm-ce-builds asset and checks its digest.
+runs:
+  using: composite
+  steps:
+    - name: Install pinned GraalVM CE
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Checkout must run before this action.
+        . "${GITHUB_WORKSPACE}/.graalvm-version"
+        echo "Pinned: ${GRAAL_EDITION} ${GRAAL_VERSION} (${GRAAL_TAG} / ${GRAAL_ASSET_VERSION})"
+
+        case "${RUNNER_OS}/${RUNNER_ARCH}" in
+          Linux/X64)     slug="linux-x64";     ext="tar.gz"; sha="${GRAAL_SHA256_linux_x64}" ;;
+          Linux/ARM64)   slug="linux-aarch64"; ext="tar.gz"; sha="${GRAAL_SHA256_linux_aarch64}" ;;
+          macOS/ARM64)   slug="macos-aarch64"; ext="tar.gz"; sha="${GRAAL_SHA256_macos_aarch64}" ;;
+          Windows/X64)   slug="windows-x64";   ext="zip";    sha="${GRAAL_SHA256_windows_x64}" ;;
+          *) echo "::error::No ${GRAAL_EDITION} ${GRAAL_VERSION} build for ${RUNNER_OS}/${RUNNER_ARCH}" >&2; exit 1 ;;
+        esac
+        file="graalvm-community-jdk-${GRAAL_ASSET_VERSION}_${slug}_bin.${ext}"
+        url="https://github.com/graalvm/graalvm-ce-builds/releases/download/${GRAAL_TAG}/${file}"
+
+        dest="${RUNNER_TEMP}/graalvm"
+        archive="${RUNNER_TEMP}/${file}"
+        mkdir -p "${dest}"
+
+        echo "Downloading ${url}"
+        curl -fL --retry 3 --retry-delay 5 -o "${archive}" "${url}"
+
+        # The pin holds the digest, so a changed release asset fails the job.
+        if command -v sha256sum >/dev/null 2>&1; then
+          echo "${sha}  ${archive}" | sha256sum -c -
+        else
+          echo "${sha}  ${archive}" | shasum -a 256 -c -
+        fi
+
+        if [ "${ext}" = "zip" ]; then
+          7z x -y -o"${dest}" "${archive}" >/dev/null
+        else
+          tar -xzf "${archive}" -C "${dest}"
+        fi
+
+        # macOS nests the JDK home under Contents/Home.
+        java_bin="$(find "${dest}" -type f \( -name java -o -name java.exe \) -path '*/bin/*' | head -n1)"
+        if [ -z "${java_bin}" ]; then
+          echo "::error::java executable not found after extraction" >&2
+          exit 1
+        fi
+        unix_home="$(cd "$(dirname "${java_bin}")/.." && pwd)"
+
+        # java.vendor.version separates CE from Oracle GraalVM and stock JDKs.
+        got="$("${java_bin}" -XshowSettings:properties -version 2>&1 |
+                 sed -n 's/^ *java\.vendor\.version = //p' | head -n1 | tr -d '\r')"
+        if [ "${got}" != "${GRAAL_VENDOR_VERSION}" ]; then
+          echo "::error::expected java.vendor.version '${GRAAL_VENDOR_VERSION}', got '${got}'" >&2
+          exit 1
+        fi
+        if [ ! -e "${unix_home}/bin/native-image" ] && [ ! -e "${unix_home}/bin/native-image.cmd" ]; then
+          echo "::error::no native-image in ${unix_home}/bin" >&2
+          exit 1
+        fi
+
+        home="${unix_home}"
+        bin_dir="${unix_home}/bin"
+        if [ "${RUNNER_OS}" = "Windows" ]; then
+          home="$(cygpath -w "${unix_home}")"
+          bin_dir="$(cygpath -w "${unix_home}/bin")"
+        fi
+
+        echo "JAVA_HOME=${home}"    >> "${GITHUB_ENV}"
+        echo "GRAALVM_HOME=${home}" >> "${GITHUB_ENV}"
+        echo "${bin_dir}"           >> "${GITHUB_PATH}"
+
+        echo "OK ${got} - ${home}"

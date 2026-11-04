@@ -37,11 +37,9 @@ jobs:
         # $GITHUB_ENV propagates to ALL subsequent steps and their subprocesses.
         run: echo "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" >> "$GITHUB_ENV"
 
+      # GraalVM CE at the version in .graalvm-version.
       - name: Setup GraalVM
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '25'
-          distribution: 'graalvm'
+        uses: ./.github/actions/setup-graalvm-ce
 
       - uses: DeLaGuardo/setup-clojure@13.6.1
         with:

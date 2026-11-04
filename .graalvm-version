@@ -1,0 +1,14 @@
+# Native-image build toolchain for CI and release binaries.
+# Use GraalVM Community Edition (GPLv2 + Classpath Exception), not Oracle GraalVM.
+# Change the version, tag, asset version, vendor version and digests together.
+# .github/actions/setup-graalvm-ce reads this file.
+
+GRAAL_EDITION="GraalVM CE"
+GRAAL_VERSION="25.5.5.0.3"
+GRAAL_TAG="graal-25.5.5.0.3"
+GRAAL_ASSET_VERSION="25i5-25.0.5.0.3"
+GRAAL_VENDOR_VERSION="GraalVM CE 25.5.5.0.3+1.1"
+GRAAL_SHA256_linux_x64="c6438dee6c3ade2220d40b7ccdcad24b512d30e233e61bb4fc70519522de34ef"
+GRAAL_SHA256_linux_aarch64="41741c0650ae7564a78335f9e4fc353a902e6ff1d4140f2e4fabd1c55d5cce66"
+GRAAL_SHA256_macos_aarch64="54369d4a5931a5a2101c7c52444a4e7e6647a3a4e041335053cda6fd22295e0c"
+GRAAL_SHA256_windows_x64="b02c3b162129fa8cbfa7ebd0fcc1ae6eba2fc736bf3bef8e40e5ace3e9d9a0d6"

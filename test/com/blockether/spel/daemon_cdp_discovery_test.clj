@@ -593,9 +593,8 @@
   "GraalVM enables no `http`/`https` URL protocol by default. Without it every
    /json/version probe throws MalformedURLException, so `connect http://host:port`
    fails in the native binary while the same endpoint answers curl (issue #112).
-   Oracle GraalVM 25.0.x — what the release workflow builds with — honours only
-   the build flag, newer versions honour the reachability metadata, so the shipped
-   config must carry both."
+   Oracle GraalVM 25.0.x honours only the build flag, newer versions honour the
+   reachability metadata, so the shipped config must carry both."
 
   (describe "native-image.properties"
     (it "enables the http and https URL protocols"
