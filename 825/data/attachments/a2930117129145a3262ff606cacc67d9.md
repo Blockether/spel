@@ -1,0 +1,22 @@
+## DELETE http://localhost:42187/echo → 200 OK
+
+### Response Headers
+```
+content-length: 34
+content-type: application/json
+date: Wed, 04 Nov 2026 12:02:38 GMT
+```
+
+### Response Body
+```json
+{
+  "method": "DELETE",
+  "path": "/echo"
+}
+```
+
+### cURL
+```bash
+curl 'http://localhost:42187/echo' \
+  -X DELETE
+```
