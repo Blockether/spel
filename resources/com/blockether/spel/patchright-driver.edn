@@ -5,5 +5,5 @@
  ;; `driver/package/**` layout as com.microsoft.playwright/driver.
  ;; Keep :version on the Playwright Java minor line in deps.edn.
  :package   "patchright-core"
- :version   "1.61.1"
- :integrity "sha512-d6Ju67DE6OzqlEX3WPvUX2SLEs6iMY1WERit//mpsrT98VHcztaUo0CBw2Lpxq25VdufVEiWEdcc0HnLwdiq6A=="}
+ :version   "1.64.3"
+ :integrity "sha512-AikBjQ6CcsEtk7pJGlZ7ITxIInVd0a8HWPtuGjx2Y0Ogb88sj1wqICiYFz4du6fbaLQStLNEnWCmYm5uODsEzQ=="}

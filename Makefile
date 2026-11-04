@@ -96,7 +96,7 @@ clean: ## Clean build artifacts
 
 repl: ## Start nREPL on port $(REPL_PORT)
 	@echo "Starting spel REPL on port $(REPL_PORT)..."
-	@echo "  - Playwright Java 1.61.0 on classpath"
+	@echo "  - Playwright Java 1.64.0 on classpath"
 	@echo "  - Test sources included"
 	@echo "  - Connect: clj-nrepl-log -p $(REPL_PORT)"
 	@echo ""

@@ -69,7 +69,7 @@ Wraps Playwright CLI commands via the `spel` native binary.
 
 Choose CLI commands for interactive snapshot/action/verification loops and for action-log subtitles. Use `eval-sci` for reusable scripts, loops or composed assertions when the necessary state and signatures are known. A multi-step task does not by itself require conversion to a script.
 
-> `spel install` wraps `com.microsoft.playwright.CLI` — same Node.js Playwright CLI that `npx playwright` uses. Driver version is pinned to Playwright Java (1.61.0), so browser versions always match.
+> `spel install` wraps `com.microsoft.playwright.CLI` — same Node.js Playwright CLI that `npx playwright` uses. Driver version is pinned to Playwright Java (1.64.0), so browser versions always match.
 
 ```bash
 spel install                        # install browsers (Chromium default)
