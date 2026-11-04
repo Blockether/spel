@@ -490,6 +490,28 @@
 ;; Browser Launching
 ;; =============================================================================
 
+(defn- with-full-chromium
+  "Runs Chromium in the full Chromium build when no browser binary is chosen.
+   Playwright otherwise runs headless Chromium as `chromium-headless-shell`."
+  [browser-name opts]
+  (cond-> opts
+    (and (= "chromium" browser-name)
+      (not (:channel opts))
+      (not (:executable-path opts)))
+    (assoc :channel "chromium")))
+
+(defn- windows-host?
+  "Returns true when the JVM runs on Windows."
+  []
+  (str/includes? (str/lower-case (System/getProperty "os.name" "")) "windows"))
+
+(defn- host-launch-opts
+  "Returns the launch options for the host. On Windows, Chromium runs in the full build:
+   there `chromium-headless-shell` crashes its renderer on a DOM nested 200 levels deep."
+  [windows? browser-name opts]
+  (cond->> opts
+    windows? (with-full-chromium browser-name)))
+
 (defn launch
   "Launches a browser of the given type.
    
@@ -500,9 +522,11 @@
    Returns:
    Browser instance or anomaly map on failure."
   (^Browser [^BrowserType browser-type]
-   (safe (.launch browser-type)))
+   (launch browser-type {}))
   (^Browser [^BrowserType browser-type launch-opts]
-   (safe (.launch browser-type (opts/->launch-options launch-opts)))))
+   (safe (.launch browser-type
+           (opts/->launch-options
+             (host-launch-opts (windows-host?) (.name browser-type) launch-opts))))))
 
 (defn launch-chromium
   "Launches Chromium browser.
@@ -578,17 +602,6 @@
       (.close context)
       (throw e))))
 
-(defn- with-full-chromium
-  "Runs a Chromium profile in the full Chromium build when no browser binary is chosen.
-   Playwright otherwise runs headless Chromium as `chromium-headless-shell`. That build
-   cannot read cookies that full Chromium wrote, and it deletes them (issue #149)."
-  [^BrowserType browser-type opts]
-  (cond-> opts
-    (and (= "chromium" (.name browser-type))
-      (not (:channel opts))
-      (not (:executable-path opts)))
-    (assoc :channel "chromium")))
-
 (defn launch-persistent-context
   "Launches a browser with a persistent user data directory (Chrome profile).
 
@@ -623,7 +636,10 @@
            (.launchPersistentContext browser-type
              (java.nio.file.Paths/get user-data-dir (into-array String []))
              (opts/->launch-persistent-context-options
-               (with-full-chromium browser-type opts)))
+               ;; A profile needs the full build in both modes (issue #149):
+               ;; `chromium-headless-shell` cannot read cookies that full
+               ;; Chromium wrote, and it deletes them.
+               (with-full-chromium (.name browser-type) opts)))
            opts))))
 
 ;; =============================================================================

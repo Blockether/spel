@@ -32,6 +32,20 @@
     (expect-it "close! with nil is safe"
       (nil? (sut/close! nil)))))
 
+;; Regression: on Windows, chromium-headless-shell 156 crashed its renderer
+;; ("Target crashed") on a DOM nested 200 levels deep, so snapshots failed.
+(defdescribe host-launch-opts-test
+  "Windows runs Chromium in the full build. Other hosts keep Playwright's choice."
+
+  (it "selects the full Chromium build on Windows"
+    (expect (= "chromium" (:channel (#'sut/host-launch-opts true "chromium" {:headless true})))))
+
+  (it "keeps the headless shell on other hosts"
+    (expect (nil? (:channel (#'sut/host-launch-opts false "chromium" {:headless true})))))
+
+  (it "keeps the browser that the caller chose"
+    (expect (= "chrome" (:channel (#'sut/host-launch-opts true "chromium" {:channel "chrome"}))))))
+
 (defdescribe find-free-port-test
   "Tests for finding an available local TCP port"
 
