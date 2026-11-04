@@ -183,12 +183,9 @@ def _caller() -> str | None:
     A Vis release older than the session API (October 2026) also gives None: its
     reservations then have no owner, as before.
     """
-    # getattr: the SDK that this package locks predates vis.session.
-    current = getattr(vis, "session", None)
-    if current is None:
-        return None
+    # Outside a bound session, vis.session raises RuntimeError.
     try:
-        return current.id
+        return vis.session.id
     except (AttributeError, ImportError, RuntimeError):
         return None
 
