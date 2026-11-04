@@ -223,7 +223,8 @@ or an object with an `id` and a `command`:
 ]}
 ```
 
-`spel.batch` runs the steps in order in one native `spel batch` call:
+`spel.batch` runs the steps in order. Consecutive browser steps run in one native
+`spel batch` call:
 
 ```python
 flow = json.loads(Path("login.json").read_text())
@@ -232,7 +233,7 @@ await spel.batch(
 )
 ```
 
-- `until` stops after the step with that id.
+- `start` begins at the step with that id. `until` stops after the step with that id.
 - `bail=True`, the default, stops at the first failed step. The error names the step.
 - Use stable locators such as `find role` or `find label`. Snapshot `@e` refs change.
 - Steps can also use `open`, `snapshot`, `eval-js <code>`, `auth login <name>` and `auth list`.
@@ -242,6 +243,24 @@ The model and the result get only `${NAME}`. To keep a login, use a managed
 profile, or save it once in the encrypted Spel vault with
 `spel auth save <name> --url <url> --username <user> --password-stdin`. Then use
 the step `["auth", "login", "<name>"]`.
+
+The result has an `output` list, in step order:
+
+- A `["log", "<text>"]` step adds `{"id": ..., "log": "<text>"}`.
+- An `["eval-js", "<code>"]` step adds `{"id": ..., "value": <JSON result>}`.
+
+`results` keeps the full result of each step.
+
+`["pause", "<text>"]` shows the text in Vis and waits until the person selects
+Continue. Stop ends the batch. The wait is 900 seconds. Add
+`"--timeout", "<seconds>"` to change it, from 1 to 86400.
+
+Use a pause for a manual sign-in in a headed browser, then wait for the page:
+
+```json
+{"id": "sign-in", "command": ["pause", "Sign in in the browser, then select Continue"]},
+{"id": "signed-in", "command": ["wait", "--url", "**/dashboard"]}
+```
 
 ## Continue or hand over a reservation
 

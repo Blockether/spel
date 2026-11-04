@@ -169,6 +169,8 @@ _COMMANDS = {
 _BATCH_COMMANDS = _COMMANDS | {"open", "snapshot", "eval-js", "auth"}
 _SECRET = re.compile(r"\$\{([A-Z][A-Z0-9_]*)\}")
 _URL_SCHEMES = ("http", "https", "file", "data", "about")
+# Steps of spel.batch that the extension runs itself, not the browser.
+_VIS_STEPS = {"log", "pause"}
 _MAX_OUTPUT = 4 * 1024 * 1024
 _VIS_SESSION = re.compile(
     r"(?:vis_session_id#)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
@@ -255,6 +257,31 @@ def _redact(value: Any, secrets: dict[str, str]) -> Any:
     if isinstance(value, dict):
         return {key: _redact(item, secrets) for key, item in value.items()}
     return value
+
+
+def _pause_step(identifier: str | None, arguments: list[str]) -> dict[str, Any]:
+    """Show a pause step in Vis and wait for Continue; return its result row."""
+    title = (f"Browser step {identifier}" if identifier else "Browser step")[:120]
+    seconds = int(arguments[3]) if len(arguments) == 4 else 900
+    answer = vis.ask(
+        title,
+        [{"type": "paragraph", "text": arguments[1]}],
+        submit_label="Continue",
+        cancel_label="Stop",
+        timeout_ms=seconds * 1000,
+    )
+    if not answer:
+        raise SpelError(
+            f"batch step {identifier or 'pause'!r} got no Continue ({answer.reason}); "
+            "earlier steps ran and later steps did not."
+        )
+    return {
+        "id": identifier,
+        "cmd": arguments,
+        "success": True,
+        "data": {"continued": True},
+        "error": None,
+    }
 
 
 class Spel:
@@ -960,18 +987,24 @@ class Spel:
         session: str,
         steps: list,
         *,
+        start: str | None = None,
         until: str | None = None,
         bail: bool = True,
         secrets: dict[str, str] | None = None,
         timeout: float = 300,
     ) -> BrowserResult:
-        """Run a list of browser steps in order in one native call, for a replayable flow.
+        """Run a list of browser steps in order, for a replayable flow saved as JSON.
 
         A step is an argument list, as for `spel.command`, or
         `{"id": "submit", "command": [...]}`. Steps can also use `open <url>`,
-        `snapshot ...`, `eval-js <code>` and `auth login <name>`. `until` stops after
-        the step with that id. `bail=True` stops at the first failed step. Save a flow
-        as JSON and pass the list again to replay it.
+        `snapshot ...`, `eval-js <code>` and `auth login <name>`. `start` begins at the
+        step with that id, and `until` stops after the step with that id. `bail=True`
+        stops at the first failed step.
+
+        `["log", text]` writes text to the output. `["pause", text]` shows text in Vis
+        and waits until the person selects Continue, for
+        example after a manual sign-in in a headed browser. It waits 900 seconds; add
+        `"--timeout", "<seconds>"` (1-86400) to change this. Stop ends the batch.
 
         Use stable locators in a saved flow, such as `find role button click --name
         Save`; `@e` refs change with each snapshot. `${NAME}` in an argument is a
@@ -982,38 +1015,30 @@ class Spel:
 
         ```python
         flow = json.loads(Path("login.json").read_text())
-        await spel.batch(lease.id, flow["steps"], until="submit",
+        await spel.batch(lease.id, flow["steps"], start="email", until="submit",
                          secrets={"PASSWORD": "Example password"})
         ```
 
-        Returns `{count, success, results}`; each result has `id`, `cmd`, `success`,
-        `data` and `error`. A failed step raises SpelError with its id, and is not
-        retried. Steps have the effects of their actions; get authorization first.
+        Returns `{count, success, output, results}`. `output` lists the log steps as
+        `{id, log}` and the `eval-js` results as `{id, value}`, in step order. Each
+        result has `id`, `cmd`, `success`, `data` and `error`. A failed or stopped step raises SpelError with its id, and
+        is not retried. Steps have the effects of their actions; get authorization first.
         """
-        if not isinstance(steps, list) or not steps:
-            raise ValueError("steps must be a non-empty list of steps")
-        ids: list[str | None] = []
-        commands: list[list[str]] = []
-        for step in steps:
-            identifier, arguments = None, step
-            if isinstance(step, dict):
-                if "command" not in step or set(step) - {"id", "command"}:
-                    raise ValueError('A step object has "command" and an optional "id"')
-                identifier, arguments = step.get("id"), step["command"]
-                if not isinstance(identifier, str | None) or identifier == "":
-                    raise ValueError("A step id is a non-empty string")
-                if identifier is not None and identifier in ids:
-                    raise ValueError(f"Step id {identifier!r} is not unique")
-            self._validate_step(arguments)
-            ids.append(identifier)
-            commands.append(arguments)
-        if until is not None:
-            if until not in ids:
-                raise ValueError(f"No step has the id {until!r}")
-            ids = ids[: ids.index(until) + 1]
-            commands = commands[: len(ids)]
+        ids, commands = self._steps(steps)
+        first = 0 if start is None else self._step_index(ids, start)
+        last = len(ids) - 1 if until is None else self._step_index(ids, until)
+        if last < first:
+            raise ValueError(f"Step {until!r} comes before step {start!r}")
+        ids, commands = ids[first : last + 1], commands[first : last + 1]
+        reservation = self._reservation(session)
         names = sorted(
-            {name for args in commands for arg in args for name in _SECRET.findall(arg)}
+            {
+                name
+                for args in commands
+                if args[0] not in _VIS_STEPS
+                for arg in args
+                for name in _SECRET.findall(arg)
+            }
         )
         labels = secrets or {}
         missing = [name for name in names if name not in labels]
@@ -1022,6 +1047,79 @@ class Spel:
                 f"Give secrets a label for {', '.join(missing)}; the person types the value"
             )
         values = _ask_secrets({name: labels[name] for name in names}) if names else {}
+        rows: list[dict[str, Any]] = []
+        warnings: list[str] = []
+        index = 0
+        while index < len(commands):
+            if commands[index][0] == "pause":
+                rows.append(_pause_step(ids[index], commands[index]))
+                index += 1
+                continue
+            end = index
+            while end < len(commands) and commands[end][0] != "pause":
+                end += 1
+            # Log steps write only to the output, so they stay out of the native call.
+            native = [i for i in range(index, end) if commands[i][0] != "log"]
+            part, warning = (
+                self._native_steps(
+                    session,
+                    [commands[i] for i in native],
+                    bail=bail,
+                    values=values,
+                    timeout=timeout,
+                )
+                if native
+                else ([], "")
+            )
+            if warning:
+                warnings.append(warning)
+            ran = dict(zip(native, part, strict=False))
+            for i in range(index, end):
+                if commands[i][0] == "log":
+                    row = {
+                        "success": True,
+                        "data": {"log": commands[i][1]},
+                        "error": None,
+                    }
+                elif i in ran:
+                    row = ran[i]
+                else:
+                    break
+                rows.append({**row, "id": ids[i], "cmd": commands[i]})
+                if bail and not row["success"]:
+                    break
+            if len(rows) < end:
+                break
+            index = end
+        failed = [(index, row) for index, row in enumerate(rows) if not row["success"]]
+        if failed:
+            index, row = failed[0]
+            name = ids[index] or " ".join(commands[index][:2])
+            raise SpelError(
+                f"batch step {name!r} ({index + 1} of {len(commands)}) failed: "
+                f"{str(row.get('error') or 'no error text').rstrip('.')}. {len(failed)} step(s) failed; "
+                "earlier steps ran and nothing was retried."
+            )
+        output = [
+            {"id": row["id"], "log": row["data"]["log"]}
+            if row["cmd"][0] == "log"
+            else {"id": row["id"], "value": (row["data"] or {}).get("result")}
+            for row in rows
+            if row["cmd"][0] in ("log", "eval-js")
+        ]
+        data = {"count": len(rows), "success": True, "output": output, "results": rows}
+        return BrowserResult(reservation["name"], "batch", data, "\n".join(warnings))
+
+    def _native_steps(
+        self,
+        session: str,
+        commands: list[list[str]],
+        *,
+        bail: bool,
+        values: dict[str, str],
+        timeout: float,
+    ) -> tuple[list[dict[str, Any]], str]:
+        """Run consecutive native steps in one spel batch; return redacted rows and warnings."""
         resolved = [
             [_SECRET.sub(lambda match: values[match.group(1)], arg) for arg in args]
             for args in commands
@@ -1039,24 +1137,57 @@ class Spel:
         rows = data.get("results") if isinstance(data, dict) else None
         if not isinstance(rows, list):
             raise SpelError("Spel batch returned no step results; not retried.")
-        for row, identifier, args in zip(rows, ids, commands, strict=False):
-            row["id"] = identifier
-            row["cmd"] = args
-        failed = [(index, row) for index, row in enumerate(rows) if not row["success"]]
-        if failed:
-            index, row = failed[0]
-            name = ids[index] or " ".join(commands[index][:2])
-            raise SpelError(
-                f"batch step {name!r} ({index + 1} of {len(commands)}) failed: "
-                f"{str(row.get('error') or 'no error text').rstrip('.')}. {len(failed)} step(s) failed; "
-                "earlier steps ran and nothing was retried."
-            )
-        return BrowserResult(
-            result.session, "batch", data, _redact(result.warnings, values)
-        )
+        return rows, _redact(result.warnings, values)
+
+    @staticmethod
+    def _steps(steps) -> tuple[list[str | None], list[list[str]]]:
+        """Validate batch steps; return their ids and argument lists."""
+        if not isinstance(steps, list) or not steps:
+            raise ValueError("steps must be a non-empty list of steps")
+        ids: list[str | None] = []
+        commands: list[list[str]] = []
+        for step in steps:
+            identifier, arguments = None, step
+            if isinstance(step, dict):
+                if "command" not in step or set(step) - {"id", "command"}:
+                    raise ValueError('A step object has "command" and an optional "id"')
+                identifier, arguments = step.get("id"), step["command"]
+                if not isinstance(identifier, str | None) or identifier == "":
+                    raise ValueError("A step id is a non-empty string")
+                if identifier is not None and identifier in ids:
+                    raise ValueError(f"Step id {identifier!r} is not unique")
+            Spel._validate_step(arguments)
+            ids.append(identifier)
+            commands.append(arguments)
+        return ids, commands
+
+    @staticmethod
+    def _step_index(ids: list[str | None], identifier: str) -> int:
+        if identifier not in ids:
+            raise ValueError(f"No step has the id {identifier!r}")
+        return ids.index(identifier)
 
     @staticmethod
     def _validate_step(arguments):
+        if isinstance(arguments, list) and arguments[:1] in (["log"], ["pause"]):
+            text = arguments[1] if len(arguments) > 1 else None
+            seconds = arguments[3] if len(arguments) == 4 else "900"
+            if (
+                not isinstance(text, str)
+                or not text.strip()
+                or len(text) > 2000
+                or len(arguments) not in (2, 4)
+                or (arguments[0] == "log" and len(arguments) != 2)
+                or (len(arguments) == 4 and arguments[2] != "--timeout")
+                or not isinstance(seconds, str)
+                or not re.fullmatch(r"[1-9][0-9]{0,4}", seconds)
+                or int(seconds) > 86400
+            ):
+                raise ValueError(
+                    'Use ["log", <text>] or ["pause", <text>], optionally with '
+                    '"--timeout", "<seconds 1-86400>"; text has at most 2000 characters'
+                )
+            return
         if (
             not isinstance(arguments, list)
             or not arguments
@@ -1064,7 +1195,7 @@ class Spel:
         ):
             raise ValueError(
                 "A step is a list that starts with a spel.command action, open, "
-                "snapshot, eval-js or auth"
+                "snapshot, eval-js, auth, log or pause"
             )
         Spel._validate(arguments)
         if "--stdin" in arguments:

@@ -175,8 +175,9 @@ def test_native_batch_replays_until_a_step_and_names_a_failed_step():
         first = client.batch(lease.id, steps, until="name")
         assert [row["id"] for row in first.data["results"]] == ["open", "name"]
         assert client.evaluate(lease.id, "document.title").data["result"] == ""
-        full = client.batch(lease.id, steps)
-        assert full.data["results"][-1]["data"] == {"title": "saved:Ada"}
+        rest = client.batch(lease.id, steps, start="save")
+        assert [row["id"] for row in rest.data["results"]] == ["save", "title"]
+        assert rest.data["results"][-1]["data"] == {"title": "saved:Ada"}
         with pytest.raises(SpelError, match=r"step 'missing' \(1 of 2\) failed"):
             client.batch(
                 lease.id,

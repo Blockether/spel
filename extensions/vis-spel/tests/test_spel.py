@@ -460,6 +460,92 @@ def test_batch_failure_names_the_step(client, monkeypatch):
         spel.batch(spel.reserve().id, steps)
 
 
+def test_batch_runs_from_a_start_id_to_an_until_id(client, monkeypatch):
+    spel, _ = client
+    sent = []
+    report = _batch_report([(True, None)] * 2)
+
+    def execute(binary, arguments, **kwargs):
+        sent.append(json.loads(kwargs["stdin"]))
+        return report(binary, arguments, **kwargs)
+
+    monkeypatch.setattr(vis_spel, "_execute", execute)
+    steps = [
+        {"id": name, "command": ["click", f"#{name}"]} for name in ("a", "b", "c", "d")
+    ]
+    result = spel.batch(spel.reserve().id, steps, start="b", until="c")
+    assert sent == [[["click", "#b"], ["click", "#c"]]]
+    assert [row["id"] for row in result.data["results"]] == ["b", "c"]
+
+
+def test_batch_output_keeps_logs_and_eval_results_around_a_pause(client, monkeypatch):
+    spel, _ = client
+    events = []
+
+    def execute(binary, arguments, *, stdin: str, **kwargs):
+        steps = json.loads(stdin)
+        events.append(("browser", steps))
+        results = [
+            {"cmd": step, "success": True, "data": {"result": {"n": index}}}
+            for index, step in enumerate(steps)
+        ]
+        report = {"count": len(results), "success": True, "results": results}
+        return 0, json.dumps(report), ""
+
+    def ask(title, nodes, **options):
+        events.append(("pause", nodes[0]["text"], options["timeout_ms"]))
+        return True
+
+    monkeypatch.setattr(vis_spel, "_execute", execute)
+    monkeypatch.setattr(vis_spel.vis, "ask", ask)
+    steps = [
+        ["open", "https://example.com/login"],
+        {"id": "note", "command": ["log", "Opened the sign-in page"]},
+        {"id": "count", "command": ["eval-js", "({n: 0})"]},
+        {
+            "id": "sign-in",
+            "command": ["pause", "Sign in, then Continue", "--timeout", "60"],
+        },
+        {"id": "user", "command": ["eval-js", "({n: 0})"]},
+    ]
+    result = spel.batch(spel.reserve().id, steps)
+    assert events == [
+        ("browser", [["open", "https://example.com/login"], ["eval-js", "({n: 0})"]]),
+        ("pause", "Sign in, then Continue", 60000),
+        ("browser", [["eval-js", "({n: 0})"]]),
+    ]
+    assert result.data["output"] == [
+        {"id": "note", "log": "Opened the sign-in page"},
+        {"id": "count", "value": {"n": 1}},
+        {"id": "user", "value": {"n": 0}},
+    ]
+    assert [row["id"] for row in result.data["results"]] == [
+        None,
+        "note",
+        "count",
+        "sign-in",
+        "user",
+    ]
+
+
+def test_batch_stop_at_a_pause_skips_later_steps(client, monkeypatch):
+    spel, calls = client
+
+    class Stopped:
+        reason = "cancelled"
+
+        def __bool__(self):
+            return False
+
+    monkeypatch.setattr(vis_spel.vis, "ask", lambda *args, **kwargs: Stopped())
+    steps = [{"id": "sign-in", "command": ["pause", "Sign in"]}, ["click", "#next"]]
+    with pytest.raises(
+        SpelError, match=r"step 'sign-in' got no Continue \(cancelled\)"
+    ):
+        spel.batch(spel.reserve().id, steps)
+    assert not calls
+
+
 def test_batch_secret_reaches_the_page_but_not_the_result(client, monkeypatch):
     spel, _ = client
     secret = "hunter2-secret"
@@ -504,6 +590,12 @@ def test_batch_secret_reaches_the_page_but_not_the_result(client, monkeypatch):
         ([["eval-js", "--stdin"]], {}),
         ([{"id": "a", "command": ["reload"]}, {"id": "a", "command": ["reload"]}], {}),
         ([["reload"]], {"until": "missing"}),
+        (
+            [{"id": "a", "command": ["reload"]}, {"id": "b", "command": ["reload"]}],
+            {"start": "b", "until": "a"},
+        ),
+        ([["log"]], {}),
+        ([["pause", "Sign in", "--timeout", "0"]], {}),
         ([["fill", "#password", "${PASSWORD}"]], {}),
     ],
 )
