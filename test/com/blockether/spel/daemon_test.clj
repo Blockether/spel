@@ -67,6 +67,14 @@
 
 (defn- utf8-bytes ^long [p] (alength (.getBytes (str p) "UTF-8")))
 
+(defn- in-dir
+  "`file-name` under `dir`, with the separator of this OS."
+  [^String dir ^String file-name]
+  (java.nio.file.Path/of dir (into-array String [file-name])))
+
+(def ^:private posix?
+  (contains? (.supportedFileAttributeViews (java.nio.file.FileSystems/getDefault)) "posix"))
+
 (defn- delete-tree!
   "Deletes `root` and everything under it."
   [^String root]
@@ -84,7 +92,7 @@
           root "/tmp"
           path #(#'sut/resolve-socket-path tmp root %)]
       (it "keeps the readable path while it fits"
-        (expect (= (str tmp "spel-" (apply str (repeat 43 "a")) ".sock")
+        (expect (= (str (in-dir tmp (str "spel-" (apply str (repeat 43 "a")) ".sock")))
                   (str (path (apply str (repeat 43 "a"))))))
         (expect (= 102 (utf8-bytes (path (apply str (repeat 43 "a")))))))
 
@@ -93,7 +101,7 @@
                          (str "repro-" (apply str (repeat 102 "0")))
                          (apply str (repeat 30 "ż"))]]
           (let [p (str (path session))]
-            (expect (str/starts-with? p (str tmp "spel-ipc-")))
+            (expect (str/starts-with? p (str (in-dir tmp "spel-ipc-"))))
             (expect (<= (utf8-bytes p) 102)))))
 
       (it "gives different sessions different paths"
@@ -110,29 +118,36 @@
       (expect (bindable? p))))
 
   (it "uses one private directory when TMPDIR itself is too long"
-    (let [tmp  (str "/private/var/folders/" (apply str (repeat 90 "x")) "/T")
-          root (short-temp-root)
-          p1   (#'sut/resolve-socket-path tmp root "default")
-          p2   (#'sut/resolve-socket-path tmp root "default")
-          dir  (.getParent ^java.nio.file.Path p1)]
-      (try
-        (expect (= p1 p2))
-        (expect (str/starts-with? (str p1) root))
-        (expect (= "rwx------" (java.nio.file.attribute.PosixFilePermissions/toString
-                                 (Files/getPosixFilePermissions dir (into-array java.nio.file.LinkOption [])))))
-        (expect (bindable? p1))
-        (finally (delete-tree! root)))))
-
-  (it "refuses a fallback directory that other users can enter"
-    (let [tmp  (str "/private/var/folders/" (apply str (repeat 90 "x")) "/T")
-          root (short-temp-root)
-          dir  (.getParent ^java.nio.file.Path (#'sut/resolve-socket-path tmp root "default"))]
-      (try
-        (Files/setPosixFilePermissions dir (java.nio.file.attribute.PosixFilePermissions/fromString "rwxr-xr-x"))
+    (let [tmp (str "/private/var/folders/" (apply str (repeat 90 "x")) "/T")]
+      (if posix?
+        (let [root (short-temp-root)
+              p1   (#'sut/resolve-socket-path tmp root "default")
+              p2   (#'sut/resolve-socket-path tmp root "default")
+              dir  (.getParent ^java.nio.file.Path p1)]
+          (try
+            (expect (= p1 p2))
+            (expect (str/starts-with? (str p1) root))
+            (expect (= "rwx------" (java.nio.file.attribute.PosixFilePermissions/toString
+                                     (Files/getPosixFilePermissions dir (into-array java.nio.file.LinkOption [])))))
+            (expect (bindable? p1))
+            (finally (delete-tree! root))))
+        ;; Without POSIX permissions no directory can be private: fail at once.
         (expect (= ::sut/socket-path
-                  (try (#'sut/resolve-socket-path tmp root "default") nil
-                       (catch clojure.lang.ExceptionInfo e (:type (ex-data e))))))
-        (finally (delete-tree! root)))))
+                  (try (#'sut/resolve-socket-path tmp (System/getProperty "java.io.tmpdir") "default") nil
+                       (catch clojure.lang.ExceptionInfo e (:type (ex-data e)))))))))
+
+  ;; POSIX only: on Windows the test above shows that no fallback directory exists.
+  (it "refuses a fallback directory that other users can enter"
+    (when posix?
+      (let [tmp  (str "/private/var/folders/" (apply str (repeat 90 "x")) "/T")
+            root (short-temp-root)
+            dir  (.getParent ^java.nio.file.Path (#'sut/resolve-socket-path tmp root "default"))]
+        (try
+          (Files/setPosixFilePermissions dir (java.nio.file.attribute.PosixFilePermissions/fromString "rwxr-xr-x"))
+          (expect (= ::sut/socket-path
+                    (try (#'sut/resolve-socket-path tmp root "default") nil
+                         (catch clojure.lang.ExceptionInfo e (:type (ex-data e))))))
+          (finally (delete-tree! root))))))
 
   (it "fails at once with the fix to apply when no path fits"
     (let [tmp  (str "/private/var/folders/" (apply str (repeat 90 "x")) "/T")

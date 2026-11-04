@@ -870,7 +870,7 @@
                       (sut/eval-string (sut/create-sci-ctx)
                         "(fn [msg] (println \"[console]\" msg))"))]
         (handler "after")
-        (expect (= "[console] after\n" (str sink)))))
+        (expect (= (str "[console] after" (System/lineSeparator)) (str sink)))))
 
     (it "prints from the thread Playwright delivers the event on"
       (let [sink    (java.io.StringWriter.)
@@ -880,7 +880,7 @@
             worker  (Thread. ^Runnable (fn [] (handler "off-thread")))]
         (.start worker)
         (.join worker)
-        (expect (= "[console] off-thread\n" (str sink)))))
+        (expect (= (str "[console] off-thread" (System/lineSeparator)) (str sink)))))
 
     (it "records no handler failure when the event guard invokes it"
       (let [sink    (java.io.StringWriter.)
@@ -890,7 +890,7 @@
         (core/reset-handler-errors!)
         ((core/guarded-handler "console" handler) "guarded")
         (expect (empty? (core/handler-errors)))
-        (expect (= "[console] guarded\n" (str sink)))))))
+        (expect (= (str "[console] guarded" (System/lineSeparator)) (str sink)))))))
 
 ;; Regression, issue #148: in the native binary, `(.move (spel/mouse) 1.0 2.0)`
 ;; and `(.press (spel/keyboard) "Tab")` found no matching method, and `(.wheel ...)`

@@ -88,12 +88,14 @@
           "commit" "--quiet" "--allow-empty" "-m" "Release tag fixture")
         (doseq [tag ["v0.9.33" "v0.9.34"]]
           (run! "git" "tag" tag))
+        ;; `sh`, not `bash`: on Windows the JVM finds the WSL launcher
+        ;; System32\bash.exe before the Git Bash on PATH.
         (doseq [[_ command] selectors]
-          (expect (= "v0.9.33" (run! "bash" "-c" command))))
+          (expect (= "v0.9.33" (run! "sh" "-c" command))))
         (doseq [tag ["vis-spel/v0.1.0" "vis-spel/v0.1.1" "vis-spel/v0.1.2"]]
           (run! "git" "tag" tag))
         (doseq [[_ command] selectors]
-          (expect (= "v0.9.33" (run! "bash" "-c" command))))
+          (expect (= "v0.9.33" (run! "sh" "-c" command))))
         (finally
           (doseq [file (reverse (file-seq dir))]
             (io/delete-file file true)))))))

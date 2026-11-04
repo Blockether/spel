@@ -632,9 +632,11 @@ jobs:
 
           echo "--- Setting up Playwright env ---"
           export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+          # Playwright runs the Node.js that its driver bundles. The apt nodejs
+          # only shows WSL2: WSL1 cannot run ELF binaries. Do not pass it as
+          # PLAYWRIGHT_NODEJS_PATH, because Ubuntu's Node.js is too old.
           if command -v node >/dev/null 2>&1 && node --version >/dev/null 2>&1; then
-            export PLAYWRIGHT_NODEJS_PATH="$(which node)"
-            echo "PLAYWRIGHT_NODEJS_PATH=$PLAYWRIGHT_NODEJS_PATH ($(node --version))"
+            echo "Node.js runs ($(node --version)): WSL2"
           else
             echo "Node.js not available — Playwright connectOverCDP will be skipped"
           fi

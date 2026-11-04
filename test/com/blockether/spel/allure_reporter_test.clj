@@ -40,10 +40,12 @@
                  "(let [node (str (io/file (System/getProperty \"playwright.cli.dir\")"
                  " (if (.startsWith (System/getProperty \"os.name\") \"Windows\") \"node.exe\" \"node\")))]"
                  " (System/exit (#'r/run-proc! [node \"-e\" \"if (process.env.NODE_OPTIONS) process.exit(42)\"])))")
+          ;; A file, not `-e`: Windows breaks the quotes inside a command-line argument.
+          script (doto (io/file dir "probe.clj") (spit code))
           pb (ProcessBuilder.
                ^java.util.List [(str (io/file (System/getProperty "java.home") "bin" "java"))
                                 "-cp" (System/getProperty "java.class.path")
-                                "clojure.main" "-e" code])]
+                                "clojure.main" (str script)])]
       (try
         (.put (.environment pb) "NODE_OPTIONS" options)
         (.redirectErrorStream pb true)
