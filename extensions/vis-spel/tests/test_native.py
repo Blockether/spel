@@ -351,6 +351,9 @@ def test_native_upgrade_and_rollback_preserve_live_sessions(tmp_path):
     leases = []
     try:
         original = client.install("0.9.33", browsers=False)
+        # 0.9.33 runs an older Playwright, so it needs its own browser revision.
+        code, _, error = _execute(original.executable, ["install"], timeout=600)
+        assert code == 0, error
         old = client.reserve()
         leases.append(old)
         client.open(old.id, "data:text/html,<title>Original version</title>")
