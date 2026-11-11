@@ -1,1 +1,0 @@
-{:heading {:x 20, :y 40, :width 760, :height 28}, :email {:x 20, :y 108, :width 300, :height 36}, :password {:x 20, :y 184, :width 300, :height 36}, :submit {:x 20, :y 250, :width 149, :height 38}}

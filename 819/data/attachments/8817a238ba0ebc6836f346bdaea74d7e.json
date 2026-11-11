@@ -1,1 +1,0 @@
-{"method":"POST","path":"/echo","body":{"name":"Bob","role":"admin"}}

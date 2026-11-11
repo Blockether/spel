@@ -1,1 +1,0 @@
-{"e0s3u5" {:role "button", :name "Positioned Button", :tag "button", :bbox {:x 200, :y 100, :width 150, :height 50}}}
