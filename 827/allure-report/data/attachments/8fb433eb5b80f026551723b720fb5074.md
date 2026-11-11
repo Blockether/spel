@@ -1,0 +1,70 @@
+## GET http://127.0.0.1:45321/main.js.map → 200 OK
+
+### Timing
+Request started: 2026-11-11T21:11:30.750Z
+
+### Request Headers
+```
+accept: */*
+accept-encoding: gzip, deflate, br, zstd
+accept-language: en-US,en;q=0.9
+connection: keep-alive
+host: 127.0.0.1:45321
+referer: http://127.0.0.1:45321/
+sec-ch-ua: "Not:A-Brand";v="8", "Chromium";v="156"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "Linux"
+sec-fetch-dest: empty
+sec-fetch-mode: cors
+sec-fetch-site: same-origin
+user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36
+```
+
+### Response Headers
+```
+content-length: 136
+content-type: application/json
+date: Wed, 11 Nov 2026 21:11:30 GMT
+```
+
+### Response Body
+```json
+{
+  "version": 3,
+  "sections": [
+    {
+      "offset": {
+        "line": 0,
+        "column": 0
+      },
+      "map": {
+        "version": 3,
+        "sources": [
+          "glms/app.cljs"
+        ],
+        "names": [
+        ],
+        "mappings": "AASA"
+      }
+    }
+  ]
+}
+```
+
+### cURL
+```bash
+curl 'http://127.0.0.1:45321/main.js.map' \
+  -H 'accept: */*' \
+  -H 'accept-encoding: gzip, deflate, br, zstd' \
+  -H 'accept-language: en-US,en;q=0.9' \
+  -H 'connection: keep-alive' \
+  -H 'host: 127.0.0.1:45321' \
+  -H 'referer: http://127.0.0.1:45321/' \
+  -H 'sec-ch-ua: "Not:A-Brand";v="8", "Chromium";v="156"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Linux"' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-site: same-origin' \
+  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36'
+```

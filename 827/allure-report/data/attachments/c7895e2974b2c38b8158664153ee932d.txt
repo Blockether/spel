@@ -1,0 +1,1 @@
+  Generated badge.svg: 1 passed, 1 failed

@@ -1,0 +1,12 @@
+Opening example.org for assertion tests...
+Ready for assertions
+Running page-level Playwright assertions...
+Asserting title = 'Example Domain'
+Asserting URL contains 'example.org'
+All page assertions passed
+Locator: h1 — running 4 assertions
+All H1 assertions passed ✓
+Locator: a — checking text and href
+Link assertions passed ✓
+Testing negated assertion: #does-not-exist should NOT be visible
+Negated assertion passed ✓

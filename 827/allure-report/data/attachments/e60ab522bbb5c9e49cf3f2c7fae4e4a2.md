@@ -1,0 +1,51 @@
+## GET http://localhost:36345/health?i=148 → 200 OK
+
+### Timing
+Request started: 2026-11-11T21:08:32.463Z
+
+### Request Headers
+```
+accept: */*
+accept-encoding: gzip, deflate, br, zstd
+connection: keep-alive
+host: localhost:36345
+referer: http://localhost:36345/health
+sec-ch-ua: "Not:A-Brand";v="8", "Chromium";v="156", "HeadlessChrome";v="156"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "Linux"
+sec-fetch-dest: empty
+sec-fetch-mode: cors
+sec-fetch-site: same-origin
+user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 Safari/537.36
+```
+
+### Response Headers
+```
+content-length: 15
+content-type: application/json
+date: Wed, 11 Nov 2026 21:08:32 GMT
+```
+
+### Response Body
+```json
+{
+  "status": "ok"
+}
+```
+
+### cURL
+```bash
+curl 'http://localhost:36345/health?i=148' \
+  -H 'accept: */*' \
+  -H 'accept-encoding: gzip, deflate, br, zstd' \
+  -H 'connection: keep-alive' \
+  -H 'host: localhost:36345' \
+  -H 'referer: http://localhost:36345/health' \
+  -H 'sec-ch-ua: "Not:A-Brand";v="8", "Chromium";v="156", "HeadlessChrome";v="156"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Linux"' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-site: same-origin' \
+  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.8078.4 Safari/537.36'
+```
