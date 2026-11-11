@@ -29,7 +29,8 @@
             (is (= "observation" (get-in spec [:result "__vis_attrs__" "tag"])))
             (is (:success? releases) (pr-str releases))
             (is (= 1 (get-in releases [:result "__vis_attrs__" "page"])))
-            (is (re-find #"0\.9\.33" (pr-str (:result releases))))
+            ;; Page 1 holds the newest releases, so check the shape, not one version.
+            (is (re-find #"\d+\.\d+\.\d+" (pr-str (:result releases))))
             (is (:success? help) (pr-str help))
             (is (re-find #"spel.snapshot" (:result help)))
             ;; Regression, issue #137: the help tool did not document browser actions.
