@@ -9,7 +9,7 @@
 (deftest catalog-through-trusted-worker
   (let [package (.getParentFile (.getParentFile (io/file (io/resource "vis_spel_host_test.clj"))))
         paths ["extension.py" "pyproject.toml" "uv.lock" "README.md"
-               "src/vis_spel/__init__.py" "src/vis_spel/install.py" "skills/browser/SKILL.md"]
+               "src/vis_spel/__init__.py" "src/vis_spel/install.py"]
         sources (into {} (for [path paths] [(str "vis-spel/current/" path) (slurp (io/file package path))]))]
     (#'fixtures/with-shared-packages
      (fn [_]
@@ -42,8 +42,7 @@
 (deftest native-browser-through-trusted-worker
   (let [package (.getParentFile (.getParentFile (io/file (io/resource "vis_spel_host_test.clj"))))
         sources (into {} (for [path ["extension.py" "pyproject.toml" "uv.lock" "README.md"
-                                     "src/vis_spel/__init__.py" "src/vis_spel/install.py"
-                                     "skills/browser/SKILL.md"]]
+                                     "src/vis_spel/__init__.py" "src/vis_spel/install.py"]]
                            [(str "vis-spel/current/" path) (slurp (io/file package path))]))]
     (#'fixtures/with-shared-packages
      (fn [_]

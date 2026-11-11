@@ -14,20 +14,6 @@ PROJECT = Path(__file__).resolve().parents[1]
 README = (PROJECT / "README.md").read_text()
 
 
-def test_browser_skill_description_explains_when_to_use_it():
-    # LintLang H1.8: listing capabilities alone did not tell the agent when to load the skill.
-    skill = (PROJECT / "skills/browser/SKILL.md").read_text()
-    description = next(
-        line.removeprefix("description: ")
-        for line in skill.splitlines()
-        if line.startswith("description: ")
-    )
-    assert description.startswith(
-        "Use this skill when you need authorized browser navigation"
-    )
-    assert "with the Vis Spel extension." in description
-
-
 def test_readme_install_selects_the_published_package_version(tmp_path, monkeypatch):
     # A release tag passed as --revision failed before admission in vis-spel 0.1.2.
     command = next(
@@ -87,7 +73,6 @@ def test_readme_management_selects_the_repository_and_project_folder():
 
 
 def test_registration_sdk_requirement_matches_docs_and_lock():
-    # SDKs before 0.2.31 reject the skill table that hides its settings switch.
     # SDK 0.5.2 is the release that this extension is tested against.
     project = tomllib.loads((PROJECT / "pyproject.toml").read_text())["project"]
     requirement = next(
@@ -104,12 +89,6 @@ def test_registration_sdk_requirement_matches_docs_and_lock():
         if package["name"] == "vis-agent"
     )
     assert locked_sdk["version"] in requirement.specifier
-
-
-def test_browser_skill_follows_the_extension_setting():
-    text = (PROJECT / "pyproject.toml").read_text()
-    manifest = extension_package.manifest_metadata(text)
-    assert manifest["skills"] == [{"path": "skills/browser", "settings": False}]
 
 
 def test_readme_python_examples_compile():

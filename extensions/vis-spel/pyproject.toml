@@ -1,6 +1,6 @@
 [project]
 name = "vis-spel"
-version = "0.1.28"
+version = "0.1.29"
 description = "Spel browser automation with verified installation, reserved sessions, CDP, JavaScript, snapshots and screenshots."
 keywords = ["browser", "automation"]
 readme = "README.md"
@@ -15,7 +15,6 @@ Issues = "https://github.com/Blockether/spel/issues"
 [tool.vis]
 category = "tools"
 source_paths = ["src"]
-skills = [{ path = "skills/browser", settings = false }]
 
 [dependency-groups]
 dev = ["pytest>=8.3,<10", "ruff>=0.12,<1"]
