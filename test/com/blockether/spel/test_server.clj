@@ -267,6 +267,17 @@ Promise.all(Array.from({length:400},(_,i)=>
   .then(()=>document.getElementById('loaded').textContent='Loaded '+window.loadedAssets);
 </script>")
 
+(def ^:private push-page-html
+  "<!doctype html><title>Push</title><h1 id='state'>Loading</h1>
+<script>
+var state = document.getElementById('state');
+if (!('serviceWorker' in navigator) || typeof PushManager === 'undefined') state.textContent = 'unsupported';
+else navigator.serviceWorker.register('/push-worker.js')
+  .then(function (registration) { return registration.pushManager.getSubscription(); })
+  .then(function (subscription) { state.textContent = 'subscription ' + subscription; })
+  .catch(function (error) { state.textContent = 'failed ' + error.name; });
+</script>")
+
 (defn- make-handler ^HttpHandler []
   (reify HttpHandler
     (handle [_ exchange]
@@ -312,6 +323,12 @@ Promise.all(Array.from({length:400},(_,i)=>
 
           (and (= "GET" method) (= "/passive-asset.js" path))
           (send-response exchange 200 "window.__spelPassiveLoaded = true;" "application/javascript; charset=UTF-8")
+
+          (and (= "GET" method) (= "/push-page" path))
+          (send-response exchange 200 push-page-html "text/html; charset=UTF-8")
+
+          (and (= "GET" method) (= "/push-worker.js" path))
+          (send-response exchange 200 "self.addEventListener('fetch', function () {});" "application/javascript; charset=UTF-8")
 
           (and (= "GET" method) (= "/health" path))
           (send-response exchange 200 "{\"status\":\"ok\"}" "application/json")

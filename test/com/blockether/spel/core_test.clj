@@ -4,6 +4,7 @@
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.core :as core]
    [com.blockether.spel.logging :as logging]
+   [com.blockether.spel.test-server :refer [*test-server-url* with-test-server]]
    [com.blockether.spel.allure :refer [around defdescribe describe expect expect-it it]])
   (:import
    [java.net InetAddress ServerSocket]
@@ -574,7 +575,9 @@
                     (setDefaultTimeout [ms] (swap! seen assoc :timeout ms))
                     (setDefaultNavigationTimeout [ms]
                       (swap! seen assoc :navigation-timeout ms)))
-          browser (proxy [Browser] [] (newContext [_] context))]
+          browser (proxy [Browser] []
+                    (browserType [] (proxy [BrowserType] [] (name [] "chromium")))
+                    (newContext [_] context))]
       (expect (identical? context
                 (sut/new-context browser {:timeout 1200 :navigation-timeout 90000})))
       (expect (= {:timeout 1200.0 :navigation-timeout 90000.0} @seen))))
@@ -592,3 +595,19 @@
                 (sut/launch-persistent-context browser-type ""
                   {:timeout 0 :navigation-timeout 0})))
       (expect (= {:timeout 0.0 :navigation-timeout 0.0} @seen)))))
+
+;; Regression: in WebKit, a page that asked for its push subscription lost its
+;; process. Playwright reported no crash, and each later command ran into its time limit.
+(defdescribe webkit-push-subscription-test
+  (around [f] ((:around with-test-server) f))
+
+  (it "keeps a WebKit page alive after it asks for its push subscription"
+    (sut/with-playwright [pw (sut/create)]
+      (sut/with-browser [browser (sut/launch-webkit pw)]
+        (sut/with-context [ctx (sut/new-context browser)]
+          (let [^Page page (sut/new-page-from-context ctx)]
+            (.navigate page (str *test-server-url* "/push-page"))
+            (.waitForFunction page "document.getElementById('state').textContent !== 'Loading'")
+            ;; A WebKit build without the push interface says `unsupported`.
+            (expect (contains? #{"subscription null" "unsupported"}
+                      (.evaluate page "document.getElementById('state').textContent")))))))))

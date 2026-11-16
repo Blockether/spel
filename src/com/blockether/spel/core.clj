@@ -587,10 +587,21 @@
       (slurp (io/resource "com/blockether/spel/install-source-maps.js"))
       "\n})();")))
 
+(def ^:private webkit-push-guard-script
+  ;; The WebKit build of Playwright has no push service. A page that calls
+  ;; `PushManager.getSubscription` there loses its process. Playwright reports no
+  ;; crash, and each later command on that page runs into its time limit. A
+  ;; browser that has no subscription answers null, so the guard gives that answer.
+  (str "if (typeof PushManager !== 'undefined') "
+    "PushManager.prototype.getSubscription = function () { return Promise.resolve(null); };"))
+
 (defn- configure-context!
-  "Applies context settings that Playwright does not accept in its options object."
-  ^BrowserContext [^BrowserContext context context-opts]
+  "Applies context settings that Playwright does not accept in its options object.
+   A WebKit context also gets the push guard."
+  ^BrowserContext [^BrowserContext context browser-name context-opts]
   (try
+    (when (= "webkit" browser-name)
+      (.addInitScript context ^String webkit-push-guard-script))
     (when-some [timeout (:timeout context-opts)]
       (.setDefaultTimeout context (double timeout)))
     (when-some [timeout (:navigation-timeout context-opts)]
@@ -640,6 +651,7 @@
                ;; `chromium-headless-shell` cannot read cookies that full
                ;; Chromium wrote, and it deletes them.
                (with-full-chromium (.name browser-type) opts)))
+           (.name browser-type)
            opts))))
 
 ;; =============================================================================
@@ -736,10 +748,11 @@
    Returns:
    BrowserContext instance or anomaly map on failure."
   (^BrowserContext [^Browser browser]
-   (safe (.newContext browser)))
+   (safe (configure-context! (.newContext browser) (.name (.browserType browser)) nil)))
   (^BrowserContext [^Browser browser context-opts]
    (safe (configure-context!
            (.newContext browser (opts/->new-context-options context-opts))
+           (.name (.browserType browser))
            context-opts))))
 
 (defn close-context!
@@ -968,7 +981,9 @@
    Returns:
    Page instance or anomaly map on failure."
   (^Page [^Browser browser]
-   (safe (.newPage browser)))
+   (safe (let [pg (.newPage browser)]
+           (configure-context! (.context pg) (.name (.browserType browser)) nil)
+           pg)))
   (^Page [^Browser browser context-opts]
    (safe
      (let [ctx (new-context browser context-opts)]
