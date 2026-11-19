@@ -2,7 +2,7 @@
 name = "vis-spel"
 version = "0.1.29"
 description = "Spel browser automation with verified installation, reserved sessions, CDP, JavaScript, snapshots and screenshots."
-keywords = ["browser", "automation"]
+keywords = ["browser", "development"]
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
