@@ -1,7 +1,0 @@
-Loading example.org for JS evaluation tests...
-document.title = "Example Domain"
-h1.textContent = "Example Domain"
-Found 1 link(s) on page
-Viewport: 1280 x 720
-Taking full-page screenshot...
-Page HTML size: 528 chars

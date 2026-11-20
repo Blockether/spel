@@ -1,5 +1,0 @@
-[viewport: 400x800]
-- div
-  - button "Card One" [@e9fvlc] [pos:114,44 93×32]
-  - button "Card Two" [@e0rmcq] [pos:114,164 92×32]
-  - button "Card Three" [@e2tbvs] [pos:109,284 103×32]
