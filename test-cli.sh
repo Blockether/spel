@@ -11,14 +11,6 @@
 set -o pipefail
 
 
-# macOS doesn't ship GNU coreutils timeout; provide a portable fallback.
-if ! command -v timeout >/dev/null 2>&1; then
-  timeout() {
-    local duration="$1"; shift
-    perl -e 'alarm shift; exec @ARGV' "$duration" "$@"
-  }
-fi
-
 # Run one command inside a disposable PTY. BSD and util-linux `script` use
 # different command syntaxes, so keep the platform split in one helper.
 run_in_fresh_pty() {
@@ -39,156 +31,10 @@ case "$SPEL" in
   /*) ;;
   *) SPEL="$PWD/${SPEL#./}" ;;
 esac
-PASS_COUNT=0
-FAIL_COUNT=0
-ERROR_COUNT=0
-TOTAL_COUNT=0
-START_TIME=$(date +%s)
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=cli-tests/session.sh
-source "$SCRIPT_DIR/cli-tests/session.sh"
-
-# Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-# ---------------------------------------------------------------------------
-# Helper Functions — Real JSON Assertions
-# ---------------------------------------------------------------------------
-
-section() {
-  echo ""
-  echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════════${NC}"
-  echo -e "${CYAN}${BOLD}  $1${NC}"
-  echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════════${NC}"
-}
-
-pass() {
-  local name="$1"
-  PASS_COUNT=$((PASS_COUNT + 1))
-  echo -e "  ${GREEN}✓ PASS${NC} $name"
-}
-
-fail() {
-  local name="$1"
-  local detail="${2:-}"
-  FAIL_COUNT=$((FAIL_COUNT + 1))
-  echo -e "  ${RED}✗ FAIL${NC} $name"
-  if [[ -n "$detail" ]]; then
-    echo -e "         ${RED}$detail${NC}"
-  fi
-}
-
-error() {
-  local name="$1"
-  local detail="${2:-}"
-  ERROR_COUNT=$((ERROR_COUNT + 1))
-  echo -e "  ${RED}✗ ERROR${NC} $name"
-  if [[ -n "$detail" ]]; then
-    echo -e "          ${RED}$detail${NC}"
-  fi
-}
-
-# assert_jq: evaluate a jq boolean expression against output
-# Usage: assert_jq "test name" "$output" '.url == "https://example.com/"'
-assert_jq() {
-  local name="$1"
-  local output="$2"
-  local jq_expr="$3"
-  TOTAL_COUNT=$((TOTAL_COUNT + 1))
-  if echo "$output" | jq -e "$jq_expr" >/dev/null 2>&1; then
-    pass "$name"
-  else
-    local actual
-    actual=$(echo "$output" | head -c 300)
-    fail "$name" "jq expression '$jq_expr' returned false. Output: $actual"
-  fi
-}
-
-# assert_jq_eq: check jq path == exact value (raw string comparison)
-# Usage: assert_jq_eq "test name" "$output" '.title' 'Example Domain'
-assert_jq_eq() {
-  local name="$1"
-  local output="$2"
-  local jq_path="$3"
-  local expected="$4"
-  TOTAL_COUNT=$((TOTAL_COUNT + 1))
-  local actual
-  actual=$(echo "$output" | jq -r "$jq_path" 2>/dev/null)
-  if [[ "$actual" == "$expected" ]]; then
-    pass "$name"
-  else
-    fail "$name" "Expected '$expected' at $jq_path, got '$actual'"
-  fi
-}
-
-# assert_jq_contains: check jq path output contains substring
-# Usage: assert_jq_contains "test name" "$output" '.snapshot' '[ref=e'
-assert_jq_contains() {
-  local name="$1"
-  local output="$2"
-  local jq_path="$3"
-  local substring="$4"
-  TOTAL_COUNT=$((TOTAL_COUNT + 1))
-  local actual
-  actual=$(echo "$output" | jq -r "$jq_path" 2>/dev/null)
-  if [[ "$actual" == *"$substring"* ]]; then
-    pass "$name"
-  else
-    fail "$name" "Expected $jq_path to contain '$substring', got: $(echo "$actual" | head -c 200)"
-  fi
-}
-
-# assert_jq_gt: check jq numeric path > threshold
-# Usage: assert_jq_gt "test name" "$output" '.count' 0
-assert_jq_gt() {
-  local name="$1"
-  local output="$2"
-  local jq_path="$3"
-  local threshold="$4"
-  TOTAL_COUNT=$((TOTAL_COUNT + 1))
-  local actual
-  actual=$(echo "$output" | jq -r "$jq_path" 2>/dev/null)
-  if [[ "$actual" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] && awk "BEGIN{exit(!($actual > $threshold))}"; then
-    pass "$name"
-  else
-    fail "$name" "Expected $jq_path > $threshold, got '$actual'"
-  fi
-}
-
-# assert_contains: plain text substring match
-assert_contains() {
-  local name="$1"
-  local output="$2"
-  local substring="$3"
-  TOTAL_COUNT=$((TOTAL_COUNT + 1))
-  if [[ "$output" == *"$substring"* ]]; then
-    pass "$name"
-  else
-    fail "$name" "Expected output to contain '$substring', got: $(echo "$output" | head -c 200)"
-  fi
-}
-
-# assert_not_empty: plain text non-empty check
-assert_not_empty() {
-  local name="$1"
-  local output="$2"
-  TOTAL_COUNT=$((TOTAL_COUNT + 1))
-  if [[ -n "$output" ]]; then
-    pass "$name"
-  else
-    fail "$name" "Expected non-empty output"
-  fi
-}
-
-# Navigate helper — opens URL (synchronous, blocks until page loads)
-nav() {
-  "$SPEL" open "$1" >/dev/null 2>&1
-}
+# The assertions, the counters, the `timeout` fallback and the session fixture.
+# shellcheck source=cli-tests/helpers.sh
+source "$SCRIPT_DIR/cli-tests/helpers.sh"
 
 # Live pages are not stable test input. IANA changed example.com in 2026: it lost its
 # h1 and asks people not to test against it. the-internet.herokuapp.com often times out

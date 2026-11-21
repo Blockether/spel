@@ -7,9 +7,19 @@
 
 set -o pipefail
 
+# macOS doesn't ship GNU coreutils timeout; provide a portable fallback.
+if ! command -v timeout >/dev/null 2>&1; then
+  timeout() {
+    local duration="$1"; shift
+    perl -e 'alarm shift; exec @ARGV' "$duration" "$@"
+  }
+fi
+
 HELPERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SPEL="${SPEL:-$HELPERS_DIR/../target/spel}"
-SPEL="$(cd "$(dirname "$SPEL")" && pwd)/$(basename "$SPEL")"
+if [[ -d "$(dirname "$SPEL")" ]]; then
+  SPEL="$(cd "$(dirname "$SPEL")" && pwd)/$(basename "$SPEL")"
+fi
 # shellcheck source=session.sh
 source "$HELPERS_DIR/session.sh"
 PASS_COUNT=0
@@ -118,7 +128,7 @@ assert_jq_gt() {
   TOTAL_COUNT=$((TOTAL_COUNT + 1))
   local actual
   actual=$(echo "$output" | jq -r "$jq_path" 2>/dev/null)
-  if [[ "$actual" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] && (( $(echo "$actual > $threshold" | bc -l) )); then
+  if [[ "$actual" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] && awk "BEGIN{exit(!($actual > $threshold))}"; then
     pass "$name"
   else
     fail "$name" "Expected $jq_path > $threshold, got '$actual'"

@@ -12,10 +12,6 @@ if [[ ! -x "$SPEL" ]]; then
 fi
 SPEL="$(cd "$(dirname "$SPEL")" && pwd)/$(basename "$SPEL")"
 
-if ! command -v timeout >/dev/null 2>&1; then
-  timeout() { local duration="$1"; shift; perl -e 'alarm shift; exec @ARGV' "$duration" "$@"; }
-fi
-
 WORK_DIR=$(mktemp -d)
 SERVER_PID=""
 cleanup_navigation() {
