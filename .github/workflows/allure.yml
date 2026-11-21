@@ -132,19 +132,22 @@ jobs:
         id: version
         run: |
           VERSION=$(cat resources/SPEL_VERSION 2>/dev/null || echo "unknown")
-          # The checkout is shallow and has no tags. Fetch only the tags that
-          # point at this commit.
+          # Fetch only release tags that point at the shallow checkout's HEAD.
           HEAD_SHA=$(git rev-parse HEAD)
-          git ls-remote --tags origin \
-            | awk -v sha="$HEAD_SHA" '$1 == sha { sub(/\^\{\}$/, "", $2); print "+" $2 ":" $2 }' \
-            | xargs -r git fetch --quiet --depth=1 origin || true
-          TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
-          if [ -n "$TAG" ]; then
-            echo "version=$TAG" >> $GITHUB_OUTPUT
-            echo "badge=release" >> $GITHUB_OUTPUT
+          if REMOTE_TAGS=$(git ls-remote --tags origin 'refs/tags/v[0-9]*'); then
+            printf '%s\n' "$REMOTE_TAGS" \
+              | awk -v sha="$HEAD_SHA" '$1 == sha { sub(/\^\{\}$/, "", $2); print "+" $2 ":" $2 }' \
+              | xargs -r git fetch --quiet --depth=1 origin || echo '::warning::Could not fetch release tags'
           else
-            echo "version=v${VERSION}-candidate" >> $GITHUB_OUTPUT
-            echo "badge=candidate" >> $GITHUB_OUTPUT
+            echo '::warning::Could not list release tags'
+          fi
+          TAG=$(git describe --tags --match 'v[0-9]*' --exact-match 2>/dev/null || echo "")
+          if [ -n "$TAG" ]; then
+            echo "version=$TAG" >> "$GITHUB_OUTPUT"
+            echo "badge=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=v${VERSION}-candidate" >> "$GITHUB_OUTPUT"
+            echo "badge=candidate" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Generate combined Allure report
