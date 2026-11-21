@@ -22,12 +22,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Deploy gh-pages
+  # Two jobs: deploy-pages reads the artifact list of the run. In the same job
+  # as the upload, that list did not contain the new artifact yet.
+  upload:
+    name: Upload gh-pages
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -38,6 +37,14 @@ jobs:
         with:
           path: .
 
+  deploy:
+    name: Deploy gh-pages
+    needs: upload
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
