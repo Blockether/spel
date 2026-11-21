@@ -1205,6 +1205,18 @@
             (sut/swipe session {:from [200 600] :to [200 100]})
             (expect (= [{:from [200 600] :to [200 100] :duration 800}] @swipes*))))))))
 
+;; Regression: a command that wrote more to stderr than the pipe holds never
+;; returned, because stderr was read only after stdout had ended.
+(defdescribe run-command-output-test
+  "The default command runner reads both output streams"
+  (it "returns when a command writes a large stderr"
+    (when-not (str/includes? (str/lower-case (System/getProperty "os.name")) "win")
+      (let [script "head -c 300000 /dev/zero | tr '\\0' 'e' >&2; echo done"
+            result (deref (future (sut/run-command ["/bin/sh" "-c" script])) 10000 :hung)]
+        (expect (not= :hung result))
+        (expect (= 300000 (count (:err result))))
+        (expect (= "done\n" (:out result)))))))
+
 ;; Regression, user report: Node options from launchd could also prevent Appium startup.
 (defdescribe appium-node-options-test
   "Appium ignores Node options from its launch service."

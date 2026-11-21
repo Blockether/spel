@@ -73,10 +73,12 @@
   [cmd]
   (let [pb   (driver/node-process-builder (vec cmd))
         proc (.start pb)
+        ;; Read both pipes at the same time: a process that fills one pipe
+        ;; blocks until that pipe is read.
+        err  (future (slurp (.getErrorStream proc)))
         out  (slurp (.getInputStream proc))
-        err  (slurp (.getErrorStream proc))
         exit (.waitFor proc)]
-    {:exit (long exit) :out out :err err}))
+    {:exit (long exit) :out out :err @err}))
 
 (def ^:dynamic *command-runner*
   "Command runner fn: (fn [cmd-vector]) -> {:exit :out :err}.
