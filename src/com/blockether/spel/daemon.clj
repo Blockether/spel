@@ -1079,10 +1079,10 @@
 
 (defn kill-auto-launched-browser!
   "Kills an auto-launched browser process and cleans up its lock file and temp dir."
-  [{:keys [^long port ^long browser-pid ^String tmp-dir]}]
+  [{:keys [port browser-pid ^String tmp-dir]}]
   (when browser-pid
     (try
-      (when-let [ph (.orElse (java.lang.ProcessHandle/of browser-pid) nil)]
+      (when-let [ph (.orElse (java.lang.ProcessHandle/of (long browser-pid)) nil)]
         (when (.isAlive ^java.lang.ProcessHandle ph)
           (log/info! "auto-launch: killing browser PID " browser-pid)
           ;; Kill the process tree (browser + child processes)
@@ -7018,7 +7018,7 @@
    sometimes wins — reports the budget rather than a phantom cancellation."
   [cid action params]
   (let [budget   (command-budget-ms action)
-        deadline (+ (System/currentTimeMillis) (long budget))
+        deadline (+ (System/currentTimeMillis) budget)
         result (promise)
         worker (Thread.
                  ^Runnable

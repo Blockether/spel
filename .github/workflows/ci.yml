@@ -48,7 +48,7 @@ jobs:
       - uses: clojure-lsp/setup-clojure-lsp@v1.0.3
         if: runner.os == 'Linux'
         with:
-          clojure-lsp-version: 2026.07.06-14.34.19
+          clojure-lsp-version: 2026.10.15-11.42.38
 
       - name: Cache Clojure deps
         uses: actions/cache@v6
