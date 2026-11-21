@@ -1204,15 +1204,23 @@
   #{"health" "cancel"})
 
 (defn- remember-command!
-  "Retains the ten latest non-observer outcomes for timeout recovery."
+  "Retains the ten latest non-observer outcomes for timeout recovery. Keeps
+   each response as its JSON text: `recent-commands` parses it on a read."
   [entry response]
   (when-not (contains? observer-actions (:action entry))
     (let [completed (-> (select-keys entry [:id :action :started])
                       (assoc :phase "completed"
                         :completed_at (System/currentTimeMillis)
-                        :response (try (json/read-json response)
-                                       (catch Exception _ response))))]
+                        :response response))]
       (swap! !recent-commands #(->> (conj % completed) (take-last 10) vec)))))
+
+(defn- recent-commands
+  "The remembered outcomes, each with its response parsed."
+  []
+  (mapv (fn [{:keys [response] :as completed}]
+          (assoc completed :response (try (json/read-json response)
+                                          (catch Exception _ response))))
+    @!recent-commands))
 
 (defn- ledger-entries
   "Real in-flight work, longest-running first, as wire-safe maps. Observer
@@ -5902,7 +5910,7 @@
      :uptime_ms      (- now started)
      :uptime         (human-duration (- now started))
      :in_flight      in-flight
-     :recent_commands @!recent-commands
+     :recent_commands (recent-commands)
      :busiest_ms     (or (:running_ms (first in-flight)) 0)
      :commands_total @!commands-total
      :idle_ms        (when last-at (- now (long last-at)))
@@ -7281,7 +7289,10 @@
                          (.flush writer)
                          ;; Check if shutdown was requested — and whether the
                          ;; client asked for the fast, ungraceful variant.
-                         (let [parsed (try (json/read-json response) (catch Exception _ nil))]
+                         ;; Only a response that names the key is parsed: a
+                         ;; snapshot response can be megabytes.
+                         (let [parsed (when (str/includes? response "\"shutdown\"")
+                                        (try (json/read-json response) (catch Exception _ nil)))]
                            (when (and parsed (get-in parsed ["data" "shutdown"]))
                              (if (get-in parsed ["data" "force"]) ::force ::graceful)))))]
             (if stop
