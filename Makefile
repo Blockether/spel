@@ -45,11 +45,15 @@ lint: ## The two gates CI runs: clojure-lsp diagnostics (clj-kondo) + GraalVM na
 
 validate-safe-graal: ## Check src for GraalVM native-image safety (reflection/boxed math)
 	@echo "Checking root src for GraalVM native-image safety..."
-	@clojure \
+	@output=$$(clojure -M \
 		-e "(set! *warn-on-reflection* true)" \
 		-e "(set! *unchecked-math* :warn-on-boxed)" \
-		-e "(doseq [^java.io.File f (file-seq (clojure.java.io/file \"src\"))] (when (and (.isFile f) (.endsWith (.getName f) \".clj\")) (try (load-file (.getPath f)) (catch Exception e (println \"Error loading:\" (.getPath f) (.getMessage e))))))" \
-		2>&1 | grep -iE "(reflection|boxed math) warning" | grep "/src/" && { echo "=== FAILED: Reflection/boxed math warnings found ==="; exit 1; } || echo "=== GraalVM Check Passed ==="
+		-e "(doseq [^java.io.File f (file-seq (clojure.java.io/file \"src\"))] (when (and (.isFile f) (.endsWith (.getName f) \".clj\")) (load-file (.getPath f))))" \
+		2>&1) || { status=$$?; printf '%s\n' "$$output"; exit $$status; }; \
+	if printf '%s\n' "$$output" | grep -iE '(reflection|boxed math) warning, (.*[/\\])?src[/\\]'; then \
+		echo "=== FAILED: Reflection/boxed math warnings found ==="; exit 1; \
+	fi; \
+	echo "=== GraalVM Check Passed ==="
 
 # =============================================================================
 # Build
