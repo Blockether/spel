@@ -1077,6 +1077,22 @@
         (do (Thread/sleep (long wait))
             (recur deadline (min 100 (* 2 (long wait)))))))))
 
+(defn- delete-tree!
+  "Deletes the directory tree at `dir`. Does not follow symbolic links, so
+   nothing outside the tree is removed. Throws on the first entry that it
+   cannot delete."
+  [^String dir]
+  (let [root (java.nio.file.Paths/get dir (into-array String []))]
+    (when (Files/exists root (into-array java.nio.file.LinkOption []))
+      (java.nio.file.Files/walkFileTree root
+        (proxy [java.nio.file.SimpleFileVisitor] []
+          (visitFile [^java.nio.file.Path file ^java.nio.file.attribute.BasicFileAttributes _attrs]
+            (java.nio.file.Files/deleteIfExists file)
+            java.nio.file.FileVisitResult/CONTINUE)
+          (postVisitDirectory [^java.nio.file.Path dir ^java.io.IOException _exc]
+            (java.nio.file.Files/deleteIfExists dir)
+            java.nio.file.FileVisitResult/CONTINUE))))))
+
 (defn kill-auto-launched-browser!
   "Kills an auto-launched browser process and cleans up its lock file and temp dir."
   [{:keys [port browser-pid ^String tmp-dir]}]
@@ -1092,16 +1108,7 @@
     (clear-auto-launch-lock! port))
   (when tmp-dir
     (try
-      (let [tmp-path (java.nio.file.Paths/get ^String tmp-dir (into-array String []))]
-        (when (Files/exists tmp-path (into-array java.nio.file.LinkOption []))
-          (java.nio.file.Files/walkFileTree tmp-path
-            (proxy [java.nio.file.SimpleFileVisitor] []
-              (visitFile [^java.nio.file.Path file ^java.nio.file.attribute.BasicFileAttributes _attrs]
-                (java.nio.file.Files/deleteIfExists file)
-                java.nio.file.FileVisitResult/CONTINUE)
-              (postVisitDirectory [^java.nio.file.Path dir ^java.io.IOException _exc]
-                (java.nio.file.Files/deleteIfExists dir)
-                java.nio.file.FileVisitResult/CONTINUE)))))
+      (delete-tree! tmp-dir)
       (catch Exception e (warn "cleanup-auto-launch-tmp-dir" e)))))
 
 ;; =============================================================================
@@ -7472,15 +7479,7 @@
                     ;; 2e. Clean up temp profile directory if one was created
                        (when-let [tmp-dir (:tmp-profile-dir @!state)]
                          (try
-                           (let [tmp-path (java.nio.file.Paths/get ^String tmp-dir (into-array String []))]
-                             (java.nio.file.Files/walkFileTree tmp-path
-                               (proxy [java.nio.file.SimpleFileVisitor] []
-                                 (visitFile [^java.nio.file.Path file ^java.nio.file.attribute.BasicFileAttributes _attrs]
-                                   (java.nio.file.Files/deleteIfExists file)
-                                   java.nio.file.FileVisitResult/CONTINUE)
-                                 (postVisitDirectory [^java.nio.file.Path dir ^java.io.IOException _exc]
-                                   (java.nio.file.Files/deleteIfExists dir)
-                                   java.nio.file.FileVisitResult/CONTINUE))))
+                           (delete-tree! tmp-dir)
                            (catch Exception e (warn "cleanup-tmp-profile" e))))
                     ;; 2f. Kill auto-launched browser process if one was started
                        (when-let [auto-info (:auto-launch-info @!state)]
