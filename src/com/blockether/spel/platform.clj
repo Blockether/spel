@@ -11,6 +11,7 @@
    [clojure.string :as str])
   (:import
    [java.io File]
+   [java.lang ProcessHandle]
    [java.net HttpURLConnection URL]
    [java.nio.file Files]))
 
@@ -156,3 +157,38 @@
        (keep identity
          (for [host hosts, port ports]
            (probe-cdp host port timeout-ms)))))))
+
+;; =============================================================================
+;; Process trees
+;; =============================================================================
+
+(defn terminate-tree!
+  "Ends the process `handle` and every process below it. Returns true when
+   all of them are gone.
+
+   With a positive `:grace-ms`, each process first gets a polite terminate
+   and the tree gets that long to exit. Then the survivors are killed, and
+   the call waits up to `:kill-wait-ms` (default 2000) for the kill to take
+   effect. A caller that continues while a killed process still runs can
+   race it for a port, a profile directory or a device.
+
+   The tree is read once, before the first signal: a child that outlives
+   its parent is no longer listed below it."
+  [^ProcessHandle handle {:keys [grace-ms kill-wait-ms] :or {grace-ms 0 kill-wait-ms 2000}}]
+  (let [tree  (conj (with-open [below (.descendants handle)]
+                      (vec (.toList below)))
+                handle)
+        alive (fn [] (filterv (fn [^ProcessHandle ph] (.isAlive ph)) tree))
+        gone? (fn [^long budget-ms]
+                (let [deadline (+ (System/currentTimeMillis) budget-ms)]
+                  (loop [wait 5]
+                    (cond
+                      (empty? (alive))                         true
+                      (>= (System/currentTimeMillis) deadline) false
+                      :else (do (Thread/sleep (long wait))
+                              (recur (min 100 (* 2 wait))))))))]
+    (when (pos? (long grace-ms))
+      (run! (fn [^ProcessHandle ph] (.destroy ph)) tree))
+    (or (gone? (long grace-ms))
+      (do (run! (fn [^ProcessHandle ph] (.destroyForcibly ph)) (alive))
+        (gone? (long kill-wait-ms))))))

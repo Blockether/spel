@@ -1086,11 +1086,7 @@
         (when (.isAlive ^java.lang.ProcessHandle ph)
           (log/info! "auto-launch: killing browser PID " browser-pid)
           ;; Kill the process tree (browser + child processes)
-          (.descendants ^java.lang.ProcessHandle ph)
-          (run! (fn [^java.lang.ProcessHandle child]
-                  (try (.destroyForcibly child) (catch Exception _)))
-            (iterator-seq (.iterator (.descendants ^java.lang.ProcessHandle ph))))
-          (.destroyForcibly ^java.lang.ProcessHandle ph)))
+          (platform/terminate-tree! ph {})))
       (catch Exception e (warn "kill-auto-launched-browser" e))))
   (when port
     (clear-auto-launch-lock! port))

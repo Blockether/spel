@@ -25,10 +25,11 @@
    [clojure.string :as str]
    [clojure.xml :as xml]
    [com.blockether.spel.driver :as driver]
+   [com.blockether.spel.platform :as platform]
    [com.blockether.spel.webdriver :as webdriver])
   (:import
    [java.io ByteArrayInputStream File InputStream]
-   [java.lang ProcessBuilder$Redirect ProcessHandle]
+   [java.lang ProcessBuilder$Redirect]
    [java.net InetAddress ServerSocket]
    [java.nio.file Files LinkOption OpenOption Path StandardOpenOption]
    [java.time Instant]
@@ -396,8 +397,8 @@
     (catch Exception _ false)))
 
 (defn kill-process-tree!
-  "Destroys a process and ALL of its descendants. Best-effort: TERM
-   everything, wait briefly, then KILL survivors.
+  "Destroys a process and ALL of its descendants: TERM everything, wait
+   briefly, then KILL survivors and wait until they are gone.
 
    A plain Process.destroy on Appium leaves its xcodebuild/WebDriverAgent
    children running — a surviving WDA startup from a FAILED attempt later
@@ -405,21 +406,8 @@
    gestures (mobile: tap / swipe) while web-context commands keep working."
   [^Process proc]
   (when proc
-    (let [handle      (.toHandle proc)
-          descendants (vec (.toArray (.descendants handle)))]
-      (doseq [d descendants]
-        (try (.destroy ^ProcessHandle d) (catch Exception _ nil)))
-      (try (.destroy proc) (catch Exception _ nil))
-      (try (.waitFor proc 3 java.util.concurrent.TimeUnit/SECONDS)
-           (catch Exception _ nil))
-      (doseq [d descendants]
-        (try
-          (when (.isAlive ^ProcessHandle d)
-            (.destroyForcibly ^ProcessHandle d))
-          (catch Exception _ nil)))
-      (when (.isAlive proc)
-        (try (.destroyForcibly proc) (catch Exception _ nil)))
-      nil)))
+    (platform/terminate-tree! (.toHandle proc) {:grace-ms 3000})
+    nil))
 
 ;; =============================================================================
 ;; Appium lifecycle

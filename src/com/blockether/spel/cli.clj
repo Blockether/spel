@@ -21,6 +21,7 @@
    [com.blockether.spel.daemon :as daemon]
    [com.blockether.spel.driver :as driver]
    [com.blockether.spel.logging :as log]
+   [com.blockether.spel.platform :as platform]
    [com.blockether.spel.security :as security])
   (:import
    [java.io BufferedReader InputStreamReader OutputStreamWriter]
@@ -3322,18 +3323,7 @@
     (let [handle (java.lang.ProcessHandle/of (Long/parseLong (str/trim pid)))]
       (if-not (.isPresent handle)
         true
-        (let [^java.lang.ProcessHandle parent (.get handle)
-              descendants (with-open [stream (.descendants parent)]
-                            (vec (.toList stream)))
-              handles (conj descendants parent)]
-          (doseq [^java.lang.ProcessHandle ph handles]
-            (when (.isAlive ph) (.destroyForcibly ph)))
-          (let [deadline (+ (System/currentTimeMillis) 2000)]
-            (loop []
-              (cond
-                (every? (fn [^java.lang.ProcessHandle ph] (not (.isAlive ph))) handles) true
-                (>= (System/currentTimeMillis) deadline) false
-                :else (do (Thread/sleep 25) (recur))))))))
+        (platform/terminate-tree! (.get handle) {})))
     (catch Exception _ false)))
 
 (defn- cleanup-session-files!
