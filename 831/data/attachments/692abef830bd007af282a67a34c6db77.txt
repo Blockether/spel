@@ -1,2 +1,0 @@
-Merged 2 files from 2 directories into /tmp/merge-env-test8385330326481358314/merged/
-  2 test results
