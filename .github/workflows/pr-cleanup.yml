@@ -5,6 +5,7 @@ on:
     types: [closed]
 
 permissions:
+  actions: write # starts pages.yml
   contents: write
 
 concurrency:
@@ -22,6 +23,7 @@ jobs:
           fetch-depth: 1
 
       - name: Remove PR report and update metadata
+        id: cleanup
         env:
           PR_NUM: ${{ github.event.pull_request.number }}
           PR_MERGED: ${{ github.event.pull_request.merged }}
@@ -70,6 +72,7 @@ jobs:
               git commit -m "$COMMIT_MSG" || true
               if git push origin gh-pages; then
                 echo "Push succeeded on attempt $attempt"
+                echo "pushed=true" >> "$GITHUB_OUTPUT"
                 break
               fi
               if [ "$attempt" -eq 3 ]; then
@@ -82,3 +85,10 @@ jobs:
           else
             echo "Nothing to clean up for PR #${PR_NUM}"
           fi
+
+      # pages.yml publishes the gh-pages branch; see that file.
+      - name: Publish gh-pages
+        if: steps.cleanup.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main

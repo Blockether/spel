@@ -6,6 +6,7 @@ on:
     types: [completed]
 
 permissions:
+  actions: write # starts pages.yml
   contents: write
   pull-requests: write
   checks: write
@@ -300,6 +301,7 @@ jobs:
                :pr-url         (System/getenv \"PR_URL\")})"
 
       - name: Deploy PR report to GitHub Pages
+        id: deploy-pr
         if: steps.ctx.outputs.is_pr == 'true'
         env:
           PR_NUM: ${{ steps.ctx.outputs.pr_number }}
@@ -500,9 +502,17 @@ jobs:
           key: allure-history-jsonl-${{ steps.ctx.outputs.ci_run_number }}
 
       - name: Deploy to GitHub Pages
+        id: deploy-main
         if: steps.ctx.outputs.is_main == 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./gh-pages-site
           keep_files: false
+
+      # pages.yml publishes the gh-pages branch; see that file.
+      - name: Publish gh-pages
+        if: ${{ !cancelled() && (steps.deploy-pr.outcome == 'success' || steps.deploy-main.outcome == 'success') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main

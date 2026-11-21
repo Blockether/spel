@@ -1,0 +1,43 @@
+name: Pages
+
+# Publishes the gh-pages branch to GitHub Pages.
+#
+# The repository Pages source is "GitHub Actions". A push to gh-pages does not
+# publish by itself, and a push with GITHUB_TOKEN starts no workflow. Thus each
+# workflow that writes gh-pages starts this workflow after its push.
+#
+# The github-pages environment accepts deployments only from main and gh-pages.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Deployments run in order. Each one publishes the newest gh-pages commit.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy gh-pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: gh-pages
+          fetch-depth: 1
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
