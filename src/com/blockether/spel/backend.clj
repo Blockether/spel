@@ -317,9 +317,7 @@
                   ;; are already absolute screen coordinates.
                   center (or (when-not native?
                                (webdriver/element-viewport-center wd el))
-                           (let [rect (webdriver/element-rect wd el)]
-                             {:x (long (+ (double (:x rect)) (/ (double (:width rect)) 2.0)))
-                              :y (long (+ (double (:y rect)) (/ (double (:height rect)) 2.0)))}))]
+                           (webdriver/element-rect-center wd el))]
               (if native?
                 (webdriver/tap-screen wd (:x center) (:y center))
                 (webdriver/tap wd (:x center) (:y center)))

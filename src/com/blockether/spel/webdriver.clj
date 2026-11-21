@@ -918,6 +918,13 @@
      :width  (double (get r "width" 0))
      :height (double (get r "height" 0))}))
 
+(defn element-rect-center
+  "Returns the center {:x :y} of the element rectangle, as whole points."
+  [session ^String element-id]
+  (let [{:keys [x y width height]} (element-rect session element-id)]
+    {:x (long (+ (double x) (/ (double width) 2.0)))
+     :y (long (+ (double y) (/ (double height) 2.0)))}))
+
 ;; --- Selector-level conveniences (find + act) --------------------------------
 
 (defn click
@@ -1153,9 +1160,7 @@
   [session ^String css]
   (let [el     (find-element-by-css session css)
         center (or (element-viewport-center session el)
-                 (let [rect (element-rect session el)]
-                   {:x (long (+ (double (:x rect)) (/ (double (:width rect)) 2.0)))
-                    :y (long (+ (double (:y rect)) (/ (double (:height rect)) 2.0)))}))]
+                 (element-rect-center session el))]
     (tap session (:x center) (:y center))
     {:element el :x (:x center) :y (:y center)}))
 

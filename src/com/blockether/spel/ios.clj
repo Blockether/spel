@@ -955,9 +955,7 @@
                      (fn measure-in-webview []
                        (let [el (webdriver/find-element-by-css wd css)]
                          (or (webdriver/element-viewport-center wd el)
-                           (let [r (webdriver/element-rect wd el)]
-                             {:x (long (+ (double (:x r)) (/ (double (:width r)) 2.0)))
-                              :y (long (+ (double (:y r)) (/ (double (:height r)) 2.0)))})))))]
+                           (webdriver/element-rect-center wd el)))))]
         (assoc (tap-dom-point! ios-session (:x center) (:y center))
           :selector css
           :dom center)))))
