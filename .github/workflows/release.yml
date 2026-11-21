@@ -87,8 +87,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: main
-          # Shallow clone — we only need working tree + tags for changelog.
+          # Build and deploy from the commit that started this tag run.
           # fetch-depth: 0 downloads entire history including gh-pages (hundreds of MB of Allure reports).
           fetch-depth: 1
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -115,24 +114,27 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          COMMIT_SHA="${GITHUB_SHA}"
+          COMMIT_SHA=$(git rev-parse HEAD)
           echo "Looking for CI artifacts on commit $COMMIT_SHA"
 
-          # Tag pushes start CI and release together. Wait for the same-commit CI
-          # run instead of racing it and mistaking "still running" for "missing".
+          # A tag push does not start CI. Use the CI run of the push to main
+          # for the same commit: a run that passed, else the newest run. That
+          # run can still be in progress, so wait for it.
           RUN_ID=""
           for attempt in $(seq 1 30); do
-            RUN_ID=$(gh run list --workflow=ci.yml --commit="$COMMIT_SHA" --limit=1 \
-              --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)
-            if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ]; then
+            RUN_ID=$(gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+              -f branch=main -f event=push -f head_sha="$COMMIT_SHA" \
+              --jq '([.workflow_runs[] | select(.conclusion == "success")][0] // .workflow_runs[0]).id // empty' \
+              2>/dev/null || true)
+            if [ -n "$RUN_ID" ]; then
               break
             fi
             echo "CI run is not visible yet (attempt $attempt/30); waiting 10s..."
             sleep 10
           done
 
-          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
-            echo "::error::No CI run found for commit $COMMIT_SHA after 5 minutes"
+          if [ -z "$RUN_ID" ]; then
+            echo "::error::No CI run of a push to main found for commit $COMMIT_SHA after 5 minutes"
             exit 1
           fi
 
@@ -264,6 +266,11 @@ jobs:
         run: clojure -T:build deploy
 
       # --- Update version files on main ---
+      - name: Switch to main for version updates
+        run: |
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git switch --discard-changes -C main origin/main
+
       - name: Update README.md version
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
