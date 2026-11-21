@@ -48,7 +48,7 @@ jobs:
       - name: Setup GraalVM
         uses: ./.github/actions/setup-graalvm-ce
 
-      - uses: DeLaGuardo/setup-clojure@13.6.1
+      - uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           cli: latest
 
@@ -112,7 +112,7 @@ jobs:
           # This fetches only main branch history, NOT gh-pages.
           git fetch --deepen=200 origin main
 
-      - uses: DeLaGuardo/setup-clojure@13.6.1
+      - uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           cli: latest
 

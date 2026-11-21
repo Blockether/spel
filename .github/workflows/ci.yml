@@ -41,7 +41,7 @@ jobs:
       - name: Setup GraalVM
         uses: ./.github/actions/setup-graalvm-ce
 
-      - uses: DeLaGuardo/setup-clojure@13.6.1
+      - uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           cli: latest
 
@@ -61,11 +61,21 @@ jobs:
           restore-keys: |
             deps-${{ runner.os }}-
 
+      # The browser builds depend only on the Playwright version and on the
+      # Patchright driver pin. A key from all of deps.edn saves a second copy
+      # of the browsers for each unrelated dependency change.
+      - name: Read Playwright version
+        id: playwright
+        run: |
+          version=$(sed -n 's|.*com.microsoft.playwright/playwright *{:mvn/version "\([^"]*\)".*|\1|p' deps.edn)
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Cache Playwright browsers
         uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('deps.edn') }}
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-${{ hashFiles('resources/com/blockether/spel/patchright-driver.edn') }}
           restore-keys: |
             playwright-${{ runner.os }}-
 

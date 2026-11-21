@@ -35,9 +35,9 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '26'
 
-      - uses: DeLaGuardo/setup-clojure@13.6.1
+      - uses: DeLaGuardo/setup-clojure@13.7.0
         with:
           cli: latest
 
@@ -51,6 +51,16 @@ jobs:
           key: deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}
           restore-keys: |
             deps-${{ runner.os }}-
+
+      # The report generator starts the pinned Allure CLI with npx. The pin is
+      # in allure_reporter.clj, so the key follows that file.
+      - name: Cache Allure CLI (npm)
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: allure-cli-${{ runner.os }}-${{ hashFiles('src/com/blockether/spel/allure_reporter.clj') }}
+          restore-keys: |
+            allure-cli-${{ runner.os }}-
 
       - name: Download Allure results from CI
         id: download-results

@@ -127,7 +127,7 @@ jobs:
           wsl --set-default-version 2 2>&1 | ForEach-Object { Write-Host $_ }
 
       - name: Install WSL (Ubuntu-24.04)
-        uses: Vampire/setup-wsl@v7.0.0
+        uses: Vampire/setup-wsl@v7.2.0
         with:
           distribution: Ubuntu-24.04
           use-cache: "true"
