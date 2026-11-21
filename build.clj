@@ -1,6 +1,6 @@
 (ns build
   (:require [clojure.tools.build.api :as b]
-            [deps-deploy.deps-deploy :as dd]
+            [cemerick.pomegranate.aether :as aether]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.java.shell :as shell]
@@ -55,11 +55,20 @@
               :jar-file jar-file
               :class-dir class-dir}))
 
+(defn- deploy-to-clojars!
+  "Deploys a jar and its pom to Clojars. `CLOJARS_URL` gives another repository."
+  [lib version jar pom]
+  (aether/deploy :coordinates [lib version]
+                 :jar-file (io/file jar)
+                 :pom-file (io/file pom)
+                 :repository {"clojars" {:url (or (System/getenv "CLOJARS_URL") "https://clojars.org/repo")
+                                         :username (System/getenv "CLOJARS_USERNAME")
+                                         :password (System/getenv "CLOJARS_PASSWORD")}}
+                 :transfer-listener :stdout))
+
 (defn deploy [_]
   (jar nil)
-  (dd/deploy {:installer :remote
-              :artifact jar-file
-              :pom-file (b/pom-path {:lib lib :class-dir class-dir})}))
+  (deploy-to-clojars! lib version jar-file (b/pom-path {:lib lib :class-dir class-dir})))
 
 ;; =============================================================================
 ;; Patchright driver artifact
@@ -150,9 +159,9 @@
   "Deploys the Patchright driver jar to Clojars."
   [_]
   (patchright-driver-jar nil)
-  (dd/deploy {:installer :remote
-              :artifact  (patchright-jar-file (patchright-spec))
-              :pom-file  (b/pom-path {:lib patchright-lib :class-dir patchright-class-dir})}))
+  (let [{:keys [version] :as spec} (patchright-spec)]
+    (deploy-to-clojars! patchright-lib version (patchright-jar-file spec)
+                        (b/pom-path {:lib patchright-lib :class-dir patchright-class-dir}))))
 
 ;; =============================================================================
 ;; Native Image Build
