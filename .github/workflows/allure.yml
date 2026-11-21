@@ -36,20 +36,7 @@ jobs:
         with:
           node-version: '26'
 
-      - uses: DeLaGuardo/setup-clojure@13.7.0
-        with:
-          cli: latest
-
-      - name: Cache Clojure deps
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.m2/repository
-            ~/.gitlibs
-            ~/.clojure/.cpcache
-          key: deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}
-          restore-keys: |
-            deps-${{ runner.os }}-
+      - uses: ./.github/actions/setup-clojure
 
       # The report generator starts the pinned Allure CLI with npx. The pin is
       # in allure_reporter.clj, so the key follows that file.

@@ -1,0 +1,30 @@
+name: Setup Clojure
+description: Install the Clojure CLI and cache its dependencies.
+inputs:
+  cache-prefix:
+    description: Text before the runner OS in the cache key.
+    default: deps
+  cache-suffix:
+    description: Text after the runner OS in the cache key, including the final hyphen.
+    default: '-'
+  extra-restore-prefix:
+    description: Additional cache prefix to try after the primary prefix.
+    default: ''
+runs:
+  using: composite
+  steps:
+    - uses: DeLaGuardo/setup-clojure@13.7.0
+      with:
+        cli: latest
+
+    - name: Cache Clojure deps
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/.m2/repository
+          ~/.gitlibs
+          ~/.clojure/.cpcache
+        key: ${{ inputs.cache-prefix }}-${{ runner.os }}${{ inputs.cache-suffix }}${{ hashFiles('deps.edn') }}
+        restore-keys: |
+          ${{ inputs.cache-prefix }}-${{ runner.os }}${{ inputs.cache-suffix }}
+          ${{ inputs.extra-restore-prefix }}

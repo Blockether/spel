@@ -37,18 +37,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: DeLaGuardo/setup-clojure@13.7.0
+      - uses: ./.github/actions/setup-clojure
         with:
-          cli: latest
-
-      - uses: actions/cache@v6
-        with:
-          path: |
-            ~/.m2/repository
-            ~/.gitlibs
-            ~/.clojure/.cpcache
-          key: clj-watson-${{ runner.os }}-${{ hashFiles('deps.edn') }}
-          restore-keys: clj-watson-${{ runner.os }}-
+          cache-prefix: clj-watson
 
       - name: Run clj-watson dependency scan
         env:
@@ -106,22 +97,11 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: DeLaGuardo/setup-clojure@13.7.0
+      - uses: ./.github/actions/setup-clojure
         if: steps.guard.outputs.run == 'true'
         with:
-          cli: latest
-
-      - uses: actions/cache@v6
-        if: steps.guard.outputs.run == 'true'
-        with:
-          path: |
-            ~/.m2/repository
-            ~/.gitlibs
-            ~/.clojure/.cpcache
-          key: clj-watson-nvd-${{ runner.os }}-${{ hashFiles('deps.edn') }}
-          restore-keys: |
-            clj-watson-nvd-${{ runner.os }}-
-            clj-watson-${{ runner.os }}-
+          cache-prefix: clj-watson-nvd
+          extra-restore-prefix: clj-watson-${{ runner.os }}-
 
       - name: Run clj-watson NVD scan
         if: steps.guard.outputs.run == 'true'

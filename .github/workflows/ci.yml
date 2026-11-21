@@ -14,13 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            artifact: spel-linux-amd64
-          - os: macos-latest
-            artifact: spel-macos-arm64
-          - os: windows-latest
-            artifact: spel-windows-amd64
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     runs-on: ${{ matrix.os }}
     name: CI (${{ matrix.os }})
@@ -31,61 +25,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Normalize Playwright browsers path
-        # Set PLAYWRIGHT_BROWSERS_PATH with proper $HOME expansion.
-        # Job-level env: with ~ is literal and breaks JVM/Node subprocesses.
-        # $GITHUB_ENV propagates to ALL subsequent steps and their subprocesses.
-        run: echo "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" >> "$GITHUB_ENV"
-
       # GraalVM CE at the version in .graalvm-version.
       - name: Setup GraalVM
         uses: ./.github/actions/setup-graalvm-ce
 
-      - uses: DeLaGuardo/setup-clojure@13.7.0
-        with:
-          cli: latest
+      - uses: ./.github/actions/setup-clojure
 
       - uses: clojure-lsp/setup-clojure-lsp@v1.0.3
         if: runner.os == 'Linux'
         with:
           clojure-lsp-version: 2026.10.15-11.42.38
 
-      - name: Cache Clojure deps
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.m2/repository
-            ~/.gitlibs
-            ~/.clojure/.cpcache
-          key: deps-${{ runner.os }}-${{ hashFiles('deps.edn') }}
-          restore-keys: |
-            deps-${{ runner.os }}-
-
-      # The browser builds depend only on the Playwright version and on the
-      # Patchright driver pin. A key from all of deps.edn saves a second copy
-      # of the browsers for each unrelated dependency change.
-      - name: Read Playwright version
-        id: playwright
-        run: |
-          version=$(sed -n 's|.*com.microsoft.playwright/playwright *{:mvn/version "\([^"]*\)".*|\1|p' deps.edn)
-          test -n "$version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-${{ hashFiles('resources/com/blockether/spel/patchright-driver.edn') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
-      - name: Install Playwright browsers (Linux — with system deps)
-        if: runner.os == 'Linux'
-        run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\" \"--with-deps\"]))"
-
-      - name: Install Playwright browsers
-        if: runner.os != 'Linux'
-        run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\"]))"
+      - uses: ./.github/actions/setup-playwright
 
       # `spel --undetected` resolves com.blockether/spel-patchright-driver through
       # tools.deps. Build it from the pinned npm package into ~/.m2, so CI tests
@@ -93,16 +44,9 @@ jobs:
       - name: Install Patchright driver artifact
         run: clojure -T:build install-patchright-driver
 
-      - name: Check Clojure syntax
-        run: clojure -M -e "(println \"Syntax check passed\")"
-
       - name: Lint (clojure-lsp)
         if: runner.os == 'Linux'
         run: make lint
-
-      - name: Validate GraalVM native-image safety
-        if: runner.os == 'Linux'
-        run: make validate-safe-graal
 
       # =========================================================================
       # Tests — Linux runs with Allure reporter and uploads results as artifact.
@@ -149,30 +93,51 @@ jobs:
         if: runner.os != 'Linux'
         run: clojure -M:test
 
-      # =========================================================================
-      # Build & smoke-test native image
-      # =========================================================================
-
       - name: Build jar
+        if: runner.os == 'Linux'
         run: clojure -T:build jar
+
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: spel-linux-amd64
+          - os: macos-latest
+            artifact: spel-macos-arm64
+          - os: windows-latest
+            artifact: spel-windows-amd64
+
+    runs-on: ${{ matrix.os }}
+    name: Native CI (${{ matrix.os }})
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # GraalVM CE at the version in .graalvm-version.
+      - name: Setup GraalVM
+        uses: ./.github/actions/setup-graalvm-ce
+
+      - uses: ./.github/actions/setup-clojure
+
+      - uses: ./.github/actions/setup-playwright
+
+      # `spel --undetected` resolves com.blockether/spel-patchright-driver through
+      # tools.deps. Build it from the pinned npm package into ~/.m2, so CI tests
+      # the pin of this commit before the release publishes it.
+      - name: Install Patchright driver artifact
+        run: clojure -T:build install-patchright-driver
 
       - name: Build spel native image
         run: clojure -T:build native-image
 
       - name: Install pinned Lightpanda (Unix)
         if: runner.os != 'Windows'
-        run: |
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            asset=lightpanda-x86_64-linux
-            sha256=aa5a4b8ed53d1e38b3c73f5b2647d0a84a82e6744557f45f9a9c85858aa031c3
-          else
-            asset=lightpanda-aarch64-macos
-            sha256=955440053a84754dd64c62f970449a56a2b350cdf43ea5f2e809a73047b8173d
-          fi
-          curl --fail --location --retry 3 "https://github.com/lightpanda-io/browser/releases/download/1.0.0/$asset" -o "$RUNNER_TEMP/lightpanda"
-          printf '%s  %s\n' "$sha256" "$RUNNER_TEMP/lightpanda" | shasum -a 256 -c -
-          chmod +x "$RUNNER_TEMP/lightpanda"
-          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+        uses: ./.github/actions/setup-lightpanda
 
       - name: CLI bash regression tests (Unix)
         if: runner.os != 'Windows'

@@ -1,0 +1,27 @@
+name: Setup Lightpanda
+description: Installs the pinned Lightpanda binary and adds it to PATH. Linux x64 and macOS arm64 only.
+
+runs:
+  using: composite
+  steps:
+    - name: Install pinned Lightpanda
+      shell: bash
+      run: |
+        case "$RUNNER_OS-$RUNNER_ARCH" in
+          Linux-X64)
+            asset=lightpanda-x86_64-linux
+            sha256=aa5a4b8ed53d1e38b3c73f5b2647d0a84a82e6744557f45f9a9c85858aa031c3
+            ;;
+          macOS-ARM64)
+            asset=lightpanda-aarch64-macos
+            sha256=955440053a84754dd64c62f970449a56a2b350cdf43ea5f2e809a73047b8173d
+            ;;
+          *)
+            echo "::error::No pinned Lightpanda binary for $RUNNER_OS-$RUNNER_ARCH"
+            exit 1
+            ;;
+        esac
+        curl --fail --location --retry 3 "https://github.com/lightpanda-io/browser/releases/download/1.0.0/$asset" -o "$RUNNER_TEMP/lightpanda"
+        printf '%s  %s\n' "$sha256" "$RUNNER_TEMP/lightpanda" | shasum -a 256 -c -
+        chmod +x "$RUNNER_TEMP/lightpanda"
+        echo "$RUNNER_TEMP" >> "$GITHUB_PATH"

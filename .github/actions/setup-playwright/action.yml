@@ -1,0 +1,46 @@
+name: Setup Playwright browsers
+description: Install and cache the browsers for the Playwright version in deps.edn.
+runs:
+  using: composite
+  steps:
+    - name: Normalize Playwright browsers path
+      # Set PLAYWRIGHT_BROWSERS_PATH with proper $HOME expansion.
+      # Job-level env: with ~ is literal and breaks JVM/Node subprocesses.
+      # $GITHUB_ENV propagates to ALL subsequent steps and their subprocesses.
+      shell: bash
+      run: echo "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" >> "$GITHUB_ENV"
+
+    # The browser builds depend only on the Playwright version and on the
+    # Patchright driver pin. A key from all of deps.edn saves a second copy
+    # of the browsers for each unrelated dependency change.
+    - name: Read Playwright version
+      id: playwright
+      shell: bash
+      run: |
+        version=$(clojure -M -e '
+          (let [deps (clojure.edn/read-string (slurp "deps.edn"))
+                version (get-in deps [:deps (quote com.microsoft.playwright/playwright) :mvn/version])]
+            (when (string? version) (print version)))')
+        if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error::Expected one Playwright version in deps.edn (N.N.N)"
+          exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Playwright browsers
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-${{ hashFiles('resources/com/blockether/spel/patchright-driver.edn') }}
+        restore-keys: |
+          playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-
+
+    - name: Install Playwright browsers (Linux — with system deps)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\" \"--with-deps\"]))"
+
+    - name: Install Playwright browsers
+      if: runner.os != 'Linux'
+      shell: bash
+      run: clojure -M -e "(com.microsoft.playwright.CLI/main (into-array String [\"install\"]))"
