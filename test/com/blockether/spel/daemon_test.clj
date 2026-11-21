@@ -3172,7 +3172,7 @@
                             :session "driver-startup-test"
                             :launch-flags {}})
         (with-redefs-fn
-          {#'core/create (fn []
+          {#'core/create (fn [& _]
                            {::anomaly/category ::anomaly/fault
                             ::anomaly/message
                             "Failed to create driver: permission denied"})}

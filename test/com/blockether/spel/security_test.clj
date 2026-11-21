@@ -178,6 +178,71 @@
         (expect (true? (sut/request-allowed? pred "about:blank")))))))
 
 ;; =============================================================================
+;; interception-pattern
+;; =============================================================================
+
+;; Regression, issue #135: the allowlist route matched every request, so a page
+;; with thousands of requests to allowed hosts ended in a StackOverflowError.
+(defdescribe interception-pattern-test
+  "interception-pattern: the URLs that the route handler must judge"
+
+  (let [csv      "localhost,example.com,*.github.io"
+        judged   (sut/interception-pattern csv)
+        judged?  (fn [url] (boolean (re-find judged url)))
+        allowed? (sut/compile-domain-patterns csv)]
+
+    (describe "allowed hosts cause no route event (issue #135)"
+
+      (it "skips http(s) and ws(s) URLs of each allowed host"
+        (doseq [url ["http://localhost" "http://localhost/" "http://localhost:8080/a?b=1#c"
+                     "https://example.com/x" "https://example.com?x" "https://example.com#x"
+                     "wss://example.com/socket" "ws://localhost:9/"
+                     "https://github.io/" "https://a.github.io/" "https://a.b-c.github.io:443/x"]]
+          (expect (false? (judged? url))))))
+
+    (describe "every skipped URL is an allowed URL"
+
+      (it "judges each URL that only looks like an allowed host"
+        (doseq [url ["https://evil.com/" "https://www.example.com/" "https://notexample.com/"
+                     "https://example.com.evil.org/" "https://evilgithub.io/"
+                     "http://localhost@evil.com/" "http://localhost:80@evil.com/"
+                     "http://localhost:@evil.com/" "http://user@localhost/"
+                     "http://localhost.evil.com/" "http://localhost./" "http://localhost\\@evil.com/"
+                     "http://evil.com/http://localhost/" "http://evil.com/?u=http://localhost/"
+                     "HTTP://localhost/" "http://LOCALHOST/" "ftp://localhost/" "//localhost/"
+                     "http://localhost:80a/" "http://.github.io/" "http://a..github.io/"
+                     "data:text/html,http://localhost/" "about:blank" ""]]
+          (expect (true? (judged? url)))))
+
+      (it "never skips a URL that request-allowed? blocks"
+        (let [hosts   ["localhost" "example.com" "github.io" "a.github.io" "evil.com"
+                       "www.example.com" "localhost.evil.com" "example.com.evil.org" "xgithub.io"]
+              schemes ["http://" "https://" "ws://" "wss://" "ftp://" "HTTP://" ""]
+              infos   ["" "localhost@" "user:pw@" "example.com:80@"]
+              ports   ["" ":80" ":" ":8a"]
+              tails   ["" "/" "/p?q=http://localhost/" "?x" "#x" ".evil.com/" "@evil.com/" "\\evil.com/"]
+              skipped (for [s schemes i infos h hosts p ports t tails
+                            :let [url (str s i h p t)]
+                            :when (not (judged? url))]
+                        url)]
+          (expect (seq skipped))
+          (expect (empty? (remove #(sut/request-allowed? allowed? %) skipped)))))))
+
+  (describe "patterns without a simple host"
+
+    (it "judges every URL"
+      (doseq [csv [nil " , " "[::1],exa_mple.com,*."]
+              url ["http://localhost/" "http://exa_mple.com/" "http://[::1]/" ""]]
+        (expect (some? (re-find (sut/interception-pattern csv) url))))))
+
+  (describe "mixed patterns"
+
+    (it "judges the hosts of a pattern that it cannot express"
+      (let [judged (sut/interception-pattern "[::1],localhost")]
+        (expect (nil? (re-find judged "http://localhost:3000/")))
+        (expect (some? (re-find judged "http://[::1]:3000/")))))))
+
+;; =============================================================================
 ;; wrap-boundaries
 ;; =============================================================================
 

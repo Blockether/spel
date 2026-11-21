@@ -138,6 +138,40 @@
       true
       (boolean (allowed-pred host)))))
 
+(defn- host-regex-source
+  "Returns the regex source for the hosts of one allowlist pattern, or nil when
+   the pattern has a character that only `request-allowed?` can judge."
+  [^String pattern]
+  (let [wildcard? (str/starts-with? pattern "*.")
+        base      (if wildcard? (subs pattern 2) pattern)]
+    (when (re-matches #"[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*" base)
+      (str (when wildcard? "(?:[A-Za-z0-9-]+\\.)*")
+        (str/replace base "." "\\.")))))
+
+(defn interception-pattern
+  "Returns a regex that matches each URL that `request-allowed?` must judge.
+   It matches every URL when no allowlist pattern has a simple host.
+
+   A URL that the regex does not match is certainly allowed: an http(s) or
+   ws(s) URL with no user info and a host that a simple pattern names. Give the
+   regex to `Page.route`: the browser then loads those URLs with no route
+   event, and only the other URLs go to the handler. Playwright runs the regex
+   in Java and in JavaScript, so its syntax is valid in both.
+
+   Each route event costs one round trip to the driver, and Playwright Java
+   nests the events that arrive during that round trip. A page that starts
+   some thousands of requests at once then overflows the stack (issue #135)."
+  ^java.util.regex.Pattern [csv]
+  (let [hosts (when-not (or (nil? csv) (str/blank? csv))
+                (->> (str/split csv #",")
+                  (map str/trim)
+                  (remove str/blank?)
+                  (keep host-regex-source)))]
+    (if (seq hosts)
+      (re-pattern (str "^(?!(?:https?|wss?)://(?:" (str/join "|" hosts)
+                    ")(?::[0-9]+)?(?![^/?#]))"))
+      #"^")))
+
 ;; =============================================================================
 ;; Content boundaries
 ;; =============================================================================

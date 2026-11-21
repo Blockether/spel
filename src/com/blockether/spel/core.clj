@@ -361,20 +361,28 @@
    the actual Clojure source code for each action.
 
    Respects PLAYWRIGHT_JAVA_SRC when set. Ignores inherited NODE_OPTIONS for the Playwright driver.
-   
+
+   Params:
+   `opts` - Map, optional.
+     :source-dirs? - Boolean (default: true). With false, the source
+                     directories are not detected. Playwright records a stack
+                     trace for each call when it has source directories. Give
+                     false when the caller is not code in those directories.
+
    Returns:
    Playwright instance or anomaly map on failure.
    
    Examples:
    (def pw (create))
    ;; Use pw for browser launching, then (.close pw) when done."
-  []
-  (safe
-    (let [src-dirs (when-not (System/getenv "PLAYWRIGHT_JAVA_SRC")
-                     (detect-source-dirs))]
-      (Playwright/create (doto (Playwright$CreateOptions.)
-                           (.setEnv (cond-> (assoc driver/node-env "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD" "1")
-                                      src-dirs (assoc "PLAYWRIGHT_JAVA_SRC" src-dirs))))))))
+  ([] (create {}))
+  ([{:keys [source-dirs?] :or {source-dirs? true}}]
+   (safe
+     (let [src-dirs (when (and source-dirs? (not (System/getenv "PLAYWRIGHT_JAVA_SRC")))
+                      (detect-source-dirs))]
+       (Playwright/create (doto (Playwright$CreateOptions.)
+                            (.setEnv (cond-> (assoc driver/node-env "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD" "1")
+                                       src-dirs (assoc "PLAYWRIGHT_JAVA_SRC" src-dirs)))))))))
 
 (defn find-free-port
   "Finds an available local TCP port and returns it as an integer.

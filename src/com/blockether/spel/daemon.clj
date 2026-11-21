@@ -1373,6 +1373,56 @@
                                   (catch Exception _ nil)))
     :spel-pages #{}))
 
+(defn- install-allowed-domains!
+  "Installs a route on `target`, a `BrowserContext` or a `Page`, that aborts
+   each request to a host outside the allowlist `csv`. It blocks navigation and
+   sub-resources. Non-HTTP(S) URLs (data:, blob:, about:, chrome-extension:)
+   always pass through.
+
+   The route pattern comes from `security/interception-pattern`: it matches
+   only the URLs that need a decision, so a request to an allowed host causes
+   no route event. Each route event is one round trip to the driver, and
+   Playwright Java nests the events that arrive during it; with a catch-all
+   pattern, a page that started some thousands of requests at once overflowed
+   the stack (issue #135)."
+  [target ^String csv]
+  (let [allowed?  (security/compile-domain-patterns csv)
+        ;; Direct reify keeps the closure visible to native-image's
+        ;; ahead-of-time analysis and mirrors the idiom used by the
+        ;; network_route handler (which is exercised by test-cli.sh).
+        consumer  (reify java.util.function.Consumer
+                    (accept [_ route]
+                      (try
+                        (let [^com.microsoft.playwright.Route r route
+                              req (.request r)
+                              url (.url ^Request req)]
+                          (if (security/request-allowed? allowed? url)
+                            (.resume r)
+                            (.abort r "blockedbyclient")))
+                        (catch Exception _
+                          nil))))
+        judged    (security/interception-pattern csv)]
+    (if (instance? BrowserContext target)
+      (.route ^BrowserContext target judged consumer)
+      (.route ^Page target judged consumer))))
+
+(defn- ensure-allowed-domains!
+  "Puts the `--allowed-domains` allowlist on `page` before it loads a URL.
+   No-op without the flag, and when the route is already there.
+
+   In a browser that spel started, the route is on `context`. It then covers
+   each tab, popup and window, and a context that replaces the first one
+   (device, credentials, saved state) gets its own route. A foreign browser
+   keeps the tabs of the user in the same context, so there the route is on
+   the spel tab only."
+  [context page]
+  (let [csv (get-in @!state [:launch-flags "allowed-domains"])]
+    (when-not (str/blank? csv)
+      (let [target (if (:cdp-foreign @!state) page context)]
+        (when-not (contains? (:allowed-domains-on @!state) target)
+          (install-allowed-domains! target csv)
+          (swap! !state update :allowed-domains-on (fnil conj #{}) target))))))
+
 (defn- new-spel-page!
   "Creates a tab and records it as spel-owned. Provenance is positive: only tabs
    opened through this fn may ever be closed by spel in a foreign browser.
@@ -1391,6 +1441,7 @@
                         (or (::anomaly/message p) "the browser went away"))
                {:error_code :browser_handle_lost})))
     (swap! !state update :spel-pages (fnil conj #{}) p)
+    (ensure-allowed-domains! context p)
     p))
 
 (defn- user-owned-page?
@@ -1424,7 +1475,8 @@
   (let [pw (:pw @!state)]
     (swap! !state assoc :pw nil :browser nil :context nil :page nil
       :refs {} :counter 0 :cdp-connected false :cdp-foreign false
-      :adopted-context nil :adopted-pages #{} :spel-pages #{})
+      :adopted-context nil :adopted-pages #{} :spel-pages #{}
+      :allowed-domains-on #{})
     ;; The relaunched browser gets fresh listeners, so failures counted against
     ;; the old ones no longer describe the live session.
     (core/reset-handler-errors!)
@@ -2781,9 +2833,14 @@
    `core/create` answers an anomaly map when the driver fails to start. Handing
    that map on as a Playwright instance turned an environment problem into
    `PersistentArrayMap cannot be cast to ...Playwright`, which says nothing
-   about the driver that never came up."
+   about the driver that never came up.
+
+   The daemon gives Playwright no source directories. With them, Playwright
+   records a stack trace for each call, and the frames are daemon code that is
+   not in the directories of the user. The cost grows with the stack depth, so
+   nested route events became slow in a project directory (issue #135)."
   []
-  (let [result (core/create)]
+  (let [result (core/create {:source-dirs? false})]
     (if (anomaly/anomaly? result)
       (throw (ex-info (str "Failed to start the Playwright driver: "
                         (or (::anomaly/message result) "unknown error"))
@@ -2838,38 +2895,6 @@
                             (reset! !pending-dialog-promise nil)))))))]
     (reset! !dialog-handler handler)
     (.onDialog page handler)))
-
-(defn- install-allowed-domains!
-  "Installs a page-level request listener that closes the page (aborts the
-   navigation) when a request targets a non-allowed host.
-
-   Uses a REQUEST event listener rather than Playwright routing because we
-   want the policy to apply to every future page created in the context, and
-   event listeners run reliably in native-image. The listener runs in-process
-   and synchronously inspects each request's URL.
-
-   Blocks: navigation and sub-resources. Non-HTTP(S) URLs (data:, blob:,
-   about:, chrome-extension:) always pass through.
-
-   No-op when `csv` is nil or blank."
-  [^Page page ^String csv]
-  (when-not (or (nil? csv) (str/blank? csv))
-    (let [allowed?  (security/compile-domain-patterns csv)
-          ;; Direct reify keeps the closure visible to native-image's
-          ;; ahead-of-time analysis and mirrors the idiom used by the
-          ;; network_route handler (which is exercised by test-cli.sh).
-          consumer  (reify java.util.function.Consumer
-                      (accept [_ route]
-                        (try
-                          (let [^com.microsoft.playwright.Route r route
-                                req (.request r)
-                                url (.url ^Request req)]
-                            (if (security/request-allowed? allowed? url)
-                              (.resume r)
-                              (.abort r "blockedbyclient")))
-                          (catch Exception _
-                            nil))))]
-      (.route ^Page page "**/*" consumer))))
 
 (defn- browser-engine-rejection
   "Rejects unknown engines, live engine changes and unsupported Lightpanda options."
@@ -3747,19 +3772,11 @@
 (defmulti ^:private handle-cmd (fn [action _params] action))
 
 (defn- ensure-allowed-domains-installed!
-  "Installs the allowed-domains route handler on the current page if the flag
-   is set and the install hasn't already happened for this browser session.
-
-   Called from navigation handlers rather than ensure-browser! because route
-   handlers must be installed on a page that is ready to receive requests —
-   registering on the blank initial page does not survive the first navigation
-   cleanly across all Playwright states."
+  "Puts the allowlist on the current page when the flag came after the page
+   was made. `new-spel-page!` covers each page that spel opens."
   []
-  (let [flags (get @!state :launch-flags {})]
-    (when-let [csv (get flags "allowed-domains")]
-      (when-not (:allowed-domains-installed @!state)
-        (install-allowed-domains! (pg) csv)
-        (swap! !state assoc :allowed-domains-installed true)))))
+  (let [p (pg)]
+    (ensure-allowed-domains! (.context p) p)))
 
 (defmethod handle-cmd "navigate" [_ {:strs [url screenshot screenshot-path raw-input
                                             viewport-width viewport-height]}]
@@ -5455,7 +5472,7 @@
   (when (str/blank? url)
     (throw (ex-info "CDP URL is required. Usage: spel connect <url>" {:error_code "cdp_url_required"})))
   (assert-cdp-endpoint-reachable! url)
-  (let [pw (or (:pw @!state) (core/create))
+  (let [pw (or (:pw @!state) (create-playwright!))
         browser (try
                   (.connectOverCDP (.chromium ^com.microsoft.playwright.Playwright pw) url
                     (doto (com.microsoft.playwright.BrowserType$ConnectOverCDPOptions.)
@@ -5497,7 +5514,7 @@
       (release-cdp-route-lock-if-owned!))
     (swap! !state assoc :pw nil :browser nil :context nil :page nil
       :cdp-connected false :cdp-foreign false :adopted-context nil :adopted-pages #{}
-      :spel-pages #{})
+      :spel-pages #{} :allowed-domains-on #{})
     ;; Start idle shutdown timer only when we actually disconnected a CDP session
     (when cdp-connected
       (schedule-cdp-idle-shutdown!))
@@ -7006,6 +7023,18 @@
    command on the cause instead of on the clock."
   100)
 
+(def ^:private ^:const command-stack-bytes
+  "Stack size of the thread that runs one command.
+
+   Playwright Java dispatches the next queued event inside each blocking call,
+   and after each route event it makes one (`setNetworkInterceptionPatterns`).
+   Route events that arrive together thus nest, one level for each request
+   that a route pattern matches. On the default stack some thousands of them
+   ended the command with `StackOverflowError` (issue #135). The system
+   commits stack memory only when the thread uses it, and the thread ends with
+   its command."
+  (* 512 1024 1024))
+
 (defn- run-guarded-command!
   "Runs a non-control command on a worker thread under `!command-lock`, bounded
    by `command-budget-ms`. On expiry the worker is interrupted, its stack is
@@ -7021,6 +7050,7 @@
         deadline (+ (System/currentTimeMillis) budget)
         result (promise)
         worker (Thread.
+                 nil
                  ^Runnable
                  (fn []
                    (deliver result
@@ -7052,7 +7082,8 @@
                            {:success false
                             :error   (str "daemon command failed: "
                                        (or (.getMessage e) (str e)))})))))
-                 (str "spel-cmd-" cid))]
+                 (str "spel-cmd-" cid)
+                 command-stack-bytes)]
     (.setDaemon worker true)
     (swap! !ledger assoc-in [cid :thread] worker)
     (.start worker)

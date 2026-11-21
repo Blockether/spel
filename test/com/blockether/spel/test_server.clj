@@ -267,6 +267,28 @@ Promise.all(Array.from({length:400},(_,i)=>
   .then(()=>document.getElementById('loaded').textContent='Loaded '+window.loadedAssets);
 </script>")
 
+(def ^:private navigation-burst-page-html
+  "Runs `n` fetches (query parameter, default 5000), `c` at a time (default
+   100), then one fetch to the same server by its other host name, which an
+   allowlist of `localhost` must block. Chromium refuses some thousands of
+   requests that start in the same instant, so the page keeps a pool."
+  "<!doctype html><title>Navigation burst</title><h1 id='loaded'>Loading</h1>
+<script>
+window.loadedAssets=0;window.failedAssets=0;
+var query=new URLSearchParams(location.search);
+var burst=Number(query.get('n')||5000),pool=Number(query.get('c')||100),next=0;
+function worker(){
+  return next<burst
+    ?fetch('/health?i='+(next++)).then(r=>r.json())
+      .then(()=>window.loadedAssets++,()=>window.failedAssets++).then(worker)
+    :null}
+Promise.all(Array.from({length:pool},worker))
+  .then(()=>fetch('http://127.0.0.1:'+location.port+'/health',{mode:'no-cors'})
+    .then(()=>'passed',()=>'blocked'))
+  .then(denied=>{window.deniedFetch=denied;
+    document.getElementById('loaded').textContent='Loaded '+window.loadedAssets});
+</script>")
+
 (def ^:private push-page-html
   "<!doctype html><title>Push</title><h1 id='state'>Loading</h1>
 <script>
@@ -320,6 +342,9 @@ else navigator.serviceWorker.register('/push-worker.js')
 
           (and (= "GET" method) (= "/navigation-fetches" path))
           (send-response exchange 200 navigation-fetches-page-html "text/html; charset=UTF-8")
+
+          (and (= "GET" method) (= "/navigation-burst" path))
+          (send-response exchange 200 navigation-burst-page-html "text/html; charset=UTF-8")
 
           (and (= "GET" method) (= "/passive-asset.js" path))
           (send-response exchange 200 "window.__spelPassiveLoaded = true;" "application/javascript; charset=UTF-8")
