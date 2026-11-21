@@ -260,7 +260,7 @@ turn, that session finds its id again without a new profile:
 
 ```python
 mine = await spel.reservations(profile="x-personal")
-print(mine)  # ReservationStatus rows; `id` is set only on this session's own rows
+print(mine)  # ReservationStatus rows; `id` is set on this session's own rows
 ```
 
 Another session sees the label, profile, start state and owner session of each
@@ -275,7 +275,9 @@ await spel.hand_over(lease.id, "vis_session_id#<receiving session id>")
 The browser, profile and page keep running. The receiving session then reads the id
 with `spel.reservations()`. Handover needs the id, so only its holder can do it. Anyone
 who still knows the id keeps control: share it only on purpose. A reservation made
-outside Vis, or before vis-spel 0.1.22, has no owner, and only its creator has the id.
+outside Vis, or before vis-spel 0.1.22, has no owner, so nobody can hand it over.
+`spel.reservations()` shows its id to every Vis session: check `spel.health(id)`, then
+take it with `spel.hand_over(id, "<your session id>")` or release it.
 Do not prepare a second profile or copy cookies to get around a held reservation.
 
 ## Call Spel from your own extension

@@ -146,6 +146,33 @@ def test_reservations_outside_vis_have_no_owner(client, caller):
     spel.release(lease.id)
 
 
+# Regression: a reservation without an owner kept its label and profile for good.
+# No Vis session could read its id, and the conflict said to ask a holder that
+# did not exist.
+def test_a_vis_session_takes_a_reservation_without_owner(client, caller):
+    spel, calls = client
+    spel.prepare_profile("work")
+    caller["id"] = None
+    orphan = spel.reserve("sign-in", profile="work")
+    assert spel.reservations()[0].id is None
+    caller["id"] = SESSION_B
+    with pytest.raises(SpelError) as conflict:
+        spel.reserve("mine", profile="work")
+    message = str(conflict.value)
+    assert "Profile 'work' is already reserved as 'sign-in'" in message
+    assert "spel.reservations(label='sign-in')" in message
+    assert f"spel.hand_over(id, '{SESSION_B}')" in message
+    assert "Ask the holder" not in message and orphan.id not in message
+    (row,) = spel.reservations(label="sign-in")
+    assert (row.owner, row.is_owned, row.id) == (None, False, orphan.id)
+    spel.hand_over(row.id, SESSION_B)
+    (taken,) = spel.reservations()
+    assert (taken.owner, taken.is_owned, taken.id) == (SESSION_B, True, orphan.id)
+    caller["id"] = SESSION_A
+    assert spel.reservations()[0].id is None
+    assert calls == []
+
+
 def test_concurrent_reservation_is_atomic(client):
     spel, _ = client
 

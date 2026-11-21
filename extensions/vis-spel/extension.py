@@ -18,6 +18,7 @@ PROMPT = r"""# Browser automation with Spel
    After a reload, find your own id with `spel.reservations()`. If a label or profile is
    taken, ask the session named in the error to release it or to call
    `spel.hand_over(id, your_session_id)`. Never prepare a second profile for it.
+   A reservation with no owner shows its id in `spel.reservations()`: take it yourself.
    In your own extension, call `vis.tools.spel.*`; never run a native `spel` binary.
    CDP needs a fresh Chromium reservation **without** a managed profile and an explicitly
    authorized endpoint; never scan or discover endpoints automatically.

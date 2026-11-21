@@ -51,7 +51,7 @@ class Reservation:
 
 @dataclass(frozen=True)
 class ReservationStatus:
-    """A reservation as any session may see it. Only its owner sees the id."""
+    """A reservation as any session may see it. Another session's id stays hidden."""
 
     label: str
     browser: str
@@ -64,7 +64,8 @@ class ReservationStatus:
     ]
     is_owned: Annotated[bool, "True when the calling Vis session holds it."]
     id: Annotated[
-        str | None, "Reservation ID for the owner session only; None for other callers."
+        str | None,
+        "Reservation ID for the owner session, and for every Vis session when there is no owner; else None.",
     ]
 
 
@@ -516,6 +517,7 @@ class Spel:
         spel.reservations() shows it the id again. A duplicate label or profile fails
         with the label of the holder and its owner session. Ask that owner to release
         it or to call spel.hand_over; do not prepare a second profile for the same sign-in.
+        A holder without an owner session can be taken: spel.reservations() shows its id.
 
         undetected=True uses Spel's Patchright driver (Spel 0.9.47+, Chromium only).
         Pages then cannot see CDP automation leaks such as Runtime.enable, and a
@@ -631,14 +633,19 @@ class Spel:
                 f"{what} is already reserved by this session as {row['label']!r}, id "
                 f"{row['id']}. Use that id, or release it before you reserve again."
             )
-        holder = (
-            f"Vis session {row['owner']}"
-            if row["owner"]
-            else "a caller outside Vis or before vis-spel 0.1.22"
-        )
         target = repr(caller) if caller else "'<your session id>'"
+        if not row["owner"]:
+            return SpelError(
+                f"{what} is already reserved as {row['label']!r} by a caller outside "
+                "Vis or before vis-spel 0.1.22, so it has no owner session. In a Vis "
+                f"session, spel.reservations(label={row['label']!r}) shows its id: take "
+                f"it with spel.hand_over(id, {target}), or call spel.release(id) when "
+                "spel.health(id) shows that nothing uses it. Do not prepare a second "
+                "profile for the same sign-in."
+            )
         return SpelError(
-            f"{what} is already reserved as {row['label']!r} by {holder}. Ask the "
+            f"{what} is already reserved as {row['label']!r} by Vis session "
+            f"{row['owner']}. Ask the "
             f"holder to call spel.release(id), or spel.hand_over(id, {target}) to give "
             "it to this session; spel.reservations() then shows the id here. Do not "
             "prepare a second profile for the same sign-in."
@@ -647,13 +654,14 @@ class Spel:
     def reservations(
         self, *, label: str | None = None, profile: str | None = None
     ) -> tuple[ReservationStatus, ...]:
-        """List reservations without starting a browser. Only the owner session sees an id.
+        """List reservations without starting a browser. Another session's id stays hidden.
 
         Use it to find your own id again after a reload, and to see which session holds
         a label or profile. Filter by an exact label or profile name. To get another
         session's reservation, ask that session to release it or to call
         spel.hand_over. A reservation made outside Vis or before vis-spel 0.1.22 has
-        no owner, and only its creator has the id.
+        no owner, and nobody can hand it over: every Vis session sees its id, to take
+        it with spel.hand_over or to release it.
         """
         caller = _caller()
         clauses, values = [], []
@@ -677,7 +685,9 @@ class Spel:
                 created=row["created"],
                 owner=row["owner"],
                 is_owned=caller is not None and row["owner"] == caller,
-                id=row["id"] if caller is not None and row["owner"] == caller else None,
+                id=row["id"]
+                if caller is not None and row["owner"] in (caller, None)
+                else None,
             )
             for row in rows
         )
