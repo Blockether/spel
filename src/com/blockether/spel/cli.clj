@@ -2367,10 +2367,15 @@
             "click"    (let [pos  (vec (remove #(str/starts-with? % "-") cmd-args))
                              x    (some-> (first pos) parse-long)
                              y    (some-> (second pos) parse-long)]
-                         (cond-> (if (and x y (= 2 (count pos)))
-                                   {:action "click" :x x :y y}
-                                   {:action "click" :selector (first pos)})
-                           (some #{"--new-tab"} cmd-args) (assoc :new-tab true)))
+                         (cond
+                           (empty? pos)
+                           {:error "click needs a selector or @ref."}
+
+                           :else
+                           (cond-> (if (and x y (= 2 (count pos)))
+                                     {:action "click" :x x :y y}
+                                     {:action "click" :selector (first pos)})
+                             (some #{"--new-tab"} cmd-args) (assoc :new-tab true))))
             "dblclick"  {:action "dblclick" :selector (first cmd-args)}
 
           ;; Download
@@ -2699,23 +2704,18 @@
             "reload"   {:action "reload"}
 
           ;; Wait (enhanced with --text, --url, --fn, --load)
-            "wait"     (let [wait-args (vec cmd-args)]
+            "wait"     (let [wait-args (vec cmd-args)
+                             ;; Issue #193: a flag without its value threw an
+                             ;; uncaught IndexOutOfBoundsException, ignoring --json.
+                             by-flag   (fn [flag k]
+                                         (if-let [v (get wait-args (inc (long (.indexOf ^java.util.List wait-args flag))))]
+                                           {:action "wait" k v}
+                                           {:error (str "wait " flag " needs a value.")}))]
                          (cond
-                           (some #{"--text"} wait-args)
-                           (let [idx (long (.indexOf ^java.util.List wait-args "--text"))]
-                             {:action "wait" :text (nth wait-args (inc idx))})
-
-                           (some #{"--url"} wait-args)
-                           (let [idx (long (.indexOf ^java.util.List wait-args "--url"))]
-                             {:action "wait" :url (nth wait-args (inc idx))})
-
-                           (some #{"--fn"} wait-args)
-                           (let [idx (long (.indexOf ^java.util.List wait-args "--fn"))]
-                             {:action "wait" :function (nth wait-args (inc idx))})
-
-                           (some #{"--load"} wait-args)
-                           (let [idx (long (.indexOf ^java.util.List wait-args "--load"))]
-                             {:action "wait" :state (nth wait-args (inc idx))})
+                           (some #{"--text"} wait-args) (by-flag "--text" :text)
+                           (some #{"--url"} wait-args)  (by-flag "--url" :url)
+                           (some #{"--fn"} wait-args)   (by-flag "--fn" :function)
+                           (some #{"--load"} wait-args) (by-flag "--load" :state)
 
                            (nil? (first wait-args))
                            {:action "wait" :state "load"}

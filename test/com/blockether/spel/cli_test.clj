@@ -1906,6 +1906,13 @@
         (expect (= "class" (:attribute c))))))
 
   (describe "wait enhanced"
+    (it "reports a wait flag without its value as a parse error"
+      (doseq [flag ["--text" "--url" "--fn" "--load"]]
+        (expect (= (str "wait " flag " needs a value.") (:error (cmd ["wait" flag]))))))
+
+    (it "reports click without a target as a parse error"
+      (expect (string? (:error (cmd ["click"])))))
+
     (it "parses wait --text"
       (let [c (cmd ["wait" "--text" "Welcome"])]
         (expect (= "wait" (:action c)))
