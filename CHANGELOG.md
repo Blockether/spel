@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.57] - 2026-11-22
+
+### Changed
+- fix(eval-sci): --autoclose waits until the daemon exits (#206)
+- chore(vis-spel): release v0.1.34 with Spel 0.9.56
+
+
 ## [v0.9.56] - 2026-11-22
 
 ### Changed
@@ -2092,7 +2099,7 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.56...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.57...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -2203,3 +2210,4 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 [v0.9.54]: https://github.com/Blockether/spel/releases/tag/v0.9.54
 [v0.9.55]: https://github.com/Blockether/spel/releases/tag/v0.9.55
 [v0.9.56]: https://github.com/Blockether/spel/releases/tag/v0.9.56
+[v0.9.57]: https://github.com/Blockether/spel/releases/tag/v0.9.57
