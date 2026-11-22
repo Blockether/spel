@@ -7581,6 +7581,40 @@
     (or (str/includes? m "Broken pipe")
       (str/includes? m "Connection reset"))))
 
+(defonce ^:private !waiting-clients
+  ;; Connections whose command has no answer yet: client -> {:writer :action}.
+  ;; The one who removes an entry writes its answer, so a client never gets two.
+  (atom {}))
+
+(defn- take-waiting-client!
+  "Removes `client` from `!waiting-clients`. Returns its entry when this caller
+   removed it, else nil."
+  [client]
+  (let [[before _] (swap-vals! !waiting-clients dissoc client)]
+    (get before client)))
+
+(defn- answer-waiting-clients-on-stop!
+  "Tells each client that still waits for an answer that the session stops.
+
+   Regression, issue #184: `close` exited while other commands ran. Their
+   clients got EOF, started a new daemon, sent the command again and failed
+   with `browser_handle_lost` on a blank page."
+  [reason]
+  (doseq [client (keys @!waiting-clients)]
+    (when-let [{:keys [^OutputStreamWriter writer action]} (take-waiting-client! client)]
+      (try
+        (.write writer ^String (json/write-json-str
+                                 {:success    false
+                                  :error      (str "The session stopped (" reason ") while '" action
+                                                "' ran. The command did not finish; its effect "
+                                                "on the page is unknown.")
+                                  :error_code "session_closed"
+                                  :hint       (str "Check the page before you repeat a command "
+                                                "that changes it. The next command starts a new browser.")}))
+        (.write writer "\n")
+        (.flush writer)
+        (catch Throwable _ nil)))))
+
 (defn- handle-connection
   "Handles a single client connection — reads commands, writes responses.
    Catches Throwable, not Exception: an Error escaping this loop (OOM,
@@ -7593,10 +7627,15 @@
       (loop []
         (when-let [line (.readLine reader)]
           (let [stop (when-not (str/blank? line)
+                       (swap! !waiting-clients assoc client
+                         {:writer writer
+                          :action (or (second (re-find #"\"action\"\s*:\s*\"([^\"]+)\"" line))
+                                    "command")})
                        (let [response (process-command line)]
-                         (.write writer ^String response)
-                         (.write writer "\n")
-                         (.flush writer)
+                         (when (take-waiting-client! client)
+                           (.write writer ^String response)
+                           (.write writer "\n")
+                           (.flush writer))
                          ;; Check if shutdown was requested — and whether the
                          ;; client asked for the fast, ungraceful variant.
                          ;; Only a response that names the key is parsed: a
@@ -7629,6 +7668,7 @@
           (.flush writer)
           (catch Throwable _ nil)))
       (finally
+        (swap! !waiting-clients dissoc client)
         (try (.close client) (catch Exception e (warn "close-client" e)))))))
 
 (defn- cleanup!
@@ -7763,6 +7803,7 @@
      (let [session (:session @!state)]
        (log/info! "daemon stopping session=" session " reason=" reason
          (when force? " force=true"))
+       (answer-waiting-clients-on-stop! reason)
     ;; 1. Close the server socket — reject new connections immediately — then
     ;;    delete the pid/socket files while they are still provably OURS.
     ;;    Dropping them here rather than after a slow browser teardown means a
