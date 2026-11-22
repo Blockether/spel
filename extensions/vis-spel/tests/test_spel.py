@@ -415,6 +415,8 @@ def test_argv_and_stdin_preserve_javascript(client):
         ["tab", "list", "--provider=ios"],
         ["click", "#go", "--channel", "msedge"],
         ["click", "#go", "--no-undetected"],
+        ["click", "#go", "--command-budget", "900000"],
+        ["click", "#go", "--command-budget=900000"],
     ],
 )
 def test_command_cannot_escape_reservation(client, arguments):
@@ -430,6 +432,42 @@ def test_command_help_failures_recommend_help(client):
     lease = spel.reserve()
     for arguments in (["viewport", "--help"], ["set", "--help"]):
         with pytest.raises(ValueError, match=r"spel.help.*spel.command"):
+            spel.command(lease.id, arguments)
+    assert not calls
+
+
+# Regression, issue #197: refusals did not name the dedicated tool.
+@pytest.mark.parametrize(
+    ("actions", "tool"),
+    [
+        ("open goto navigate", "spel.open(session, url)"),
+        ("eval eval-js evaluate js", "spel.evaluate(session, code)"),
+        ("eval-sci sci", "spel.sci(session, code)"),
+        ("snapshot", "spel.snapshot(session)"),
+        ("screenshot", "spel.screenshot(session, path)"),
+        ("close quit", "spel.release(session)"),
+        ("health", "spel.health(session)"),
+        ("cancel", "spel.cancel(session, command_id)"),
+    ],
+)
+def test_command_names_the_dedicated_tool(client, actions, tool):
+    spel, calls = client
+    lease = spel.reserve()
+    for action in actions.split():
+        with pytest.raises(ValueError) as error:
+            spel.command(lease.id, [action])
+        assert tool in str(error.value)
+    assert not calls
+
+
+# Regression, issue #197: typos and malformed lists got the same generic refusal.
+def test_command_suggests_actions_and_explains_argument_shape(client):
+    spel, calls = client
+    lease = spel.reserve()
+    with pytest.raises(ValueError, match=r"'clik'.*Closest actions: click"):
+        spel.command(lease.id, ["clik"])
+    for arguments in ("click", ("click",), [], [[]], ["click", 1]):
+        with pytest.raises(ValueError, match="list of strings"):
             spel.command(lease.id, arguments)
     assert not calls
 
@@ -789,9 +827,26 @@ def test_snapshot_scope_and_screenshot_are_explicit(client, tmp_path):
     target = tmp_path / "capture.png"
     spel.screenshot(lease.id, str(target))
     assert calls[-1][1][-3:] == ["screenshot", str(target), "-a"]
-    target.touch()
-    with pytest.raises(ValueError, match="new absolute"):
-        spel.screenshot(lease.id, str(target))
+
+
+# Regression, issue #201: all invalid screenshot paths got the same message.
+def test_screenshot_names_the_path_and_rule(client, tmp_path):
+    spel, calls = client
+    lease = spel.reserve()
+    existing = tmp_path / "exists.png"
+    existing.touch()
+    symlink = tmp_path / "broken.png"
+    symlink.symlink_to(tmp_path / "no-target.png")
+    for target, reason in [
+        ("relative.png", "not absolute"),
+        (str(existing), "already exists"),
+        (str(symlink), "already exists"),
+        (str(tmp_path / "missing" / "capture.png"), "no parent directory"),
+    ]:
+        with pytest.raises(ValueError, match=reason) as error:
+            spel.screenshot(lease.id, target)
+        assert target in str(error.value)
+    assert not calls
 
 
 # Regression, Blockether/spel#147: an agent called snapshot(selector=...) and failed,
@@ -888,6 +943,42 @@ def test_output_errors_are_not_silently_accepted(client, monkeypatch):
         spel.open(spel.reserve().id, "about:blank")
 
 
+# Regression, issue #200: the extension dropped the CLI error code and hint.
+def test_command_error_preserves_native_code_and_hint(client, monkeypatch):
+    spel, _ = client
+    data = {
+        "error": "Ref is stale.",
+        "error_code": "invalid_ref",
+        "hint": "Take a snapshot.",
+    }
+    monkeypatch.setattr(vis_spel, "_execute", lambda *a, **k: (1, json.dumps(data), ""))
+    with pytest.raises(SpelError) as error:
+        spel.command(spel.reserve().id, ["click", "@ref"])
+    assert error.value.code == "invalid_ref"
+    assert error.value.hint == "Take a snapshot."
+    assert (
+        str(error.value)
+        == "click failed (exit 1) [invalid_ref]: Ref is stale. Take a snapshot."
+    )
+
+
+# Regression, issue #200: failures without JSON did not show the stderr tail.
+@pytest.mark.parametrize("output", ["", "unexpected output"])
+def test_command_error_without_json_reports_exit_and_stderr_tail(
+    client, monkeypatch, output
+):
+    spel, _ = client
+    stderr = "first warning\n" + "x" * 2100 + "\nlast warning\n"
+    monkeypatch.setattr(vis_spel, "_execute", lambda *a, **k: (17, output, stderr))
+    with pytest.raises(SpelError) as error:
+        spel.command(spel.reserve().id, ["click", "@ref"])
+    message = str(error.value)
+    assert "exit 17" in message
+    assert "last warning" in message
+    assert "first warning" not in message
+    assert error.value.code is None and error.value.hint is None
+
+
 def test_install_runs_verified_binary_before_recording(client, monkeypatch):
     spel, calls = client
     binary = spel._home / "downloaded"
@@ -910,7 +1001,7 @@ def test_install_runs_verified_binary_before_recording(client, monkeypatch):
 def versions(client, monkeypatch):
     spel, calls = client
     binaries = {}
-    for version in ("0.9.33", "0.9.34"):
+    for version in ("0.9.33", "0.9.34", "0.9.55", "0.9.56"):
         binary = spel._home / version / "spel"
         binary.parent.mkdir()
         binary.touch()
@@ -948,6 +1039,32 @@ def test_install_switches_versions_without_changing_existing_reservations(versio
         assert calls[-1][0] == str(binaries[version])
         spel.release(lease.id)
     assert not any(args == ["install"] for _, args, _ in calls)
+
+
+# Regression, issue #199: a long tool timeout did not raise the daemon's budget.
+def test_command_budget_uses_the_version_pinned_to_the_reservation(versions):
+    spel, calls, _ = versions
+    spel.install("0.9.55", browsers=False)
+    old = spel.reserve()
+    spel.install("0.9.56", browsers=False)
+    new = spel.reserve()
+    spel.install("0.9.55", browsers=False)
+    reloaded = Spel(spel._home)
+    calls.clear()
+    for lease, timeout, budget in [
+        (old, 60, None),
+        (new, 35, None),
+        (new, 60.5, "50500"),
+    ]:
+        reloaded.command(lease.id, ["click", "@ref"], timeout=timeout)
+        _, argv, kwargs = calls[-1]
+        assert kwargs["timeout"] == timeout
+        if budget is None:
+            assert "--command-budget" not in argv
+        else:
+            i = argv.index("--command-budget")
+            assert argv[i : i + 2] == ["--command-budget", budget]
+    assert len(calls) == 3
 
 
 @pytest.mark.parametrize("failure", ["download", "version", "browsers"])

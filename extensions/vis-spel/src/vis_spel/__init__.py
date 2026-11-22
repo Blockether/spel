@@ -11,6 +11,7 @@ import time
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
+from difflib import get_close_matches
 from pathlib import Path
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
@@ -86,6 +87,13 @@ class BrowserResult:
 class SpelError(RuntimeError):
     """An unsuccessful native command. It has not been retried."""
 
+    def __init__(
+        self, message: str, *, code: str | None = None, hint: str | None = None
+    ):
+        super().__init__(message)
+        self.code = code
+        self.hint = hint
+
 
 # Global switches are parsed anywhere by Spel. Never let arguments change the lease,
 # browser, runtime policy or output framing. JavaScript/SCI travels on stdin instead.
@@ -109,6 +117,7 @@ _PROTECTED = {
     "--interactive",
     "--json",
     "--content-boundaries",
+    "--command-budget",
     "--max-output",
     "--all-sessions",
     "--all",
@@ -165,6 +174,18 @@ _COMMANDS = {
     "cookies",
     "storage",
     "download",
+}
+_COMMAND_TOOLS = {
+    **dict.fromkeys(("open", "goto", "navigate"), "spel.open(session, url)"),
+    **dict.fromkeys(
+        ("eval", "eval-js", "evaluate", "js"), "spel.evaluate(session, code)"
+    ),
+    **dict.fromkeys(("eval-sci", "sci"), "spel.sci(session, code)"),
+    **dict.fromkeys(("close", "quit"), "spel.release(session)"),
+    "snapshot": "spel.snapshot(session)",
+    "screenshot": "spel.screenshot(session, path)",
+    "health": "spel.health(session)",
+    "cancel": "spel.cancel(session, command_id)",
 }
 # Steps of spel.batch: a session-scoped action, or a step that its own tool validates.
 _BATCH_COMMANDS = _COMMANDS | {"open", "snapshot", "eval-js", "auth"}
@@ -233,13 +254,17 @@ def _ask_secrets(labels: dict[str, str]) -> dict[str, str]:
         description="Spel types these values into the page. The model sees only their names.",
     )
     if not answer:
-        raise SpelError(f"No secrets were given ({answer.reason}); no step ran.")
+        raise SpelError(
+            f"No secrets were given ({answer.reason}); no step ran. Provide them to start the batch."
+        )
     values = {}
     for name in labels:
         value = answer.reveal(name)
         vis.forget(answer[name])
         if not value:
-            raise SpelError(f"Secret {name} is empty; no step ran.")
+            raise SpelError(
+                f"Secret {name} is empty; no step ran. Enter a value for it to start the batch."
+            )
         values[name] = value
     return values
 
@@ -271,7 +296,7 @@ def _pause_step(identifier: str | None, arguments: list[str]) -> dict[str, Any]:
     if not answer:
         raise SpelError(
             f"batch step {identifier or 'pause'!r} got no Continue ({answer.reason}); "
-            "earlier steps ran and later steps did not."
+            "Earlier steps ran and later steps did not. Check the page before resuming."
         )
     return {
         "id": identifier,
@@ -364,7 +389,7 @@ class Spel:
                 for row in connection.execute("PRAGMA table_info(reservations)")
             ):
                 connection.execute("ALTER TABLE reservations ADD COLUMN channel TEXT")
-            for column in ("owner TEXT", "created INTEGER"):
+            for column in ("owner TEXT", "created INTEGER", "version TEXT"):
                 if not any(
                     row["name"] == column.split()[0]
                     for row in connection.execute("PRAGMA table_info(reservations)")
@@ -419,13 +444,14 @@ class Spel:
         exit_code, out, error = _execute(str(binary), ["version"])
         if exit_code or out.strip() != f"spel {version}":
             raise SpelError(
-                "Downloaded executable did not report the requested Spel version"
+                f"Downloaded executable did not report Spel {version}. Check spel.releases() for a supported release."
             )
         if browsers:
             exit_code, out, error = _execute(str(binary), ["install"], timeout=900)
             if exit_code:
                 raise SpelError(
-                    f"Playwright browser installation failed: {error or out}"
+                    f"Playwright browser installation failed (exit {exit_code}). "
+                    f"Check the setup error before retrying: {error or out}"
                 )
         with self._db() as db:
             db.execute(
@@ -458,11 +484,12 @@ class Spel:
                 directory.exists() and not directory.is_dir()
             ):
                 raise SpelError(
-                    "Managed profiles must be ordinary directories, not links"
+                    f"Managed profile path {str(directory)!r} is not an ordinary directory. "
+                    "Use a private directory; profiles accept directories, not links."
                 )
             if directory.exists() and directory.stat().st_mode & 0o077:
                 raise SpelError(
-                    "Managed profile directories must be private (mode 0700)"
+                    f"Managed profile directory {str(directory)!r} is not private. Set its mode to 0700."
                 )
         return path
 
@@ -545,15 +572,21 @@ class Spel:
         profile_path = None
         if profile is not None:
             if browser != "chromium":
-                raise ValueError("Persistent profiles require Chromium")
+                raise ValueError(
+                    "Persistent profiles require Chromium. Use browser='chromium' or omit profile."
+                )
             profile_path = self._profile_path(profile)
             if not profile_path.is_dir():
                 raise ValueError("Call spel.prepare_profile(name) before reserving it")
         if undetected and browser != "chromium":
-            raise ValueError("undetected=True requires Chromium")
+            raise ValueError(
+                "undetected=True requires Chromium. Use browser='chromium' or omit undetected."
+            )
         if channel is not None:
             if browser != "chromium":
-                raise ValueError("A browser channel requires Chromium")
+                raise ValueError(
+                    "A browser channel requires Chromium. Use browser='chromium' or omit channel."
+                )
             if channel not in _CHANNELS:
                 raise ValueError("channel must be one of " + ", ".join(_CHANNELS))
         installation = self.installed()
@@ -573,10 +606,12 @@ class Spel:
         if browser == "lightpanda" and tuple(
             map(int, installation.version.split("."))
         ) < (0, 9, 41):
-            raise SpelError("Lightpanda requires Spel 0.9.41 or newer. Upgrade first.")
+            raise SpelError(
+                "Lightpanda requires Spel 0.9.41 or newer. Install a supported release with spel.install."
+            )
         if undetected and tuple(map(int, installation.version.split("."))) < (0, 9, 47):
             raise SpelError(
-                "undetected=True requires Spel 0.9.47 or newer. Upgrade first."
+                "undetected=True requires Spel 0.9.47 or newer. Install a supported release with spel.install."
             )
         identifier = uuid.uuid4().hex
         created = int(time.time())
@@ -585,7 +620,7 @@ class Spel:
         try:
             with self._db() as db:
                 db.execute(
-                    "INSERT INTO reservations (id,name,label,executable,browser,headed,profile,undetected,channel,owner,created) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO reservations (id,name,label,executable,browser,headed,profile,undetected,channel,owner,created,version) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         identifier,
                         name,
@@ -598,6 +633,7 @@ class Spel:
                         channel,
                         owner,
                         created,
+                        installation.version,
                     ),
                 )
         except sqlite3.IntegrityError:
@@ -724,7 +760,10 @@ class Spel:
                 "SELECT * FROM reservations WHERE id=?", (identifier,)
             ).fetchone()
         if row is None:
-            raise SpelError("Unknown or released reservation; no browser was touched")
+            raise SpelError(
+                "Unknown or released reservation; no browser was touched. "
+                "Check spel.reservations() or call spel.reserve()."
+            )
         return row
 
     def _run(
@@ -758,17 +797,27 @@ class Spel:
             flags.append("--undetected")
         if row["channel"] and not row["cdp"]:
             flags += ["--channel", row["channel"]]
+        budget_ms = int(timeout * 1000 - 10000)
+        # Old reservations have no recorded version. Do not send an unknown flag.
+        if (
+            budget_ms > 25000
+            and row["version"]
+            and tuple(map(int, row["version"].split("."))) >= (0, 9, 56)
+        ):
+            flags += ["--command-budget", str(budget_ms)]
         if not diagnostic:
             with self._db() as db:
                 db.execute("UPDATE reservations SET started=1 WHERE id=?", (session,))
         code, output, warnings = _execute(
             row["executable"], flags + args, stdin=stdin, timeout=timeout
         )
+        stderr = warnings.strip()[-2000:]
         try:
             data = json.loads(output) if output.strip() else None
         except json.JSONDecodeError:
+            message = f"{args[0]} returned non-JSON output (exit {code}). Check spel.logs(session) before retrying."
             raise SpelError(
-                f"Spel returned non-JSON output for {args[0]}; not retried. {warnings[:1000]}"
+                f"{message} Stderr: {stderr}" if stderr else message
             ) from None
         # A failed health or batch step still returns its JSON report.
         if code and not (
@@ -778,14 +827,21 @@ class Spel:
                 or (args[0] == "batch" and "results" in data)
             )
         ):
-            message = (
-                data.get("error", "Native command failed")
-                if isinstance(data, dict)
-                else "Native command failed"
-            )
-            raise SpelError(
-                f"{args[0]} failed (exit {code}): {message}. {warnings[:2000]}"
-            )
+            details = data if isinstance(data, dict) else {}
+            error_code = details.get("error_code")
+            hint = details.get("hint")
+            failure = f"{args[0]} failed (exit {code})"
+            if error_code:
+                failure += f" [{error_code}]"
+            if message := details.get("error"):
+                failure += f": {message}"
+            elif data is None:
+                failure += ": no JSON output"
+            parts = [failure, hint or "Check spel.logs(session) before retrying"]
+            if stderr:
+                parts.append(f"Stderr: {stderr}")
+            message = ". ".join(part.strip().rstrip(".") for part in parts) + "."
+            raise SpelError(message, code=error_code, hint=hint)
         return BrowserResult(row["name"], args[0], data, warnings)
 
     def connect(self, session: str, endpoint: str) -> BrowserResult:
@@ -810,7 +866,9 @@ class Spel:
             )
         row = self._reservation(session)
         if row["browser"] != "chromium":
-            raise ValueError("CDP requires a Chromium reservation")
+            raise ValueError(
+                "CDP requires a Chromium reservation. Reserve with browser='chromium'."
+            )
         if row["profile"]:
             raise ValueError(
                 "CDP cannot use a managed profile; reserve without profile"
@@ -861,7 +919,9 @@ class Spel:
         args = ["snapshot", "-c"] + (["-i"] if interactive else [])
         if scope is not None:
             if frames:
-                raise ValueError("scope and frames cannot be combined")
+                raise ValueError(
+                    "scope and frames cannot be combined. Omit scope to include all iframes."
+                )
             args += ["-s", scope]
         if depth is not None:
             if type(depth) is not int or not 1 <= depth <= 100:
@@ -964,10 +1024,21 @@ class Spel:
         if (
             not isinstance(arguments, list)
             or not arguments
-            or arguments[0] not in _COMMANDS
+            or not all(isinstance(argument, str) for argument in arguments)
         ):
             raise ValueError(
-                "Unsupported action; use a session-scoped browser action or its dedicated tool. "
+                'Pass a non-empty list of strings, such as ["get", "url"].'
+            )
+        action = arguments[0]
+        if action in _COMMAND_TOOLS:
+            raise ValueError(
+                f"Unsupported action {action!r}; use {_COMMAND_TOOLS[action]}."
+            )
+        if action not in _COMMANDS:
+            matches = get_close_matches(action, sorted(_COMMANDS))
+            suggestion = f" Closest actions: {', '.join(matches)}." if matches else ""
+            raise ValueError(
+                f"Unsupported action {action!r}.{suggestion} "
                 "Read syntax with spel.help('spel.command'), including set viewport."
             )
         self._validate(arguments)
@@ -980,13 +1051,16 @@ class Spel:
                 raise ValueError(
                     "Read syntax with spel.help('spel.command'); --help is not a browser action"
                 )
-            if (
-                not isinstance(argument, str)
-                or "\0" in argument
-                or argument.split("=", 1)[0] in _PROTECTED
-            ):
+            if not isinstance(argument, str):
+                raise ValueError("Pass arguments as strings.")
+            if "\0" in argument:
                 raise ValueError(
-                    "Arguments cannot override reservation or browser-global flags"
+                    "An argument contains a NUL character. Remove it before calling Spel."
+                )
+            if (flag := argument.split("=", 1)[0]) in _PROTECTED:
+                raise ValueError(
+                    f"Argument {flag!r} cannot override reservation or browser-global flags. "
+                    "Remove it and use the tool or reservation options instead."
                 )
 
     def batch(
@@ -1035,7 +1109,9 @@ class Spel:
         first = 0 if start is None else self._step_index(ids, start)
         last = len(ids) - 1 if until is None else self._step_index(ids, until)
         if last < first:
-            raise ValueError(f"Step {until!r} comes before step {start!r}")
+            raise ValueError(
+                f"Step {until!r} comes before step {start!r}. Choose an end at or after the start."
+            )
         ids, commands = ids[first : last + 1], commands[first : last + 1]
         reservation = self._reservation(session)
         names = sorted(
@@ -1105,7 +1181,7 @@ class Spel:
             raise SpelError(
                 f"batch step {name!r} ({index + 1} of {len(commands)}) failed: "
                 f"{str(row.get('error') or 'no error text').rstrip('.')}. {len(failed)} step(s) failed; "
-                "earlier steps ran and nothing was retried."
+                "Earlier steps ran and nothing was retried. Check the page before resuming."
             )
         output = [
             {"id": row["id"], "log": row["data"]["log"]}
@@ -1139,18 +1215,24 @@ class Spel:
                 timeout=timeout,
             )
         except SpelError as error:
-            raise SpelError(_redact(str(error), values)) from None
+            raise SpelError(
+                _redact(str(error), values),
+                code=_redact(error.code, values),
+                hint=_redact(error.hint, values),
+            ) from None
         data = _redact(result.data, values)
         rows = data.get("results") if isinstance(data, dict) else None
         if not isinstance(rows, list):
-            raise SpelError("Spel batch returned no step results; not retried.")
+            raise SpelError(
+                "Spel batch returned no step results. Check spel.logs(session) and the page before retrying."
+            )
         return rows, _redact(result.warnings, values)
 
     @staticmethod
     def _steps(steps) -> tuple[list[str | None], list[list[str]]]:
         """Validate batch steps; return their ids and argument lists."""
         if not isinstance(steps, list) or not steps:
-            raise ValueError("steps must be a non-empty list of steps")
+            raise ValueError("Pass a non-empty list of steps, such as [['snapshot']].")
         ids: list[str | None] = []
         commands: list[list[str]] = []
         for step in steps:
@@ -1162,7 +1244,9 @@ class Spel:
                 if not isinstance(identifier, str | None) or identifier == "":
                     raise ValueError("A step id is a non-empty string")
                 if identifier is not None and identifier in ids:
-                    raise ValueError(f"Step id {identifier!r} is not unique")
+                    raise ValueError(
+                        f"Step id {identifier!r} is not unique. Give each step a different id."
+                    )
             Spel._validate_step(arguments)
             ids.append(identifier)
             commands.append(arguments)
@@ -1171,7 +1255,9 @@ class Spel:
     @staticmethod
     def _step_index(ids: list[str | None], identifier: str) -> int:
         if identifier not in ids:
-            raise ValueError(f"No step has the id {identifier!r}")
+            raise ValueError(
+                f"No step has the id {identifier!r}. Use an id from the batch."
+            )
         return ids.index(identifier)
 
     @staticmethod
@@ -1198,6 +1284,7 @@ class Spel:
         if (
             not isinstance(arguments, list)
             or not arguments
+            or not isinstance(arguments[0], str)
             or arguments[0] not in _BATCH_COMMANDS
         ):
             raise ValueError(
@@ -1262,8 +1349,19 @@ class Spel:
         paths are refused. Attach the resulting local file with Vis attach.
         """
         target = Path(path).expanduser()
-        if not target.is_absolute() or target.exists() or not target.parent.is_dir():
-            raise ValueError("Use a new absolute image path in an existing directory")
+        if not target.is_absolute():
+            raise ValueError(
+                f"Screenshot path {path!r} is not absolute. Use a new absolute path."
+            )
+        if target.exists() or target.is_symlink():
+            raise ValueError(
+                f"Screenshot path {str(target)!r} already exists. Use a new path."
+            )
+        if not target.parent.is_dir():
+            raise ValueError(
+                f"Screenshot path {str(target)!r} has no parent directory. "
+                "Create the directory or use an existing one."
+            )
         if annotated and full_page is False:
             executable = self._reservation(session)["executable"]
             code, output, _ = _execute(executable, ["version"])
