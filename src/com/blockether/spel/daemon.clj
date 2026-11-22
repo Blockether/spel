@@ -2529,7 +2529,10 @@
           (page/route! pg url handler))
         ;; The headers of `set headers` belong to the session too (issue #166).
         (when-let [headers (:extra-headers @!state)]
-          (page/set-extra-http-headers! pg headers)))))
+          (page/set-extra-http-headers! pg headers))
+        ;; So does the color scheme of `set media` (issue #167).
+        (when-let [scheme (:color-scheme @!state)]
+          (page/emulate-media! pg {:color-scheme scheme})))))
   pg)
 (defn- pg ^Page [] (:page @!state))
 (defn- ctx ^BrowserContext [] (:context @!state))
@@ -3007,8 +3010,8 @@
 ;; session state dropped --headers and the undetected user agent.
 (defn- session-context-opts
   "Returns the browser context options that `state` asks for. Each context of a
-   session comes from this fn, so each has the same device, user agent, headers
-   and credentials.
+   session comes from this fn, so each has the same device, user agent, headers,
+   credentials and position.
 
    The device preset gives viewport, device-scale-factor, is-mobile, has-touch
    and user-agent. A --user-agent flag wins over the preset. Firefox rejects
@@ -3032,7 +3035,9 @@
                                           (try (json/read-json (get flags "headers"))
                                                (catch Exception _ {})))
       (get flags "download-path")       (assoc :accept-downloads true)
-      (:http-credentials state)         (assoc :http-credentials (:http-credentials state)))))
+      (:http-credentials state)         (assoc :http-credentials (:http-credentials state))
+      (:geolocation state)              (assoc :geolocation (:geolocation state)
+                                          :permissions ["geolocation"]))))
 
 (defn- tab-memory
   "Returns what a new context needs to open the tab `p` again: its `:url` and,
@@ -3089,7 +3094,8 @@
    Each tab of the old context opens again at its URL, in the same order and
    with the same active tab (issue #164). Each tab gets its session storage
    back, but not with `:storage-state-path`: that file replaces the identity of
-   the session.
+   the session. The offline mode of `set offline` starts after the tabs opened
+   (issue #167).
 
    The new context opens before the old one closes. When it cannot open, the
    session keeps its context and this fn throws.
@@ -3149,6 +3155,8 @@
       (reset! !tracked-requests empty-window)
       (run! instrument-page! new-pages)
       (dorun (map restore-tab! new-pages tabs))
+      (when (:offline state)
+        (core/context-set-offline! new-ctx true))
       (try (.bringToFront ^Page new-pg) (catch Exception _ nil))
       new-pg)))
 
@@ -4982,6 +4990,7 @@
 (defmethod handle-cmd "set_offline" [_ {:strs [enabled]}]
   (let [offline (if (nil? enabled) true (boolean enabled))]
     (core/context-set-offline! (live-context) offline)
+    (swap! !state assoc :offline offline)
     {:offline offline}))
 
 (defmethod handle-cmd "set_headers" [_ {:strs [headers]}]
@@ -4999,7 +5008,12 @@
                  ("light" "Light")     :light
                  ("no-preference")     :no-preference
                  :no-preference)]
-    (unwrap-anomaly! (page/emulate-media! (live-page) {:color-scheme scheme}))
+    ;; The color scheme belongs to the session, like the headers:
+    ;; `instrument-page!` gives it to each later tab (issue #167).
+    (live-page)
+    (doseq [p (session-live-pages)]
+      (unwrap-anomaly! (page/emulate-media! p {:color-scheme scheme})))
+    (swap! !state assoc :color-scheme scheme)
     {:media {:colorScheme colorScheme}}))
 
 (defmethod handle-cmd "set_device" [_ {:strs [device]}]
@@ -5012,11 +5026,14 @@
               ". Available: " (clojure.string/join ", " (devices/available-device-names)))}))
 
 (defmethod handle-cmd "set_geo" [_ {:strs [latitude longitude accuracy]}]
-  (let [context (live-context)]
+  (let [context (live-context)
+        geo     {:latitude (double latitude) :longitude (double longitude)
+                 :accuracy (double (or accuracy 1))}]
     (core/context-grant-permissions! context ["geolocation"])
     (.setGeolocation ^BrowserContext context
-      (doto (Geolocation. (double latitude) (double longitude))
-        (.setAccuracy (double (or accuracy 1)))))
+      (doto (Geolocation. (:latitude geo) (:longitude geo))
+        (.setAccuracy (:accuracy geo))))
+    (swap! !state assoc :geolocation geo)
     {:geolocation {:latitude latitude :longitude longitude}}))
 
 (defmethod handle-cmd "set_credentials" [_ {:strs [username password]}]

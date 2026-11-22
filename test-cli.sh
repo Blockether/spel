@@ -586,6 +586,20 @@ OUT=$("$SPEL" --session "$CTX_SESSION" --json set device "pixel 7" 2>&1) || true
 assert_jq_eq "set device while a HAR records → har_recording_active" "$OUT" '.error_code' 'har_recording_active'
 OUT=$("$SPEL" --session "$CTX_SESSION" --json network har stop 2>&1)
 assert_jq "har stop after the refusal → saves the file" "$OUT" '.size > 0'
+
+# Regression, issue #167: a new context lost the emulation of `set media`,
+# `set geo` and `set offline`, and `set media` changed the active tab only.
+"$SPEL" --session "$CTX_SESSION" open "https://example.com/?emulation" >/dev/null 2>&1
+"$SPEL" --session "$CTX_SESSION" set media dark >/dev/null 2>&1
+"$SPEL" --session "$CTX_SESSION" set geo 52.1 21.0 >/dev/null 2>&1
+"$SPEL" --session "$CTX_SESSION" set offline on >/dev/null 2>&1
+"$SPEL" --session "$CTX_SESSION" set device "pixel 7" >/dev/null 2>&1
+OUT=$("$SPEL" --session "$CTX_SESSION" --json eval-js "new Promise(r => navigator.geolocation.getCurrentPosition(p => r([matchMedia('(prefers-color-scheme: dark)').matches, navigator.onLine, p.coords.latitude, location.search]), e => r(e.message)))" 2>&1)
+assert_jq "set device → keeps color scheme, offline mode and position" "$OUT" \
+  '.result == [true, false, 52.1, "?emulation"]'
+"$SPEL" --session "$CTX_SESSION" tab new >/dev/null 2>&1
+OUT=$("$SPEL" --session "$CTX_SESSION" --json eval-js "matchMedia('(prefers-color-scheme: dark)').matches" 2>&1)
+assert_jq_eq "set media → reaches a new tab" "$OUT" '.result' 'true'
 "$SPEL" --session "$CTX_SESSION" close >/dev/null 2>&1
 
 "$SPEL" reload >/dev/null 2>&1

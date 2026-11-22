@@ -48,7 +48,7 @@
     Page$WaitForDownloadOptions Page$WaitForFileChooserOptions
     Page$GetByRoleOptions]
    [com.microsoft.playwright.options
-    Cookie HarContentPolicy HarMode HarNotFound Proxy
+    ColorScheme Cookie Geolocation HarContentPolicy HarMode HarNotFound Proxy
     RouteFromHarUpdateContentPolicy
     ScreenSize ViewportSize
      WaitForSelectorState WaitUntilState MouseButton Margin]
@@ -72,6 +72,15 @@
     :networkidle WaitUntilState/NETWORKIDLE
     :commit WaitUntilState/COMMIT
     WaitUntilState/LOAD))
+
+(defn- ->color-scheme
+  "Converts keyword to ColorScheme enum. An unknown keyword gives nil."
+  ^ColorScheme [kw]
+  (case kw
+    :light ColorScheme/LIGHT
+    :dark ColorScheme/DARK
+    :no-preference ColorScheme/NO_PREFERENCE
+    nil))
 
 (defn- ->mouse-button
   "Converts keyword to MouseButton enum."
@@ -353,6 +362,13 @@
       (.setAcceptDownloads co (boolean (:accept-downloads opts))))
     (when (contains? opts :offline)
       (.setOffline co (boolean (:offline opts))))
+    (when-let [v (:geolocation opts)]
+      (let [geo (Geolocation. (double (:latitude v)) (double (:longitude v)))]
+        (when-let [accuracy (:accuracy v)]
+          (.setAccuracy geo (double accuracy)))
+        (.setGeolocation co geo)))
+    (when-let [v (:color-scheme opts)]
+      (.setColorScheme co (->color-scheme v)))
     (when-let [v (:extra-http-headers opts)]
       (.setExtraHTTPHeaders co ^java.util.Map v))
     (when-let [v (:record-video-dir opts)]
@@ -885,11 +901,7 @@
                       :print com.microsoft.playwright.options.Media/PRINT
                       nil)))
     (when-let [v (:color-scheme opts)]
-      (.setColorScheme eo (case v
-                            :light com.microsoft.playwright.options.ColorScheme/LIGHT
-                            :dark com.microsoft.playwright.options.ColorScheme/DARK
-                            :no-preference com.microsoft.playwright.options.ColorScheme/NO_PREFERENCE
-                            nil)))
+      (.setColorScheme eo (->color-scheme v)))
     eo))
 
 ;; =============================================================================

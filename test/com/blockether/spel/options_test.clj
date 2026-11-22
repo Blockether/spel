@@ -5,7 +5,7 @@
    [com.blockether.spel.allure :refer [defdescribe describe expect it]])
   (:import
    [com.microsoft.playwright BrowserType$LaunchOptions BrowserType$LaunchPersistentContextOptions Browser$NewContextOptions Page$PdfOptions]
-   [com.microsoft.playwright.options Margin]))
+   [com.microsoft.playwright.options ColorScheme Margin]))
 
 ;; =============================================================================
 ;; Launch Options
@@ -98,6 +98,34 @@
    verify that the right Playwright setter was called without a live browser."
   [obj ^String field-name]
   (-> obj .getClass (.getField field-name) (.get obj)))
+
+(defdescribe context-emulation-options-test
+  "Regression, issue #167: `->new-context-options` documented `:geolocation`
+   and `:color-scheme` and set neither, so a context got no position and the
+   light scheme."
+
+  (describe ":geolocation"
+    (it "gives the context its position and accuracy"
+      (let [geo (read-field (sut/->new-context-options
+                              {:geolocation {:latitude 52.1 :longitude 21.0 :accuracy 5}})
+                  "geolocation")]
+        (expect (= [52.1 21.0 5.0]
+                  [(read-field geo "latitude") (read-field geo "longitude")
+                   (read-field geo "accuracy")]))))
+
+    (it "leaves the accuracy to the browser when the map has none"
+      (let [geo (read-field (sut/->new-context-options
+                              {:geolocation {:latitude 1 :longitude 2}})
+                  "geolocation")]
+        (expect (= [1.0 2.0 nil]
+                  [(read-field geo "latitude") (read-field geo "longitude")
+                   (read-field geo "accuracy")])))))
+
+  (describe ":color-scheme"
+    (it "gives the context its color scheme"
+      (expect (= (java.util.Optional/of ColorScheme/DARK)
+                (read-field (sut/->new-context-options {:color-scheme :dark})
+                  "colorScheme"))))))
 
 (defdescribe storage-state-split-test
   "Regression tests for the `:storage-state` / `:storage-state-path` split.
