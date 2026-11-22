@@ -1950,6 +1950,9 @@
           (track (str "http://example.test/" i) 200 (str "page " i)))
         (expect (<= (count @pages) window))))))
 
+(def ^:private empty-window (var-get #'sut/empty-window))
+(def ^:private window-entries (var-get #'sut/window-entries))
+
 ;; Regression, user report: the capture windows were ONE budget for the whole
 ;; session, so a page logging in a tab the session had already left evicted the
 ;; console of the tab it was actually driving.
@@ -1959,11 +1962,26 @@
   (describe "one tab floods the window"
     (it "keeps the entries of the tab under test"
       (let [conj-tab (var-get #'sut/conj-tab-window)
-            window   (reduce (fn [w i] (conj-tab w {:tab "t2" :text (str "noise " i)} 3))
-                       [{:tab "t1" :text "the entry under test"}]
-                       (range 20))]
+            window   (window-entries
+                       (reduce (fn [w i] (conj-tab w {:tab "t2" :text (str "noise " i)} 3))
+                         (conj-tab empty-window {:tab "t1" :text "the entry under test"} 3)
+                         (range 20)))]
         (expect (some #(= "the entry under test" (:text %)) window))
-        (expect (= 3 (count (filterv #(= "t2" (:tab %)) window))))))))
+        (expect (= 3 (count (filterv #(= "t2" (:tab %)) window)))))))
+
+  ;; Regression, issue #163: one append read and copied the whole window, so
+  ;; a page that logged 100000 lines kept `open` busy for 9 seconds.
+  (describe "many tabs flood the window"
+    (it "keeps the newest entries in arrival order and does not copy the window for each entry"
+      (let [conj-tab (var-get #'sut/conj-tab-window)
+            total    (long (var-get #'sut/max-window-total))
+            started  (System/nanoTime)
+            window   (reduce (fn [w i] (conj-tab w {:tab (str "t" (mod (long i) 7)) :i i} 1000))
+                       empty-window
+                       (range 200000))
+            millis   (/ (- (System/nanoTime) started) 1e6)]
+        (expect (= (range (- 200000 total) 200000) (map :i (window-entries window))))
+        (expect (< millis 5000))))))
 
 ;; Regression, issue #150: `network requests` must list only refs that
 ;; `network get` answers. The summary buffer can outlive the window detail.
@@ -2104,7 +2122,7 @@
             track   (var-get #'sut/track-console-entry!)
             restore [@window @full @counter]]
         (try
-          (reset! window [])
+          (reset! window empty-window)
           (reset! full {})
           (reset! counter 0)
           (with-redefs-fn {#'sut/max-window-per-page 3}
@@ -2112,9 +2130,9 @@
               (track (fake-console-message "log" "the quiet tab") "t1")
               (dotimes [i 10]
                 (track (fake-console-message "log" (str "flood " i)) "t2"))))
-          (expect (some #(= "the quiet tab" (:text %)) @window))
-          (expect (every? #(some? (get @full (subs (str (:ref %)) 1))) @window))
-          (expect (= (count @window) (count @full)))
+          (expect (some #(= "the quiet tab" (:text %)) (window-entries @window)))
+          (expect (every? #(some? (get @full (subs (str (:ref %)) 1))) (window-entries @window)))
+          (expect (= (count (window-entries @window)) (count @full)))
           (finally
             (reset! window (nth restore 0))
             (reset! full (nth restore 1))
@@ -2129,7 +2147,7 @@
             track   (var-get #'sut/track-network-entry!)
             restore [@window @full @parked @counter]]
         (try
-          (reset! window [])
+          (reset! window empty-window)
           (reset! full {})
           (reset! parked (sorted-map))
           (reset! counter 0)
@@ -2138,9 +2156,9 @@
               (track (fake-response 0) "t1")
               (dotimes [i 10]
                 (track (fake-response (inc i)) "t2"))))
-          (expect (some #(= "t1" (:tab %)) @window))
-          (expect (every? #(some? (get @full (subs (str (:ref %)) 1))) @window))
-          (expect (every? #(some? (get @parked (parse-long (subs (str (:ref %)) 2)))) @window))
+          (expect (some #(= "t1" (:tab %)) (window-entries @window)))
+          (expect (every? #(some? (get @full (subs (str (:ref %)) 1))) (window-entries @window)))
+          (expect (every? #(some? (get @parked (parse-long (subs (str (:ref %)) 2)))) (window-entries @window)))
           (finally
             (reset! window (nth restore 0))
             (reset! full (nth restore 1))
@@ -2162,16 +2180,16 @@
             track   (var-get #'sut/track-network-entry!)
             restore [@window @full @parked @counter]]
         (try
-          (reset! window [])
+          (reset! window empty-window)
           (reset! full {})
           (reset! parked (sorted-map))
           (reset! counter 0)
           (track (fake-response 1 250.0) "t1")
           (track (fake-response 2) "t1")
-          (expect (= 250 (:duration_ms (first @window))))
+          (expect (= 250 (:duration_ms (first (window-entries @window)))))
           (expect (= 250 (:duration_ms (get @full "n1"))))
           ;; A Request that answers no timing at all must not lose the entry.
-          (expect (= 0 (:duration_ms (second @window))))
+          (expect (= 0 (:duration_ms (second (window-entries @window)))))
           (finally
             (reset! window (nth restore 0))
             (reset! full (nth restore 1))
@@ -2193,14 +2211,14 @@
             page    (counting-page (atom {}))
             restore [@window @full @!state]]
         (try
-          (reset! window [])
+          (reset! window empty-window)
           (reset! full {})
           (swap! !state assoc :page page)
           ((var-get #'sut/instrument-page!) page)
           (let [mine ((var-get #'sut/tab-key-of) page)]
             (track (fake-console-message "log" "mine") mine)
             (track (fake-console-message "log" "theirs") "t-other")
-            (let [ref-of (into {} (map (juxt :tab #(subs (str (:ref %)) 1))) @window)]
+            (let [ref-of (into {} (map (juxt :tab #(subs (str (:ref %)) 1))) (window-entries @window))]
               ((var-get #'sut/handle-cmd) "console_clear" {})
               (expect (nil? (get @full (get ref-of mine))))
               (expect (some? (get @full (get ref-of "t-other"))))))
@@ -2227,7 +2245,7 @@
             page    (counting-page (atom {}))
             restore [@window @full @counted @warned @!state]]
         (try
-          (reset! window [])
+          (reset! window empty-window)
           (reset! full {})
           (reset! warned false)
           (swap! !state assoc :page page)
@@ -2235,11 +2253,11 @@
           (let [tab ((var-get #'sut/tab-key-of) page)]
             (reset! counted (var-get #'sut/max-session-total))
             (track (fake-console-message "log" "over the ceiling") tab)
-            (expect (empty? @window))
+            (expect (empty? (window-entries @window)))
             (expect (true? @warned))
             ((var-get #'sut/handle-cmd) "console_clear" {})
             (track (fake-console-message "log" "after the clear") tab)
-            (expect (= 1 (count @window)))
+            (expect (= 1 (count (window-entries @window))))
             (expect (false? @warned)))
           (finally
             (reset! window (nth restore 0))
@@ -2689,10 +2707,10 @@
               (expect (some? ((var-get #'sut/tab-key-of) fresh)))
               (page/evaluate fresh "console.log('spel-after-the-crash')")
               (let [deadline (+ (System/currentTimeMillis) 5000)]
-                (while (and (not-any? #(= "spel-after-the-crash" (:text %)) @window)
+                (while (and (not-any? #(= "spel-after-the-crash" (:text %)) (window-entries @window))
                          (< (System/currentTimeMillis) (long deadline)))
                   (Thread/sleep 50)))
-              (expect (some #(= "spel-after-the-crash" (:text %)) @window)))
+              (expect (some #(= "spel-after-the-crash" (:text %)) (window-entries @window))))
             (finally
               ((var-get #'sut/forget-crashed-page!) pg)
               (reset! state-atom before))))))))

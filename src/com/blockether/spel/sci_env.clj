@@ -1708,10 +1708,10 @@
   "Returns the daemon-tracked network request summaries when available.
    In standalone SCI contexts without the daemon request ring buffer, returns []."
   []
-  (if-let [tracked-var (try
-                         (requiring-resolve 'com.blockether.spel.daemon/!tracked-requests)
-                         (catch Exception _ nil))]
-    @(var-get tracked-var)
+  (if-let [tracked (try
+                     (requiring-resolve 'com.blockether.spel.daemon/tracked-requests)
+                     (catch Exception _ nil))]
+    (tracked)
     []))
 
 (defn sci-json-write-str

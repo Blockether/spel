@@ -106,15 +106,15 @@
           routes-a  (deref #'daemon/!routes)
           reqs-a    (deref #'daemon/!tracked-requests)
           old-state @state-a]
-      (reset! console-a [])
-      (reset! errors-a [])
+      (reset! console-a @#'daemon/empty-window)
+      (reset! errors-a @#'daemon/empty-window)
       (reset! routes-a {})
-      (reset! reqs-a [])
+      (reset! reqs-a @#'daemon/empty-window)
       ;; Reset TASK-013 sliding windows
-      (reset! (deref #'daemon/!network-window) [])
+      (reset! (deref #'daemon/!network-window) @#'daemon/empty-window)
       (reset! (deref #'daemon/!network-counter) 0)
       (reset! (deref #'daemon/!network-full) {})
-      (reset! (deref #'daemon/!console-window) [])
+      (reset! (deref #'daemon/!console-window) @#'daemon/empty-window)
       (reset! (deref #'daemon/!console-counter) 0)
       (reset! (deref #'daemon/!console-full) {})
       (reset! (deref #'daemon/!session-entry-count) 0)
@@ -3785,7 +3785,7 @@
       (nav! "/test-page")
       ;; Wait a bit for network entries to be captured
       (Thread/sleep 500)
-      (let [window @(deref #'daemon/!network-window)]
+      (let [window (#'daemon/window-entries @(deref #'daemon/!network-window))]
         (when (seq window)
           (let [ref-str (:ref (first window))
                 r (cmd "network_get_ref" {"ref" ref-str})]

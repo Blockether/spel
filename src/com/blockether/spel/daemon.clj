@@ -1626,8 +1626,15 @@
           (.setDaemon true))))))
 (defonce ^:private !session-idle-future (atom nil))
 
-(defonce ^:private !console-messages (atom []))
-(defonce ^:private !page-errors (atom []))
+;; A capture window with no entries. `:entries` maps an entry number to its
+;; entry, in arrival order. `:tabs` maps a tab to the queue of its entry
+;; numbers. `:next` is the number of the next entry. `:dropped` holds the
+;; entries that the last change removed.
+(def ^:private empty-window
+  {:next 0 :entries (sorted-map) :tabs {} :dropped []})
+
+(defonce ^:private !console-messages (atom empty-window))
+(defonce ^:private !page-errors (atom empty-window))
 
 ;; The dialog that blocks a page now: :type, :message, :default-value and the
 ;; :dialog itself. `dialog_status` reads it; `dialog_accept` and
@@ -1637,7 +1644,7 @@
 ;; The `[action text]` answer that `dialog_accept` or `dialog_dismiss` gave
 ;; before a dialog was open. The next dialog takes it.
 (defonce ^:private !dialog-answer (atom nil))
-(defonce ^:private !tracked-requests (atom []))
+(defonce ^:private !tracked-requests (atom empty-window))
 (def ^:private max-tracked-requests 500)
 (defonce ^:private !routes (atom {}))
 
@@ -1839,11 +1846,11 @@
 (def ^:private max-window-total 5000)
 (def ^:private max-session-total 1000000)
 
-(defonce ^:private !network-window (atom []))
+(defonce ^:private !network-window (atom empty-window))
 (defonce ^:private !network-counter (atom 0))
 (defonce ^:private !network-full (atom {}))  ;; ref-id -> full entry with body/headers
 
-(defonce ^:private !console-window (atom []))
+(defonce ^:private !console-window (atom empty-window))
 (defonce ^:private !console-counter (atom 0))
 (defonce ^:private !console-full (atom {}))  ;; ref-id -> full entry
 
@@ -1889,62 +1896,67 @@
       (into [] (subvec updated (- n limit)))
       updated)))
 
+(defn- window-entries
+  "Returns the entries of a capture window, oldest first."
+  [window]
+  (vec (vals (:entries window))))
+
+(defn- window-entries-since
+  "Returns the entries that a capture window got at or after its position
+   `position`: a value that `:next` had before."
+  [window ^long position]
+  (vec (vals (subseq (:entries window) >= position))))
+
+(defn tracked-requests
+  "Returns the tracked request summaries of all tabs, oldest first."
+  []
+  (window-entries @!tracked-requests))
+
+(defn- drop-oldest-of-tab
+  "Drops the oldest entry of `tab` from a capture window and adds it to
+   `:dropped`."
+  [window tab]
+  (let [numbers (get-in window [:tabs tab])
+        number  (peek numbers)
+        numbers (pop numbers)]
+    (-> window
+      (update :dropped conj (get (:entries window) number))
+      (update :entries dissoc number)
+      (update :tabs #(if (seq numbers) (assoc % tab numbers) (dissoc % tab))))))
+
 (defn- conj-tab-window
-  "Appends `entry` to a sliding window that gives every TAB its own `limit`.
+  "Appends `entry` to a capture window that gives every TAB its own `limit`.
 
    One budget for the whole session let the tab a session had already left push
    out the entries of the tab it was actually driving: a page logging in a
    background tab evicted the console of the page under test. Eviction is per
    `:tab`; only the window as a whole carries a session-wide ceiling.
 
+   An append does not read or copy the other entries (issue #163): the entries
+   are in arrival order, and each tab has a queue of its entry numbers.
+
    Params:
-   `w` - window vector.
+   `window` - capture window, see `empty-window`.
    `entry` - entry map, carrying the `:tab` it was captured from.
    `limit` - entries kept per tab.
 
    Returns:
-   The updated window vector."
-  [w entry ^long limit]
-  (let [updated (conj w entry)
-        tab     (:tab entry)
-        kept    (long (count (filterv #(= tab (:tab %)) updated)))
-        updated (if (> kept limit)
-                  (let [drop-at (long (first (keep-indexed (fn [i e] (when (= tab (:tab e)) i))
-                                               updated)))]
-                    (into [] (concat (subvec updated 0 drop-at)
-                               (subvec updated (inc drop-at)))))
-                  updated)
-        n       (long (count updated))]
-    (if (> n (long max-window-total))
-      (into [] (subvec updated (- n (long max-window-total))))
-      updated)))
-
-(defn- dropped-entries
-  "The entries `before` lost when a capture window became `after`.
-
-   A window only ever DROPS entries — the oldest of a tab that hit its own limit,
-   then whatever the session-wide ceiling pushed out — so the two vectors agree
-   up to the first drop and realign after it. `expected` says how many drops to
-   look for, which ends the walk at the last one instead of at the end of the
-   window.
-
-   Params:
-   `before`   - Window vector before the change.
-   `after`    - Window vector after it.
-   `expected` - How many entries left.
-
-   Returns:
-   Vector of the dropped entries."
-  [before after ^long expected]
-  (if (pos? expected)
-    (loop [i 0 j 0 out []]
-      (cond
-        (= (count out) expected) out
-        (>= i (count before))    out
-        (and (< j (count after))
-          (identical? (nth before i) (nth after j))) (recur (inc i) (inc j) out)
-        :else (recur (inc i) j (conj out (nth before i)))))
-    []))
+   The updated window. Its `:dropped` holds the entries that this append
+   pushed out."
+  [window entry ^long limit]
+  (let [tab    (:tab entry)
+        number (long (:next window))
+        window (-> window
+                 (assoc :next (inc number) :dropped [])
+                 (update :entries assoc number entry)
+                 (update-in [:tabs tab] (fnil conj clojure.lang.PersistentQueue/EMPTY) number))
+        window (if (> (count (get-in window [:tabs tab])) limit)
+                 (drop-oldest-of-tab window tab)
+                 window)]
+    ;; The oldest entry of the window is also the oldest entry of its tab.
+    (if (> (count (:entries window)) (long max-window-total))
+      (drop-oldest-of-tab window (:tab (val (first (:entries window)))))
+      window)))
 
 (defn- forget-detail!
   "Forgets what stands behind refs that just left a capture window.
@@ -1985,9 +1997,8 @@
    Returns:
    nil."
   [!window !full !parked entry]
-  (let [[before after] (swap-vals! !window conj-tab-window entry max-window-per-page)]
-    (forget-detail! !full !parked
-      (dropped-entries before after (- (inc (count before)) (count after))))))
+  (forget-detail! !full !parked
+    (:dropped (swap! !window conj-tab-window entry max-window-per-page))))
 
 (def ^:private max-preview-body-bytes (long 65536))
 (def ^:private preview-body-resource-types #{"fetch" "xhr"})
@@ -2631,19 +2642,23 @@
    Console messages, page errors and responses belong to the page that produced
    them, so the default answer is the tab the next command will act on; `--all`
    is how a session sees what a tab it left recorded."
-  [entries all?]
+  [window all?]
   (if all?
-    (vec entries)
-    (let [tab (current-tab)]
-      (filterv #(= tab (:tab %)) entries))))
+    (window-entries window)
+    (mapv (:entries window) (get-in window [:tabs (current-tab)]))))
 
 (defn- without-tab-entries
-  "Drops the current tab's entries from `entries`, or all of them when `all?`."
-  [entries all?]
-  (if all?
-    []
-    (let [tab (current-tab)]
-      (filterv #(not= tab (:tab %)) entries))))
+  "Drops the current tab's entries from a capture window, or all of them when
+   `all?`. The `:dropped` of the result holds the entries that left."
+  [window all?]
+  (let [gone (tab-entries window all?)]
+    (if all?
+      (assoc window :entries (sorted-map) :tabs {} :dropped gone)
+      (let [tab (current-tab)]
+        (-> window
+          (update :entries #(reduce dissoc % (get-in window [:tabs tab])))
+          (update :tabs dissoc tab)
+          (assoc :dropped gone))))))
 
 (defn- clear-window!
   "Clears the current tab's entries from `!window` — every tab's when `all?` — and
@@ -2667,9 +2682,8 @@
   [!window !full !parked all?]
   (reset! !session-entry-count 0)
   (reset! !capture-ceiling-warned? false)
-  (let [[before after] (swap-vals! !window without-tab-entries all?)]
-    (forget-detail! !full !parked
-      (dropped-entries before after (- (count before) (count after))))))
+  (forget-detail! !full !parked
+    (:dropped (swap! !window without-tab-entries all?))))
 
 (defn- focus-page!
   "Makes `p` the tab this session drives — instrumented BEFORE it becomes the
@@ -3071,9 +3085,9 @@
         (try (.close ^BrowserContext old-ctx) (catch Exception e (warn "close-context" e))))
       (swap! !state merge session {:context new-ctx :page new-pg :tracing? false})
       (reset! !pending-dialog nil)
-      (reset! !console-messages [])
-      (reset! !page-errors [])
-      (reset! !tracked-requests [])
+      (reset! !console-messages empty-window)
+      (reset! !page-errors empty-window)
+      (reset! !tracked-requests empty-window)
       (instrument-page! new-pg)
       (when (and current-url (not= "about:blank" current-url))
         (page/navigate new-pg current-url))
@@ -3328,9 +3342,9 @@
          (page/set-default-timeout! pg-inst
            (double (or (get flags "timeout") default-action-timeout-ms)))
          (reset! !pending-dialog nil)
-         (reset! !console-messages [])
-         (reset! !page-errors [])
-         (reset! !tracked-requests [])
+         (reset! !console-messages empty-window)
+         (reset! !page-errors empty-window)
+         (reset! !tracked-requests empty-window)
          (instrument-page! pg-inst)
           ;; An auto-launched browser has its context before spel can give it
           ;; options, so the saved session state needs a new context there.
@@ -5478,9 +5492,9 @@
     (swap! !state assoc :pw pw :browser browser :context context :page pg-inst :cdp-connected true)
     (swap! !state assoc-in [:launch-flags "cdp"] url)
     (persist-launch-flags!)
-    (reset! !console-messages [])
-    (reset! !page-errors [])
-    (reset! !tracked-requests [])
+    (reset! !console-messages empty-window)
+    (reset! !page-errors empty-window)
+    (reset! !tracked-requests empty-window)
     (instrument-page! pg-inst)
     {:connected url :url (page/url pg-inst)}))
 
@@ -5778,8 +5792,8 @@
             stdout-writer (java.io.StringWriter.)
             stderr-writer (java.io.StringWriter.)
           ;; Snapshot console/error state before eval to detect new messages
-            console-before (count @!console-messages)
-            errors-before  (count @!page-errors)]
+            console-before (:next @!console-messages)
+            errors-before  (:next @!page-errors)]
         (sci-env/set-throw-on-error! true)
         (try
           (let [result (binding [*out* stdout-writer
@@ -5791,8 +5805,8 @@
                 captured-stdout (str stdout-writer)
                 captured-stderr (str stderr-writer)
               ;; Collect NEW console messages and page errors from this eval
-                new-console (subvec @!console-messages console-before)
-                new-errors  (subvec @!page-errors errors-before)]
+                new-console (window-entries-since @!console-messages console-before)
+                new-errors  (window-entries-since @!page-errors errors-before)]
             (if (anomaly/anomaly? result)
               (cond-> (error-response (::anomaly/message result)
                         (error-context (merge (::anomaly/data result) result)))
@@ -5822,8 +5836,8 @@
             (sync-sci-to-state!)
             (let [captured-stdout (str stdout-writer)
                   captured-stderr (str stderr-writer)
-                  new-console (subvec @!console-messages console-before)
-                  new-errors  (subvec @!page-errors errors-before)]
+                  new-console (window-entries-since @!console-messages console-before)
+                  new-errors  (window-entries-since @!page-errors errors-before)]
               (cond-> (error-response (throwable-message e)
                         (error-context (ex-data e) e))
                 (seq captured-stdout) (assoc :stdout captured-stdout)
