@@ -3367,43 +3367,50 @@
    and short enough that a single stuck daemon won't derail the whole list."
   1500)
 
-(defn- session-health-fallback
-  "Second opinion for a session that would not answer `session_info`.
-
-   `session_info` reaches into the browser, so a daemon parked inside a long
-   page call cannot answer it — and the row then reads as `timeout`, i.e. dead,
-   which is what makes callers kill a perfectly healthy daemon. `health` is
-   served from daemon-local state, so ask it before condemning the session."
-  [s fallback-status err]
-  (let [h (try
-            (let [resp (send-command! (:name s) {:action "health"}
-                         session-list-fanout-timeout-ms)]
-              (when (and (map? resp) (:success resp)) (:data resp)))
-            (catch Exception _ nil))]
-    (if h
-      (assoc s
-        :status    (or (:status h) fallback-status)
-        :in_flight (:in_flight h))
-      (assoc s :status fallback-status :status_error err))))
-
-(defn- enrich-session-with-info
-  "Sends a `session_info` command to `(:name s)` and merges the response.
-   On timeout/error, falls back to `health` so a busy daemon is reported as
-   busy; only a session that answers neither gets `:status_error`."
+(defn- session-health
+  "Returns a session's `health` data, or a map with `:error` and `:status`.
+   `health` is served from daemon-local state, so it answers while the daemon
+   is inside a long page call."
   [s]
   (try
-    (let [resp (send-command! (:name s) {:action "session_info"}
-                 session-list-fanout-timeout-ms)
-          info (when (and (map? resp) (:success resp))
-                 (:data resp))]
-      (if info
-        (assoc (merge s info) :status "ok")
-        (session-health-fallback s "error" (or (:error resp) "empty response"))))
+    (let [resp (send-command! (:name s) {:action "health"}
+                 session-list-fanout-timeout-ms)]
+      (if (and (map? resp) (:success resp) (map? (:data resp)))
+        (:data resp)
+        {:status "error" :error (or (:error resp) "empty response")}))
     (catch Exception e
       (let [msg (.getMessage e)]
-        (session-health-fallback s
-          (if (and msg (str/includes? msg "timed out")) "timeout" "error")
-          (or msg (str (class e))))))))
+        {:status (if (and msg (str/includes? msg "timed out")) "timeout" "error")
+         :error  (or msg (str (class e)))}))))
+
+(defn- enrich-session-with-info
+  "Asks `(:name s)` for `health` first and uses its status for the row.
+   Only an idle session also gets `session_info` (URL, viewport, refs). That
+   command waits for the command lock.
+
+   Regression, issue #178: the list sent `session_info` first. Behind one long
+   command it waited 1.5 s for each session, left a queued `session_info` for
+   each poll, and showed `ok` for a crashed or degraded session."
+  [s]
+  (let [h (session-health s)]
+    (cond
+      (:error h)
+      (assoc s :status (:status h) :status_error (:error h))
+
+      (seq (:in_flight h))
+      (assoc s
+        :status    (:status h)
+        :in_flight (:in_flight h)
+        :url       (get-in h [:browser :page_url]))
+
+      :else
+      (let [info (try
+                   (let [resp (send-command! (:name s) {:action "session_info"}
+                                session-list-fanout-timeout-ms)]
+                     (when (and (map? resp) (:success resp)) (:data resp)))
+                   (catch Exception _ nil))]
+        (cond-> (assoc (merge s info) :status (:status h))
+          (nil? info) (assoc :url (get-in h [:browser :page_url])))))))
 
 (defn- build-session-list-data
   "Builds the session_list response entirely CLI-side. Enumerates alive
