@@ -694,17 +694,46 @@
     (or (get value w3c-element-key)
       (get value "ELEMENT"))))
 
+(def deep-query-script
+  "JavaScript that finds the elements matching CSS `arguments[0]` in the
+   document and in every open shadow root. Returns the first one, or all of
+   them when `arguments[1]` is true."
+  "const sel = arguments[0], all = arguments[1], out = [];
+(function visit(root) {
+  out.push(...root.querySelectorAll(sel));
+  for (const el of root.querySelectorAll('*')) if (el.shadowRoot) visit(el.shadowRoot);
+})(document);
+return all ? out : (out[0] || null);")
+
+(defn- deep-css-elements
+  "The ids of the elements that match `css` in the document and its open
+   shadow roots, or nil when the script fails. A CSS search of WebDriver stops
+   at a shadow root, while a snapshot ref can be inside one (issue #177)."
+  [session css all?]
+  (try
+    (let [result (execute-script-raw session deep-query-script [css (boolean all?)])]
+      (not-empty (into [] (keep extract-element-id) (if all? result [result]))))
+    (catch clojure.lang.ExceptionInfo _ nil)))
+
 (defn find-element
   "POST /session/{id}/element — finds a single element.
 
    `using` - String. Locator strategy (\"css selector\", \"xpath\", ...).
    `value` - String. Selector value.
 
-   Returns the element id string.
+   Returns the element id string. A CSS selector also searches open shadow
+   roots when the page has no match outside them.
    Throws ex-info with :webdriver/error \"no such element\" when absent."
   [session ^String using ^String value]
-  (let [result (session-request session :post (session-path session "/element")
-                 {"using" using "value" value})
+  (let [result (try
+                 (session-request session :post (session-path session "/element")
+                   {"using" using "value" value})
+                 (catch clojure.lang.ExceptionInfo e
+                   (or (when (and (= "css selector" using)
+                               (= "no such element" (:webdriver/error (ex-data e))))
+                         (some-> (first (deep-css-elements session value false))
+                           (->> (hash-map w3c-element-key))))
+                     (throw e))))
         el-id  (extract-element-id result)]
     (when (str/blank? (str el-id))
       (throw (ex-info (str "WebDriver find-element returned no element id for "
@@ -717,8 +746,11 @@
   "POST /session/{id}/elements — returns all matching element ids."
   [session ^String using ^String value]
   (let [result (session-request session :post (session-path session "/elements")
-                 {"using" using "value" value})]
-    (mapv extract-element-id (or result []))))
+                 {"using" using "value" value})
+        ids    (mapv extract-element-id (or result []))]
+    (or (when (and (empty? ids) (= "css selector" using))
+          (deep-css-elements session value true))
+      ids)))
 
 (defn find-element-by-css
   "Finds a single element by CSS selector. Returns the element id string."

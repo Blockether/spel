@@ -313,6 +313,24 @@
           (expect (= "/session/sess-1/element" (:path req)))
           (expect (= {"using" "css selector" "value" "#btn"} (:body req))))))
 
+    ;; Regression, issue #177: a CSS search of WebDriver stops at a shadow
+    ;; root, so a snapshot ref inside one was "no such element".
+    (it "searches open shadow roots when the CSS search finds nothing"
+      (with-fake-server srv
+        ((:respond! srv)
+         {:status 404 :body {"value" {"error" "no such element" "message" "none"}}}
+         {:status 200 :body {"value" {"element-6066-11e4-a52e-4f735466cecf" "el-shadow"}}}
+         {:status 200 :body {"value" []}}
+         {:status 200 :body {"value" [{"element-6066-11e4-a52e-4f735466cecf" "el-a"}]}})
+        (let [session (fake-session srv)]
+          (expect (= "el-shadow" (sut/find-element-by-css session "[data-pw-ref=\"e1\"]")))
+          (expect (= ["el-a"] (sut/find-elements session "css selector" "[data-pw-ref=\"e1\"]")))
+          (let [reqs @(:requests srv)]
+            (expect (= ["/session/sess-1/element" "/session/sess-1/execute/sync"
+                        "/session/sess-1/elements" "/session/sess-1/execute/sync"]
+                      (mapv :path reqs)))
+            (expect (= ["[data-pw-ref=\"e1\"]" false] (get-in (nth reqs 1) [:body "args"])))))))
+
     (it "fill finds, clears, then sends keys"
       (with-fake-server srv
         ((:respond! srv)

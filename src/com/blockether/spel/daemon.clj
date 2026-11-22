@@ -37,6 +37,7 @@
    [com.blockether.spel.stealth :as stealth]
    [com.blockether.spel.vault :as vault]
    [com.blockether.spel.visual-diff :as visual-diff]
+   [com.blockether.spel.webdriver :as webdriver]
    [com.blockether.spel.platform :as platform])
   (:import
    [com.microsoft.playwright BrowserContext ConsoleMessage Dialog Frame Keyboard Mouse Page Request Response]
@@ -6453,7 +6454,9 @@
         (if (ios/native-context? (:ios-session @!state))
           (ios/wait-for-element (:ios-session @!state) sel {:timeout-ms timeout-ms})
           (let [css (backend/resolve-css sel)
-                js  (str "!!document.querySelector(" (json/write-json-str css) ")")]
+                ;; A ref can be inside a shadow root (issue #177).
+                js  (str "!!(function () {" webdriver/deep-query-script "}).apply(null, ["
+                      (json/write-json-str css) ", false])")]
             (ios-poll-until #(true? (backend/evaluate! b js [])) timeout-ms
               (str "selector " sel))))
         {:found sel})
