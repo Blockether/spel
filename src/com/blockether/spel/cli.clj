@@ -3490,7 +3490,7 @@
 
 (declare socket-connectable?)
 
-(defn- close-session!
+(defn close-session!
   "Gracefully closes a verified daemon session and waits for browser teardown.
    Never removes the session files or reports success while its process is alive.
 

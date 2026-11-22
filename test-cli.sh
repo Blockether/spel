@@ -2060,6 +2060,9 @@ assert_contains "eval-sci → Java interop on Playwright objects" "$INTEROP_OUT"
 
 # Clean up: close the daemon session
 "$SPEL" eval-sci '(do nil)' --autoclose >/dev/null 2>&1 || true
+# --autoclose returns after the daemon exits, so the next command never reaches a closing daemon.
+OUT=$("$SPEL" --json health 2>&1) || true
+assert_jq_eq "eval-sci --autoclose → daemon is down when it returns" "$OUT" '.status' 'down'
 
 # --- NEGATIVE: prove wrong assertions FAIL (not silently swallowed) ---
 CODEGEN_BAD_JSONL="$TEST_TMP_DIR/test-codegen-bad.jsonl"

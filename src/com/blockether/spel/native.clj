@@ -1030,11 +1030,15 @@
         (vreset! exit-code 1)
         (eprintln (str "Error: " (.getMessage e))))
       (finally
-        ;; --autoclose: shut down daemon after eval
+        ;; --autoclose: close the daemon after eval, and wait until it exits.
+        ;; A close that did not wait let the next command reach a daemon that
+        ;; was shutting down (CI run 45059894074).
         (when (:autoclose? global)
-          (try
-            (cli/send-command! session {"action" "close"} 5000)
-            (catch Exception _)))
+          (let [{:keys [closed error]} (try (cli/close-session! session)
+                                            (catch Exception e {:error (.getMessage e)}))]
+            (when-not closed
+              (eprintln (str "spel: warn: --autoclose did not close session " session
+                          (when error (str ": " error)))))))
         (System/exit @exit-code)))))
 
 (defn- split-eval-tail-args
