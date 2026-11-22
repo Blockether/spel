@@ -1196,7 +1196,13 @@
    that ended only because someone cancelled it."
   [id]
   (when-let [entry (get @!ledger id)]
-    (swap! !ledger dissoc id)
+    (if-let [worker-result (:worker-result entry)]
+      ;; Regression, issue #180: a command that answered `dialog_open` left the
+      ;; ledger while its worker still held the command lock. `health` said
+      ;; `ok` and a blocked command named itself as the blocker.
+      (Thread/startVirtualThread
+        (fn [] (deref worker-result) (swap! !ledger dissoc id)))
+      (swap! !ledger dissoc id))
     (swap! !commands-total inc)
     (reset! !last-command-at (System/currentTimeMillis))
     entry))
@@ -7169,8 +7175,8 @@
   (signal-frames (mapv str (.getStackTrace t))))
 
 (defn- busy-response
-  [action]
-  (let [in-flight (ledger-entries)]
+  [cid action]
+  (let [in-flight (into [] (remove #(= cid (:id %))) (ledger-entries))]
     (json/write-json-str
       {:success    false
        :error      (str "daemon is busy: '" action "' waited for the command lock but "
@@ -7181,7 +7187,9 @@
        :hint       (if-let [dialog (first @!pending-dialogs)]
                      (str "A `" (:type dialog) "` dialog blocks the page. Answer it with "
                        "`spel dialog accept` or `spel dialog dismiss`.")
-                     "Inspect it with `spel health`, then `spel cancel all` to clear it.")
+                     (if-let [e (first in-flight)]
+                       (str "Inspect it with `spel health`. Interrupt it with `spel cancel " (:id e) "`.")
+                       "Inspect it with `spel health`."))
        :in_flight  in-flight})))
 
 (def ^:private wedge-grace-ms
@@ -7253,6 +7261,45 @@
    its command."
   (* 512 1024 1024))
 
+(defn- acquire-command-lock!
+  "Waits up to `wait-ms` for `lock`.
+
+   Returns:
+   `::locked` when this thread holds the lock. The ledger row of a command that
+   holds the lock and waits for a dialog answer: that wait can last forever, so
+   the caller answers at once. nil when the time ran out."
+  [^ReentrantLock lock wait-ms]
+  (let [deadline (+ (System/currentTimeMillis) (long wait-ms))]
+    (loop []
+      (if (.tryLock lock crash-watch-ms TimeUnit/MILLISECONDS)
+        ::locked
+        (or (some #(when (= "dialog" (:phase %)) %) (vals @!ledger))
+          (when (< (System/currentTimeMillis) deadline) (recur)))))))
+
+(defn- dialog-blocked-response
+  "The answer for a command that cannot run because the command `blocker` waits
+   for an answer to a dialog.
+
+   Regression, issue #180: the command waited half its budget (12.5 s) and then
+   answered `daemon_busy` with itself as the running command."
+  [cid action blocker]
+  (let [dialog (first (open-dialogs))]
+    (json/write-json-str
+      {:success    false
+       :error      (str "'" action "' did not run: '" (:action blocker) "' (" (:id blocker)
+                     ") waits for an answer to a `" (or (:type dialog) "page") "` dialog"
+                     (when dialog (str ": " (pr-str (:message dialog))))
+                     ". The session runs one command at a time.")
+       :error_code "dialog_open"
+       :hint       "Answer it with `spel dialog accept [text]` or `spel dialog dismiss`, then run the command again."
+       :dialog     (when dialog
+                     {:type          (:type dialog)
+                      :message       (:message dialog)
+                      :default_value (:default-value dialog)
+                      :tab           (some-> (dialog-page dialog) tab-key-of)})
+       :blocked_by (select-keys blocker [:id :action])
+       :command_id cid})))
+
 (defn- run-guarded-command!
   "Runs a non-control command on a worker thread under `!command-lock`, bounded
    by `command-budget-ms`. On expiry the worker is interrupted, its stack is
@@ -7266,9 +7313,15 @@
   [cid action params]
   (let [budget   (command-budget-ms action)
         deadline (+ (System/currentTimeMillis) budget)
-        ;; A dialog that opens while the command runs blocks it (issue #170).
-        before   (set (map :dialog @!pending-dialogs))
-        new-dialog #(first (remove (comp before :dialog) @!pending-dialogs))
+        ;; A dialog that opens while THIS command runs blocks it (issue #170).
+        ;; The dialogs that were open when it got the lock are not its own, and
+        ;; a command still in the queue owns none: it once took the dialog of
+        ;; the running command, answered it, left the ledger, then re-created its
+        ;; row without a start time when it ran, and every `health` failed
+        ;; (issue #180).
+        !before  (atom nil)
+        new-dialog #(when-let [before @!before]
+                      (first (remove (comp before :dialog) @!pending-dialogs)))
         result (promise)
         worker (Thread.
                  nil
@@ -7277,8 +7330,9 @@
                    (deliver result
                      (try
                        (let [queued-at (System/nanoTime)
-                             ^ReentrantLock lock @!command-lock]
-                         (if (.tryLock lock (quot budget 2) TimeUnit/MILLISECONDS)
+                             ^ReentrantLock lock @!command-lock
+                             got (acquire-command-lock! lock (quot budget 2))]
+                         (if (= ::locked got)
                            (try
                               ;; Lock wait and run time are different failures. Logging
                               ;; only their sum made commands queued behind one long
@@ -7287,14 +7341,17 @@
                                (when (>= waited-ms 1000)
                                  (log/info! "command " cid " (" action ") waited "
                                    (human-duration waited-ms) " for the command lock")))
-                             (swap! !ledger assoc-in [cid :phase] "running")
+                             (reset! !before (set (map :dialog @!pending-dialogs)))
+                             (ledger-update! cid assoc :phase "running")
                               ;; Anything that waits inside the command must answer
                               ;; before this deadline — an interrupt reports the clock,
                               ;; never the cause.
                              (binding [*command-deadline-ms* deadline]
                                (process-command* action params))
                              (finally (.unlock lock)))
-                           (busy-response action)))
+                           (if got
+                             (dialog-blocked-response cid action got)
+                             (busy-response cid action))))
                        (catch InterruptedException _
                          (cancelled-response cid action
                            (get-in @!ledger [cid :cancel-reason])))
@@ -7306,7 +7363,7 @@
                  (str "spel-cmd-" cid)
                  command-stack-bytes)]
     (.setDaemon worker true)
-    (swap! !ledger assoc-in [cid :thread] worker)
+    (ledger-update! cid assoc :thread worker)
     (.start worker)
     (let [r        (loop []
                      (let [r (deref result crash-watch-ms ::timeout)]
@@ -7322,8 +7379,8 @@
           (log/warn! "command " cid " (" action ") was still running when the page's "
             "renderer crashed — ending it now instead of waiting out the "
             budget "ms budget")
-          (swap! !ledger update cid merge {:cancel-requested true
-                                           :cancel-reason    {:page-crashed true :url url}})
+          (ledger-update! cid merge {:cancel-requested true
+                                     :cancel-reason    {:page-crashed true :url url}})
           (.interrupt worker)
           (when (= ::timeout (deref result wedge-grace-ms ::timeout))
             (abandon-wedged-command! cid action))
@@ -7336,14 +7393,17 @@
         (let [dialog (new-dialog)]
           (log/info! "command " cid " (" action ") opened a " (:type dialog)
             " dialog — answering now; the command ends when the dialog has an answer")
+          ;; The row stays until the worker ends, so `health` and later commands
+          ;; name the command that holds the lock (issue #180).
+          (ledger-update! cid assoc :phase "dialog" :worker-result result)
           (dialog-open-response cid action dialog))
 
         (= r ::timeout)
         (do
           (log/warn! "command " cid " (" action ") exceeded " budget
             "ms — interrupting it. Stack: " (str/join " | " (stuck-command-frames worker)))
-          (swap! !ledger update cid merge {:cancel-requested true
-                                           :cancel-reason    {:budget-ms budget}})
+          (ledger-update! cid merge {:cancel-requested true
+                                     :cancel-reason    {:budget-ms budget}})
           (.interrupt worker)
           ;; An interrupt only reaches a thread that can take one. A call parked
           ;; in Playwright's pipe cannot, and it holds the lock while it waits

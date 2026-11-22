@@ -3297,3 +3297,73 @@
 
   (it "changes nothing without --undetected"
     (expect (= {} (#'sut/with-undetected-channel {} {} {})))))
+
+
+;; Regression, issues #179, #180, #181 and #187.
+(defdescribe command-bookkeeping-test
+  "The ledger, the dialog claim and the remembered outcomes stay correct when
+   commands overlap."
+
+  (it "does not re-create a ledger row after its command answered"
+    (let [!ledger (deref #'sut/!ledger)]
+      (#'sut/ledger-update! "c-gone" assoc :phase "running")
+      (expect (not (contains? @!ledger "c-gone")))
+      (expect (vector? (#'sut/ledger-entries)))))
+
+  (it "does not interrupt a concurrent health with cancel all"
+    (let [!ledger (deref #'sut/!ledger)
+          t       (Thread. ^Runnable (fn [] nil))]
+      (try
+        (swap! !ledger assoc "c-health" {:id "c-health" :action "health" :phase "running"
+                                         :started (System/currentTimeMillis) :thread t})
+        (expect (empty? (#'sut/ledger-cancel! "all")))
+        (expect (not (get-in @!ledger ["c-health" :cancel-requested])))
+        (finally (swap! !ledger dissoc "c-health")))))
+
+  (it "keeps a large response in the recent commands as a summary"
+    (let [!recent (deref #'sut/!recent-commands)
+          before  @!recent
+          body    (str "{\"success\":true,\"data\":{\"snapshot\":\""
+                    (apply str (repeat 20000 "x")) "\"}}")]
+      (try
+        (reset! !recent [])
+        (#'sut/remember-command! {:id "c-big" :action "snapshot" :started 1} body)
+        (let [c (first (#'sut/recent-commands))]
+          (expect (= "c-big" (:id c)))
+          (expect (true? (:response_truncated c)))
+          (expect (true? (:success c)))
+          (expect (nil? (:response c))))
+        (finally (reset! !recent before)))))
+
+  (it "gives a pending dialog to only one of two concurrent answers"
+    (let [!pending (deref #'sut/!pending-dialogs)
+          before   @!pending
+          dialog   (reify com.microsoft.playwright.Dialog
+                     (page [_] nil))]
+      (try
+        (reset! !pending [{:type "confirm" :message "m" :dialog dialog}])
+        (let [claims (->> (repeatedly 2 #(future (#'sut/claim-pending-dialog!)))
+                       doall
+                       (map deref))]
+          (expect (= 1 (count (remove nil? claims))))
+          (expect (empty? @!pending)))
+        (finally (reset! !pending before)))))
+
+  (it "answers at once when the lock holder waits for a dialog"
+    (let [!ledger (deref #'sut/!ledger)
+          lock    (java.util.concurrent.locks.ReentrantLock. true)
+          held    (promise)
+          release (promise)
+          holder  (future (.lock lock) (deliver held true) @release (.unlock lock))]
+      (try
+        @held
+        (swap! !ledger assoc "c-dlg" {:id "c-dlg" :action "click" :phase "dialog"
+                                      :started (System/currentTimeMillis)})
+        (let [t0  (System/currentTimeMillis)
+              got (#'sut/acquire-command-lock! lock 10000)]
+          (expect (= "c-dlg" (:id got)))
+          (expect (< (- (System/currentTimeMillis) t0) 2000)))
+        (finally
+          (deliver release true)
+          @holder
+          (swap! !ledger dissoc "c-dlg"))))))
