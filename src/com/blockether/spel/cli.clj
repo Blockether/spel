@@ -518,7 +518,9 @@
       "  --no-badges                (with --annotate) Hide the mark numbers"
       "  --dimensions, --dims       (with --annotate) Add WxH to each mark"
       "  --no-boxes                 (with --annotate) Hide bounding boxes"
-      "  --text                     (with --annotate) Also mark text containers"])
+      "  --text                     (with --annotate) Also mark text containers"
+       "  -s, --scope SEL            (with --annotate) Mark only this subtree"
+       "  --all                      (with --annotate) Include frames"])
 
    "annotate"
    (str/join \newline
@@ -2556,7 +2558,8 @@
                         :files (mapv resolve-path (rest cmd-args))}
 
           ;; Screenshot
-            "screenshot" (let [path-args (remove #(str/starts-with? % "-") cmd-args)
+            "screenshot" (let [scope-at (set (keep-indexed (fn [^long i arg] (when (some #{arg} scope-flags) (inc i))) cmd-args))
+                               path-args (keep-indexed (fn [i arg] (when-not (or (scope-at i) (str/starts-with? arg "-")) arg)) cmd-args)
                                path      (first path-args)
                                full?     (some #{"-f" "--full-page" "--full"} cmd-args)
                                viewport? (some #{"--viewport"} cmd-args)]
@@ -2568,7 +2571,8 @@
                              {:error "The screenshot argument is an output path. Use a path that ends in .png, .jpg or .jpeg, or omit it."}
 
                              :else
-                             (cond-> {:action "screenshot"}
+                             (cond-> (assoc-flag-value {:action "screenshot"} cmd-args scope-flags :scope)
+                                (some #{"--all"} cmd-args) (assoc :all true)
                                path (assoc :path (resolve-path path))
                                full? (assoc :fullPage true)
                                viewport? (assoc :viewport true)

@@ -67,7 +67,12 @@
   const _withStyles = typeof __STYLES__ === 'boolean' ? __STYLES__ : false;
   const _styleDetail = typeof __STYLE_DETAIL__ === 'string' ? __STYLE_DETAIL__ : 'base';
 
-  const identityCounts = {};
+  const identityCounts = Object.create(null);
+  const usedRefs = new Set();
+  const interactiveOnly = typeof __INTERACTIVE__ === 'boolean' ? __INTERACTIVE__ : false;
+  const refsOnly = typeof __REFS_ONLY__ === 'boolean' ? __REFS_ONLY__ : false;
+  const viewportOnly = typeof __VIEWPORT_ONLY__ === 'boolean' ? __VIEWPORT_ONLY__ : false;
+  const allowedRoles = typeof __ANNOTATION_ROLES__ === 'object' ? new Set(__ANNOTATION_ROLES__) : null;
 
 " dom/fnv1a-js "
 
@@ -80,10 +85,11 @@
     const key = identityCounts[base] > 1 ? base + '|' + identityCounts[base] : base;
     let ref = 'e' + (fnv1a(key) >>> 8).toString(36).padStart(5, '0');
     let probe = 0;
-    while (refs[ref] && probe < 100) {
+    while (usedRefs.has(ref) && probe < 100) {
       probe++;
       ref = 'e' + (fnv1a(key + '#' + probe) >>> 8).toString(36).padStart(5, '0');
     }
+    usedRefs.add(ref);
     return ref;
   }
 
@@ -401,13 +407,22 @@
     return {events: [...evts], pointer: ptr};
   }
 
-  function shouldAssignRef(el, role) {
-    if (INTERACTIVE_TAGS.has(el.tagName.toLowerCase())) return true;
-    if (el.getAttribute('tabindex') !== null) return true;
-    if (el.getAttribute('onclick') !== null) return true;
-    if (el.getAttribute('contenteditable') === 'true') return true;
-    if (isJSInteractive(el)) return true;
-    return MEANINGFUL_ROLES.has(role);
+  const CONTROL_ROLES = new Set([
+    'button', 'link', 'textbox', 'checkbox', 'radio', 'combobox', 'listbox',
+    'menuitem', 'tab', 'switch', 'slider', 'spinbutton', 'searchbox', 'option',
+    'menuitemcheckbox', 'menuitemradio', 'treeitem', 'scrollbar'
+  ]);
+
+  function actionable(el, role) {
+    const tag = el.tagName.toLowerCase();
+    return (tag === 'a' ? el.hasAttribute('href') : INTERACTIVE_TAGS.has(tag)) ||
+      (CONTROL_ROLES.has(role) && (tag !== 'a' || el.hasAttribute('href') || el.hasAttribute('role'))) ||
+      el.hasAttribute('tabindex') || el.hasAttribute('contenteditable') && el.isContentEditable ||
+      isJSInteractive(el);
+  }
+
+  function shouldAssignRef(el, role, isActionable) {
+    return isActionable || INTERACTIVE_TAGS.has(el.tagName.toLowerCase()) || MEANINGFUL_ROLES.has(role);
   }
 
   function getHref(el) {
@@ -593,20 +608,21 @@
     const flat = flatChildNodes(el);
     const role = getRole(el);
     const name = getName(el, flat);
-    const attrs = getAttributes(el, role);
 
     // Walk children
     const children = [];
+    let fullChildCount = 0;
     if (el.shadowRoot) shadowDepth++;
     for (const child of (flat || el.children)) {
       const node = walk(child, depth + 1);
-      if (node) children.push(node);
+      if (node) fullChildCount++;
+      if (node && node !== true) children.push(node);
     }
     if (el.shadowRoot) shadowDepth--;
 
     // Get text content — leaf text for childless elements, direct text nodes for mixed content
     let leafText = null;
-    if (children.length === 0) {
+    if (fullChildCount === 0) {
       const text = (flat ? flatText(flat) : (el.textContent || '')).trim();
       if (text && !name) {
         leafText = text.length <= 200 ? text : text.substring(0, 197) + '...';
@@ -627,11 +643,12 @@
 
     // Decide if this node is meaningful enough to include
     const hasMeaningfulRole = !SKIP_ROLES.has(role) && role !== '';
-    const isInteractive = shouldAssignRef(el, role);
+    const isActionable = actionable(el, role);
+    const isInteractive = shouldAssignRef(el, role, isActionable);
     const hasContent = name || leafText;
 
     // Detect CSS-rendered visual content (icons via background-image or content property)
-    const hasCSSImage = !hasContent && children.length === 0 && (function() {
+    const hasCSSImage = !hasContent && fullChildCount === 0 && (function() {
       const rect = el.getBoundingClientRect();
       if (rect.width < 4 || rect.height < 4) return false;
       try {
@@ -646,24 +663,25 @@
 
     // Detect text-bearing leaf elements without a meaningful ARIA role
     // (e.g., <div class=\"error-code\">ERR_CONNECTION_CLOSED</div>)
-    const isTextLeaf = !hasMeaningfulRole && !isInteractive && children.length === 0 && hasContent;
+    const isTextLeaf = !hasMeaningfulRole && !isInteractive && fullChildCount === 0 && hasContent;
 
     // Detect mixed content elements — has child elements AND direct text nodes
     // (e.g., <div><span>tibia.com</span> unexpectedly closed the connection.</div>)
-    const isMixedContent = !hasMeaningfulRole && !isInteractive && children.length > 0 && leafText;
+    const isMixedContent = !hasMeaningfulRole && !isInteractive && fullChildCount > 0 && leafText;
 
     // Skip empty non-structural nodes (but keep CSS-rendered images)
-    if (!hasMeaningfulRole && !isInteractive && !hasContent && !hasCSSImage && children.length === 0) {
+    if (!hasMeaningfulRole && !isInteractive && !hasContent && !hasCSSImage && fullChildCount === 0) {
       return null;
     }
 
     // Promote single child if this node adds nothing
-    if (!hasMeaningfulRole && !isInteractive && !hasContent && !hasCSSImage && children.length === 1) {
-      return children[0];
+    if (!hasMeaningfulRole && !isInteractive && !hasContent && !hasCSSImage && fullChildCount === 1) {
+      return children[0] || true;
     }
 
     // Assign ref — interactive elements, meaningful roles with content,
     // text-bearing leaves, mixed content elements, and CSS-rendered images
+    const keep = !interactiveOnly || isActionable;
     let ref = null;
     let _elStyles = null;
     let _listeners = null;
@@ -671,49 +689,54 @@
     let _bbox = null;
     if (isInteractive || (hasMeaningfulRole && hasContent) || isTextLeaf || isMixedContent || hasCSSImage) {
       const effectiveRole = hasCSSImage ? 'img' : ((isTextLeaf || isMixedContent) ? 'text' : (role || tag));
-      ref = stableRef(el, effectiveRole, name);
-      counter++;
-      el.setAttribute('data-pw-ref', ref);
-      if (shadowDepth > 0) {
-        const root = el.getRootNode();
-        if (root !== document) shadowRefRoots.add(root);
+      const id = stableRef(el, effectiveRole, name);
+      if (keep && (!allowedRoles || allowedRoles.has(effectiveRole))) {
+        const rect = el.getBoundingClientRect();
+        if (!viewportOnly || (rect.right > 0 && rect.bottom > 0 && rect.left < innerWidth && rect.top < innerHeight)) {
+          ref = id;
+          counter++;
+          el.setAttribute('data-pw-ref', ref);
+          if (shadowDepth > 0) {
+            const root = el.getRootNode();
+            if (root !== document) shadowRefRoots.add(root);
+          }
+          const href = getHref(el);
+          const inputType = getInputType(el);
+          const level = headingLevel(el);
+          refs[ref] = {
+            role: effectiveRole,
+            name: name,
+            tag: tag,
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+          };
+          _bbox = {x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height)};
+          if (href) refs[ref].url = href;
+          if (inputType) refs[ref].type = inputType;
+          if (level) refs[ref].level = level;
+          if (el.type === 'checkbox' || el.type === 'radio') refs[ref].checked = !!el.checked;
+          if (el.value && (effectiveRole === 'textbox' || effectiveRole === 'searchbox' ||
+              effectiveRole === 'spinbutton' || effectiveRole === 'combobox'))
+            refs[ref].value = el.value.substring(0, 200);
+          if (fullChildCount > 0 && leafText) refs[ref].mixed = true;
+          _elStyles = extractStyles(el);
+          if (_elStyles && _elStyles.full) refs[ref].styles = _elStyles.full;
+          // Detect event listeners and pointer cursor
+          const _li = detectListeners(el);
+          if (_li.events.length) { _listeners = _li.events; refs[ref].listeners = _listeners; }
+          if (_li.pointer) { _pointer = true; refs[ref].pointer = true; }
+        }
       }
-      const rect = el.getBoundingClientRect();
-      const href = getHref(el);
-      const inputType = getInputType(el);
-      const level = headingLevel(el);
-      refs[ref] = {
-        role: effectiveRole,
-        name: name,
-        tag: tag,
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height)
-      };
-      _bbox = {x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height)};
-      if (href) refs[ref].url = href;
-      if (inputType) refs[ref].type = inputType;
-      if (level) refs[ref].level = level;
-      if (el.type === 'checkbox' || el.type === 'radio') refs[ref].checked = !!el.checked;
-      if (el.value && (effectiveRole === 'textbox' || effectiveRole === 'searchbox' ||
-          effectiveRole === 'spinbutton' || effectiveRole === 'combobox'))
-        refs[ref].value = el.value.substring(0, 200);
-      if (children.length > 0 && leafText) refs[ref].mixed = true;
-      _elStyles = extractStyles(el);
-      if (_elStyles && _elStyles.full) refs[ref].styles = _elStyles.full;
-      // Detect event listeners and pointer cursor
-      const _li = detectListeners(el);
-      if (_li.events.length) { _listeners = _li.events; refs[ref].listeners = _listeners; }
-      if (_li.pointer) { _pointer = true; refs[ref].pointer = true; }
     }
-
+    if (refsOnly || (!keep && children.length === 0)) return true;
     const nodeHref = getHref(el);
     return {
       role: role || tag,
       name: name,
       ref: ref,
-      attrs: attrs,
+      attrs: getAttributes(el, role),
       text: leafText,
       href: nodeHref,
       styles: _elStyles ? _elStyles.compact : null,
@@ -737,7 +760,8 @@
   } catch (e) {
     return JSON.stringify({ tree: null, refs: {}, counter: 0, visited: visited, error: String((e && e.message) || e) });
   }
-  return JSON.stringify({ tree: tree, refs: refs, counter: counter,
+  return JSON.stringify({ tree: tree === true ? null : tree,
+                          matched: true, refs: refs, counter: counter,
                           visited: visited, truncated: truncated,
                           nodeBudget: MAX_NODES });
 })()"))
@@ -814,6 +838,15 @@
         max-nodes      (:max-nodes opts)
         capture-ms     (:capture-ms opts)]
     (cond-> js-capture-snapshot
+      (:interactive? opts)
+      (str/replace "typeof __INTERACTIVE__ === 'boolean' ? __INTERACTIVE__ : false" "true")
+      (:refs-only? opts)
+      (str/replace "typeof __REFS_ONLY__ === 'boolean' ? __REFS_ONLY__ : false" "true")
+      (:viewport-only? opts)
+      (str/replace "typeof __VIEWPORT_ONLY__ === 'boolean' ? __VIEWPORT_ONLY__ : false" "true")
+      (:annotation-roles opts)
+      (str/replace "typeof __ANNOTATION_ROLES__ === 'object' ? new Set(__ANNOTATION_ROLES__) : null"
+        (str "new Set(" (json/write-json-str (vec (:annotation-roles opts))) ")"))
       scope-selector
       (str/replace "typeof __SCOPE__ === 'string' ? __SCOPE__ : null"
         (str "'" (escape-js-string (resolve-scope scope-selector)) "'"))
@@ -1015,7 +1048,8 @@
                            (get info "styles")  (assoc :styles (into {} (get info "styles"))))]))
 
                  raw-refs)
-      :raw-tree raw-tree
+      :matched? (true? (get result "matched"))
+       :raw-tree raw-tree
       :counter  (or counter 0)
       :viewport vp
       :truncated (when truncated
@@ -1139,7 +1173,8 @@
                        (str/join "\n")))
           :refs    (into {} (map (fn [[k v]] [(str prefix k) v])) (:refs snap))
           :counter (:counter snap)
-          :prefix  prefix})))))
+          :prefix  prefix
+           :matched? (:matched? snap)})))))
 
 (defn capture-full-snapshot
   "Captures a snapshot of the page and all its iframes.
@@ -1152,8 +1187,9 @@
    Returns:
    Map with :tree, :refs, :counter covering all frames, or the main frame's
    anomaly when that capture failed."
-  [^Page page]
-  (let [main-snap  (capture-snapshot page)
+  ([^Page page] (capture-full-snapshot page {}))
+  ([^Page page opts]
+  (let [main-snap  (capture-snapshot page opts)
         frames     (when-not (anomaly/anomaly? main-snap) (page/frames page))
         ;; Frames include the main frame as first element
         sub-frames (rest frames)]
@@ -1163,7 +1199,7 @@
       (let [iframe-snaps (map-indexed
                            (fn [idx _frame]
                              (capture-snapshot-for-frame
-                               _frame (inc (long idx))))
+                               _frame (inc (long idx)) opts))
                            sub-frames)
             all-refs     (apply merge
                            (:refs main-snap)
@@ -1176,7 +1212,8 @@
          :refs     all-refs
          :counter  (+ (long (:counter main-snap))
                      (long (reduce + 0 (map :counter iframe-snaps))))
-         :viewport (:viewport main-snap)}))))
+         :viewport (:viewport main-snap)
+          :matched? (or (:matched? main-snap) (some :matched? iframe-snaps))})))))
 
 (defn resolve-ref
   "Resolves a ref ID to a Playwright Locator.

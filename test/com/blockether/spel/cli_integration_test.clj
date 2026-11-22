@@ -2396,6 +2396,23 @@
 
 ;; Regression, issue #138: annotated screenshots always captured the full page,
 ;; so viewport reviews showed offscreen elements and a full-height PNG.
+(defdescribe interactive-snapshot-regression-test
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
+  ;; Regression, issue #203: interactive output included plain text and all its refs.
+  (it "keeps actionable refs stable but drops unrelated text"
+    (cmd "navigate" {"url" (str "data:text/html,<main><p>Unrelated prose</p>"
+                             "<section aria-label='Actions'><button>Same</button><button>Same</button>"
+                             "<div tabindex='0'>Focus</div><div contenteditable>Editor</div>"
+                             "<div style='cursor:pointer'>Pointer</div></section></main>")})
+    (let [small (cmd "snapshot" {"interactive" true})
+          full (cmd "snapshot" {})]
+      (expect (= 5 (:refs_count small)))
+      (expect (every? (fn [[k v]] (= v (get (:refs full) k))) (:refs small)))
+      (expect (str/includes? (:snapshot small) "Actions"))
+      (expect (not (str/includes? (:snapshot small) "Unrelated prose")))
+      (expect (str/includes? (:snapshot full) "Unrelated prose")))))
+
 (defdescribe annotated-viewport-regression-test
   "Annotated viewport screenshots retain only visible refs and clean overlays."
 
@@ -2424,6 +2441,28 @@
           (finally
             (doseq [r [full viewport]]
               (Files/deleteIfExists (Path/of ^String (:path r) (into-array String [])))))))))
+
+  ;; Regression, issue #202: unrelated nodes could exhaust the walk before the scope.
+  (it "captures only the selected subtree, even after a very large sibling"
+    (cmd "navigate" {"url" "data:text/html,<div id='big'></div><button id='small'>Mark</button>"})
+    (cmd "evaluate" {"script" "document.querySelector('#big').innerHTML = '<i hidden></i>'.repeat(26000); true"})
+    (let [r (cmd "screenshot" {"annotate" true "scope" "#small" "viewport" true})]
+      (try
+        (expect (= ["Mark"] (mapv :name (get-in r [:annotated :entries]))))
+        (finally (Files/deleteIfExists (Path/of ^String (:path r) (into-array String [])))))))
+
+  (it "marks a shadow control and an iframe control in screenshot coordinates"
+    (cmd "navigate" {"url" "data:text/html,<title>Frame marks</title><div id='host'></div><iframe style='display:block;margin-left:75px' srcdoc='<button>Frame control</button>'></iframe>"})
+    (cmd "evaluate" {"script" "document.querySelector('#host').attachShadow({mode:'open'}).innerHTML = '<button>Shadow control</button>'; true"})
+    (let [r (cmd "screenshot" {"annotate" true "all" true "viewport" true})]
+      (try
+        (let [entries (get-in r [:annotated :entries])
+              by-name (into {} (map (juxt :name identity)) entries)]
+          (expect (= #{"Shadow control" "Frame control"} (set (keys by-name))))
+          (expect (= #{1 2} (set (map :mark entries))))
+          (expect (str/starts-with? (:ref (get by-name "Frame control")) "f1_"))
+          (expect (> (get-in by-name ["Frame control" :bbox :x]) 75)))
+        (finally (Files/deleteIfExists (Path/of ^String (:path r) (into-array String [])))))))
 
   (it "removes overlays even when a viewport screenshot fails"
     (let [pg (:page @(deref #'daemon/!state))]
@@ -4125,7 +4164,7 @@
 
     (it "detects no changes when baseline matches current"
       (nav! "/test-page")
-      (let [snap (:snapshot (cmd "snapshot" {"interactive" true}))
+      (let [snap (:snapshot (cmd "snapshot" {}))
             r    (cmd "diff_snapshot" {"baseline" snap})]
         (expect (= 0 (:added r)))
         (expect (= 0 (:removed r)))
@@ -4134,14 +4173,14 @@
 
     (it "detects changes after page modification"
       (nav! "/test-page")
-      (let [snap-before (:snapshot (cmd "snapshot" {"interactive" true}))
+      (let [snap-before (:snapshot (cmd "snapshot" {}))
             _          (cmd "evaluate" {"script" "document.querySelector('h1').textContent = 'Changed'"})
             r          (cmd "diff_snapshot" {"baseline" snap-before})]
         (expect (or (pos? (:changed r)) (pos? (:added r)) (pos? (:removed r))))))
 
     (it "returns current snapshot in diff result"
       (nav! "/test-page")
-      (let [snap-before (:snapshot (cmd "snapshot" {"interactive" true}))
+      (let [snap-before (:snapshot (cmd "snapshot" {}))
             r          (cmd "diff_snapshot" {"baseline" snap-before})]
         (expect (string? (:current r)))
         (expect (pos? (:total_lines r)))))))

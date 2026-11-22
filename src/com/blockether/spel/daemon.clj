@@ -1226,37 +1226,31 @@
     (reset! !last-command-at (System/currentTimeMillis))
     entry))
 
-(def ^:private max-remembered-response-chars
-  "A remembered response up to this size goes into `health` in full. A larger
-   one, such as a snapshot, goes in as a summary."
-  16384)
+(def ^:private max-remembered-response-bytes
+  "Ten history slots share a 10 KiB budget for response bodies."
+  1024)
 
 (defn- remember-command!
-  "Retains the ten latest non-observer outcomes for timeout recovery.
-
-   Regression, issue #187: each response was kept in full, and `health` parsed
-   and sent all ten. After ten large snapshots one `health` answer was 15 MB.
-   A large response is now kept as a summary, without its body."
+  "Keeps bounded outcomes for timeout recovery. Parses each small reply once."
   [entry ^String response]
   (when-not (:observer entry)
-    (let [big?      (> (.length response) (long max-remembered-response-chars))
-          completed (cond-> (-> (select-keys entry [:id :action :started])
-                              (assoc :phase "completed"
-                                :completed_at (System/currentTimeMillis)
-                                :response_chars (.length response)))
-                      (not big?) (assoc :response response)
+    (let [limit     (long max-remembered-response-bytes)
+          big?      (or (> (.length response) limit)
+                      (> (alength (.getBytes response java.nio.charset.StandardCharsets/UTF_8)) limit))
+          completed (cond-> (assoc (select-keys entry [:id :action :started])
+                              :phase "completed"
+                              :completed_at (System/currentTimeMillis)
+                              :response_chars (.length response))
+                      (not big?) (assoc :response (try (json/read-json response)
+                                                       (catch Exception _ response)))
                       big?       (assoc :response_truncated true
-                                   :success (str/starts-with? response "{\"success\":true")))]
+                                    :success (str/starts-with? response "{\"success\":true")))]
       (swap! !recent-commands #(->> (conj % completed) (take-last 10) vec)))))
 
 (defn- recent-commands
-  "The remembered outcomes, each small response parsed."
+  "Returns the bounded, decoded command history."
   []
-  (mapv (fn [{:keys [response] :as completed}]
-          (cond-> completed
-            response (assoc :response (try (json/read-json response)
-                                           (catch Exception _ response)))))
-    @!recent-commands))
+  @!recent-commands)
 
 (defn- ledger-update!
   "Applies `f` to the ledger row of `cid` while the row exists. A row is gone
@@ -4269,24 +4263,18 @@
         no-console?    (get params "no_console")
         device         (:device @!state)
         frame          (when-not all? (current-frame))
+        opts           (cond-> {}
+                         sel           (assoc :scope sel)
+                         styles?       (assoc :styles true)
+                         styles-detail (assoc :styles-detail styles-detail)
+                         max-nodes     (assoc :max-nodes max-nodes)
+                         device        (assoc :device device)
+                         (get params "interactive") (assoc :interactive? true))
         capture        #(cond
-                         all?
-                         (snapshot/capture-full-snapshot (pg))
-                         frame
-                         (snapshot/capture-snapshot-for-frame
-                           frame (.indexOf ^java.util.List (page/frames (pg)) frame)
-                           (cond-> {}
-                             sel           (assoc :scope sel)
-                             styles?       (assoc :styles true)
-                             styles-detail (assoc :styles-detail styles-detail)
-                             max-nodes     (assoc :max-nodes max-nodes)))
-                         :else
-                         (snapshot/capture-snapshot (pg) (cond-> {}
-                                                           sel           (assoc :scope sel)
-                                                           styles?       (assoc :styles true)
-                                                           styles-detail (assoc :styles-detail styles-detail)
-                                                           max-nodes     (assoc :max-nodes max-nodes)
-                                                           device        (assoc :device device))))
+                          all? (snapshot/capture-full-snapshot (pg) opts)
+                          frame (snapshot/capture-snapshot-for-frame
+                                  frame (.indexOf ^java.util.List (page/frames (pg)) frame) opts)
+                          :else (snapshot/capture-snapshot (pg) opts))
         first-snap     (capture)
         snap           (if (and (anomaly/anomaly? first-snap)
                              (str/includes? (or (::anomaly/message first-snap) "")
@@ -4297,14 +4285,15 @@
                          first-snap)]
     ;; A crashed renderer or an aborted capture is surfaced on the command that
     ;; caused it — never rendered as a successful snapshot with an empty tree.
-    (when (and sel (not (anomaly/anomaly? snap)) (nil? (:tree snap)))
+    (when (and sel (not (anomaly/anomaly? snap)) (nil? (:tree snap))
+            (not (and (:interactive? opts) (:matched? snap))))
       (throw (ex-info (str "Nothing to snapshot in scope " (pr-str sel)
                         ": no element matches it, or the element has no visible content.")
                {:error_code "scope_not_found"})))
     (if (anomaly/anomaly? snap)
       snap
       (let [_          (publish-refs! snap)
-            tree       (cond-> (filter-snapshot-tree (:tree snap) params)
+            tree       (cond-> (filter-snapshot-tree (or (:tree snap) "") (dissoc params "interactive"))
                          (:truncated snap)
                          (str "\n" (snapshot/truncation-note (:truncated snap))))
             structured (build-structured-refs (:refs snap))]
@@ -4429,6 +4418,7 @@
                      (contains? params "show-dimensions")  (assoc :show-dimensions (get params "show-dimensions"))
                      (contains? params "show-boxes")       (assoc :show-boxes (get params "show-boxes"))
                      (get params "scope")                  (assoc :scope (get params "scope"))
+                      (get params "show-text")              (assoc :show-text true)
                      (get params "all")                    (assoc :all-frames? true)
                      (get params "viewport")               (assoc :full-page false))
           result   (helpers/overview! (pg) opts)]
@@ -4835,8 +4825,7 @@
 (defmethod handle-cmd "diff_snapshot" [_ {:strs [baseline selector compact maxDepth no-network no-console]}]
   (ensure-page-loaded!)
   (let [current-snap (:snapshot (handle-cmd "snapshot"
-                                  {"interactive" true
-                                   "compact" compact
+                                  {"compact" compact
                                    "maxDepth" maxDepth
                                    "selector" selector
                                    "no-network" no-network

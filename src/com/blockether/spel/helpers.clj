@@ -15,7 +15,8 @@
   (:import
    [java.nio.file Files Path]
    [java.nio.file.attribute FileAttribute]
-   [com.microsoft.playwright Page]))
+   [com.microsoft.playwright Frame Page]
+    [com.microsoft.playwright.options BoundingBox]))
 
 ;; =============================================================================
 ;; Internal Helpers
@@ -257,6 +258,39 @@
 ;; overview! — Annotated screenshot (full page by default)
 ;; =============================================================================
 
+(defn- frame-overlay-group
+  [^Frame frame idx capture-opts viewport]
+  (try
+    (let [owner (.frameElement frame)
+          box (.boundingBox owner)]
+      (when (and box (or (nil? viewport)
+                        (seq (annotate/visible-refs viewport
+                               {"frame" {:bbox {:x (.-x ^BoundingBox box) :y (.-y ^BoundingBox box)
+                                                :width (.-width ^BoundingBox box) :height (.-height ^BoundingBox box)}}}))))
+        (let [border (.evaluate owner "e => [e.clientLeft, e.clientTop]")
+              x (+ (.-x ^BoundingBox box) (double (first border)))
+              y (+ (.-y ^BoundingBox box) (double (second border)))
+              snap (snapshot/capture-snapshot-for-frame frame idx (assoc capture-opts :viewport-only? true))
+              prefix (:prefix snap)
+              local (into {} (map (fn [[id info]] [(subs id (count prefix)) info])) (:refs snap))
+              local (annotate/filter-annotatable local {:show-text true})
+              visible (select-keys local (annotate/check-visible-refs frame local))]
+          {:target frame :prefix prefix :x x :y y :refs visible})))
+    (catch com.microsoft.playwright.PlaywrightException _ nil)))
+
+(defn- frame-overlay-entries
+  [groups viewport]
+  (let [owned (into {} (mapcat (fn [{:keys [target prefix x y refs]}]
+                                 (map (fn [[id info]]
+                                        [(str prefix id) {:target target :local id
+                                                          :info (-> info
+                                                                  (update-in [:bbox :x] #(+ (double %) (double x)))
+                                                                  (update-in [:bbox :y] #(+ (double %) (double y))))}])
+                                   refs))) groups)
+        infos (into {} (map (fn [[id {:keys [info]}]] [id info])) owned)
+        entries (annotate/refs->entries (if viewport (annotate/visible-refs viewport infos) infos))]
+    {:entries entries :owned owned}))
+
 (defn overview!
   "Takes an annotated screenshot with element annotations (ref labels, boxes).
 
@@ -290,22 +324,31 @@
   ([^Page page]
    (overview! page {}))
   ([^Page page opts]
-   (let [;; Capture fresh snapshot — full (all frames) or main-frame only
-         snap         (if (:all-frames? opts)
-                        (snapshot/capture-full-snapshot page)
-                        (snapshot/capture-snapshot page))
-         refs         (:refs snap)
-         full-page?   (get opts :full-page true)
-         annotate-opts (cond-> {:full-page full-page?}
-                         (contains? opts :show-dimensions) (assoc :show-dimensions (:show-dimensions opts))
-                         (contains? opts :show-badges)     (assoc :show-badges (:show-badges opts))
-                         (contains? opts :show-boxes)      (assoc :show-boxes (:show-boxes opts))
-                         (:scope opts)                     (assoc :scope (:scope opts)))
-         annotated    (annotate/inject-overlays! page refs annotate-opts)
-         ss-bytes     (try
-                        (page/screenshot page (if full-page? {:full-page true} {}))
-                        (finally
-                          (annotate/remove-overlays! page)))]
+   (let [full-page?   (get opts :full-page true)
+         capture-opts (cond-> {:refs-only? true
+                               :annotation-roles (annotate/annotation-roles opts)
+                               :viewport-only? (not full-page?)}
+                        (:scope opts) (assoc :scope (:scope opts)))
+         snap          (snapshot/capture-snapshot page capture-opts)
+         viewport      (when-not full-page? (page/viewport-size page))
+         groups        (into [{:target page :prefix "" :x 0 :y 0
+                               :refs (let [refs (annotate/filter-annotatable (:refs snap) opts)]
+                                       (select-keys refs (annotate/check-visible-refs page refs)))}]
+                         (when (:all-frames? opts)
+                           (keep-indexed (fn [i frame] (frame-overlay-group frame (inc (long i)) capture-opts viewport))
+                             (rest (page/frames page)))))
+         {:keys [entries owned]} (frame-overlay-entries groups viewport)
+         annotated     {:count (count entries) :entries entries}
+         draws         (group-by (fn [entry] (get-in owned [(:ref entry) :target])) entries)
+         ss-bytes      (try
+                         (doseq [[target items] draws]
+                           (annotate/draw-overlays! target
+                             (mapv (fn [entry] (assoc entry :ref (get-in owned [(:ref entry) :local]))) items) opts))
+                         (page/screenshot page (if full-page? {:full-page true} {}))
+                         (finally
+                           (doseq [target (keys draws)]
+                             (try (annotate/remove-overlays! target)
+                                  (catch com.microsoft.playwright.PlaywrightException _)))))]
      (if-let [path (:path opts)]
        (do (save-bytes! ss-bytes path)
          {:path path :size (alength ^bytes ss-bytes) :annotated annotated})

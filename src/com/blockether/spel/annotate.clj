@@ -17,7 +17,7 @@
    [com.blockether.spel.page :as page]
    [com.blockether.spel.snapshot :as snapshot])
   (:import
-   [com.microsoft.playwright Page]))
+   [com.microsoft.playwright Frame Page]))
 
 ;; =============================================================================
 ;; Brand palette (Blockether). Amber accent, ink chips, JetBrains Mono, hard
@@ -66,6 +66,11 @@
 (def ^:private text-roles
   "Text containers, drawn only when :show-text is set."
   #{"paragraph" "p" "span" "listitem" "text" "navigation"})
+
+(defn annotation-roles
+  "Returns the roles that qualify for an overlay."
+  [opts]
+  (cond-> actionable-roles (:show-text opts) (into text-roles)))
 
 (defn- annotatable-role?
   "Returns true if the role should be drawn as an annotation overlay."
@@ -369,6 +374,11 @@
       "return visible;"
       "})()")))
 
+(defn- evaluate-overlay [target ^String js]
+  (if (instance? Frame target)
+    (.evaluate ^Frame target js)
+    (page/evaluate target js)))
+
 (defn check-visible-refs
   "Runs JavaScript in the page to determine which refs are truly visible.
 
@@ -381,10 +391,10 @@
       transparent containers (e.g., a logo under a transparent navbar).
 
    Returns a set of ref IDs that are actually visible."
-  [^Page page refs]
+  [target refs]
   (if (empty? refs)
     #{}
-    (let [result (page/evaluate page (build-visibility-check-js refs))]
+    (let [result (evaluate-overlay target (build-visibility-check-js refs))]
       (set result))))
 
 ;; =============================================================================
@@ -765,12 +775,18 @@
      {:count   (count entries)
       :entries entries})))
 
+(defn draw-overlays!
+  "Draws prefiltered entries inside their own page or frame."
+  [target entries opts]
+  (when (seq entries)
+    (evaluate-overlay target (build-inject-js entries opts))))
+
 (defn remove-overlays!
   "Removes all annotation overlays from the page DOM.
 
    Returns: nil."
-  [^Page page]
-  (page/evaluate page remove-overlays-js)
+  [target]
+  (evaluate-overlay target remove-overlays-js)
   nil)
 
 (defn annotated-screenshot

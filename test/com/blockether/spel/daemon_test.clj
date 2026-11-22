@@ -2820,6 +2820,22 @@
 (defdescribe timeout-recovery-test
   "Caller-generated command IDs survive execution and retain final outcomes."
 
+  ;; Regression, issue #204: ten medium replies made health larger than 160 KB.
+  (it "keeps all outcome ids within one small history budget"
+    (let [history @#'sut/!recent-commands
+          old @history]
+      (try
+        (reset! history [])
+        (doseq [n (range 10)]
+          (#'sut/remember-command! {:id (str "test-" n) :action "evaluate" :started 1}
+            (json/write-json-str {:success true :data (apply str (repeat 16000 "x"))})))
+        (let [rows (:recent_commands (#'sut/handle-cmd "health" {}))]
+          (expect (= 10 (count rows)))
+          (expect (= "test-9" (:id (last rows))))
+          (expect (every? :response_truncated rows))
+          (expect (< (count (json/write-json-str rows)) 12000)))
+        (finally (reset! history old)))))
+
   (it "shows the eventual result under the same command id in health"
     (let [recent-atom (deref #'sut/!recent-commands)
           before @recent-atom]

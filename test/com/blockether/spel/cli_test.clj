@@ -569,6 +569,12 @@
       (doseq [path ["out.png" "out.JPG" "out.jpeg"]]
         (expect (= (abs-path path) (:path (cmd ["screenshot" path]))))))
 
+    (it "parses annotated screenshot scope separately from the output path"
+      (let [c (cmd ["screenshot" "-a" "--scope" "#target" "--all" "out.png"])]
+        (expect (= "#target" (:scope c)))
+        (expect (true? (:all c)))
+        (expect (= (abs-path "out.png") (:path c)))))
+
     (it "parses --session with screenshot path"
       (let [r (sut/parse-args ["--session" "mysess" "screenshot" "some_path/screenshot.png"])
             f (:flags r)
