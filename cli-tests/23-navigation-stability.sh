@@ -105,7 +105,7 @@ $expected_url
   run_spel "cycle $cycle denied host" 1 --browser chromium --allowed-domains localhost \
     --content-boundaries --json open "http://127.0.0.1:$PORT/test-page"
   assert_jq "policy rejection is not a stack overflow" "$OUT" \
-    '.error | contains("ERR_BLOCKED_BY_CLIENT") and (contains("StackOverflowError") | not)'
+    '.error_code == "domain_not_allowed" and (.error | contains("StackOverflowError") | not)'
   if [[ "$FAIL_COUNT" -gt 0 ]]; then
     timeout 15 "$SPEL" --session "$SESSION" logs -n 100
   fi
@@ -144,7 +144,7 @@ run_spel "allowlist new tab" 0 --json tab new "$BASE/test-page"
 run_spel "allowlist new tab fetch" 0 --json eval-js "$DENIED_FETCH"
 assert_jq_eq "new tab blocks a denied sub-resource" "$OUT" '.result' 'blocked'
 run_spel "allowlist new tab denied host" 1 --json open "http://127.0.0.1:$PORT/test-page"
-assert_jq "new tab blocks a denied navigation" "$OUT" '.error | contains("ERR_BLOCKED_BY_CLIENT")'
+assert_jq "new tab blocks a denied navigation" "$OUT" '.error_code == "domain_not_allowed"'
 run_spel "burst allowlist close" 0 close
 
 run_spel "burst mock start" 0 --browser chromium --timeout 25000 --json open "$BASE/test-page"

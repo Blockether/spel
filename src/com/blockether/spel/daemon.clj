@@ -4139,6 +4139,15 @@
   (ensure-browser!)
   (ensure-allowed-domains-installed!)
   (page/validate-url url (or raw-input url))
+  ;; Regression, issue #188: a blocked address answered only
+  ;; `net::ERR_BLOCKED_BY_CLIENT`, without the policy that blocked it.
+  (when-let [csv (not-empty (get-in @!state [:launch-flags "allowed-domains"]))]
+    (when-not (security/request-allowed? (security/compile-domain-patterns csv) url)
+      (let [host (try (.getHost (java.net.URI. ^String url)) (catch Exception _ nil))]
+        (throw (ex-info (str "Navigation to " (or host url) " was blocked by --allowed-domains ("
+                          csv ").")
+                 {:error_code :domain_not_allowed
+                  :hint       "Open an allowed host, or start the session with an allowlist that includes this host."})))))
   ;; A page navigation starts again in the main frame.
   (swap! !state dissoc :frame)
   ;; Set viewport before navigation so the page renders at the requested size.
@@ -7555,6 +7564,7 @@
             (json/write-json-str (cond-> (binding [*error-source* (when-not code *error-source*)]
                                            (error-response msg (when-not code (error-context data e))))
                                    code (assoc :error_code (name code))
+                                   (:hint data) (assoc :hint (:hint data))
                                    (:stdout data) (assoc :data {:stdout (:stdout data)
                                                                 :stderr (:stderr data)})))))))))
 
