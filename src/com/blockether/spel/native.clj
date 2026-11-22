@@ -856,13 +856,12 @@
                  {:result (if (contains? data :result-data)
                             (get data :result-data)
                             (get data :result))}
-                 (cond-> {:error (or (get data :error)
-                                   (:error response)
-                                   "unexpected browser error (no details from runtime)")}
-                   (:hint response)       (assoc :hint (:hint response))
-                   (:error_code response) (assoc :error_code (:error_code response))
-                   (:call_log response)   (assoc :call_log (:call_log response))
-                   (:selector response)   (assoc :selector (:selector response))))]
+                 ;; Every field of the failure (issue #182): a list of a few
+                 ;; dropped the `dialog` and `command_id` of `dialog_open`.
+                 (merge {:error (or (get data :error)
+                                  (:error response)
+                                  "unexpected browser error (no details from runtime)")}
+                   (dissoc response :success :data :error :console :page-errors)))]
     (json/write-json-str
       (cond-> base
         (not (str/blank? stdout)) (assoc :stdout stdout)

@@ -4197,11 +4197,10 @@
       (if success
         (println (json/write-json-str data :escape-slash false))
         (let [error-msg (or error "unexpected browser error (no details from runtime)")
-              err-map (cond-> {:error error-msg}
-                        (:hint response) (assoc :hint (:hint response))
-                        (:error_code response) (assoc :error_code (:error_code response))
-                        (:call_log response) (assoc :call_log (:call_log response))
-                        (:selector response) (assoc :selector (:selector response)))]
+              ;; Regression, issue #182: a list of chosen fields dropped the
+              ;; `dialog` and `command_id` of `dialog_open`, so an agent did not
+              ;; see the message it had to answer.
+              err-map (merge {:error error-msg} (dissoc response :success :data :error))]
           (println (json/write-json-str err-map :escape-slash false)))))
     (let [{:keys [success data error]} response]
       (if success
