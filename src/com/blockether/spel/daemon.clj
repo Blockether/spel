@@ -1249,7 +1249,10 @@
    as cancel_requested until it really ends."
   [id]
   (let [self    (Thread/currentThread)
-        entries (remove #(or (identical? self (:thread %)) (= "cancel" (:action %)))
+        ;; Regression, issue #179: `cancel all` also interrupted a concurrent
+        ;; `health`, which then answered `unresponsive`.
+        entries (remove #(or (identical? self (:thread %))
+                           (contains? observer-actions (:action %)))
                   (vals @!ledger))
         targets (vec (if (or (nil? id) (= "all" id))
                        entries
