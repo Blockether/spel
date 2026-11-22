@@ -1,1 +1,0 @@
-2026-11-22T01:25:23.491Z WARN  [spel] cmd evaluate ["script"] -> error in 207ms code=cancelled error="command c24 (evaluate) was cancelled"
