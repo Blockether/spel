@@ -797,7 +797,10 @@ class Spel:
             flags.append("--undetected")
         if row["channel"] and not row["cdp"]:
             flags += ["--channel", row["channel"]]
-        budget_ms = int(timeout * 1000 - 10000)
+        # The daemon budget is the caller's timeout. The CLI waits 5 s longer
+        # than that budget, so the process gets 10 s more to report it.
+        budget_ms = int(timeout * 1000)
+        process_timeout = timeout
         # Old reservations have no recorded version. Do not send an unknown flag.
         if (
             budget_ms > 25000
@@ -805,11 +808,12 @@ class Spel:
             and tuple(map(int, row["version"].split("."))) >= (0, 9, 56)
         ):
             flags += ["--command-budget", str(budget_ms)]
+            process_timeout = timeout + 10
         if not diagnostic:
             with self._db() as db:
                 db.execute("UPDATE reservations SET started=1 WHERE id=?", (session,))
         code, output, warnings = _execute(
-            row["executable"], flags + args, stdin=stdin, timeout=timeout
+            row["executable"], flags + args, stdin=stdin, timeout=process_timeout
         )
         stderr = warnings.strip()[-2000:]
         try:
@@ -1017,6 +1021,8 @@ class Spel:
 
         Mutations, uploads, downloads and page code require user authorization.
         Timeout defaults to 60 seconds and never triggers an automatic retry.
+        With Spel 0.9.56 or newer, a timeout above 25 seconds is also the daemon
+        budget of this one command.
         Browser-global flags, `--help`, session adoption and all-session shutdown
         are refused. Use `spel.help()` to find dedicated tools for opening
         URLs, snapshots, JS/SCI, screenshots, health, cancel and release.
@@ -1035,8 +1041,16 @@ class Spel:
                 f"Unsupported action {action!r}; use {_COMMAND_TOOLS[action]}."
             )
         if action not in _COMMANDS:
-            matches = get_close_matches(action, sorted(_COMMANDS))
-            suggestion = f" Closest actions: {', '.join(matches)}." if matches else ""
+            matches = get_close_matches(
+                action, sorted(_COMMANDS | _COMMAND_TOOLS.keys())
+            )
+            named = [
+                f"{match} ({_COMMAND_TOOLS[match]})"
+                if match in _COMMAND_TOOLS
+                else match
+                for match in matches
+            ]
+            suggestion = f" Closest actions: {', '.join(named)}." if named else ""
             raise ValueError(
                 f"Unsupported action {action!r}.{suggestion} "
                 "Read syntax with spel.help('spel.command'), including set viewport."

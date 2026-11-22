@@ -466,6 +466,8 @@ def test_command_suggests_actions_and_explains_argument_shape(client):
     lease = spel.reserve()
     with pytest.raises(ValueError, match=r"'clik'.*Closest actions: click"):
         spel.command(lease.id, ["clik"])
+    with pytest.raises(ValueError, match=r"screenshot \(spel\.screenshot"):
+        spel.command(lease.id, ["screnshot"])
     for arguments in ("click", ("click",), [], [[]], ["click", 1]):
         with pytest.raises(ValueError, match="list of strings"):
             spel.command(lease.id, arguments)
@@ -1053,18 +1055,20 @@ def test_command_budget_uses_the_version_pinned_to_the_reservation(versions):
     calls.clear()
     for lease, timeout, budget in [
         (old, 60, None),
-        (new, 35, None),
-        (new, 60.5, "50500"),
+        (new, 25, None),
+        (new, 40, "40000"),
+        (new, 60.5, "60500"),
     ]:
         reloaded.command(lease.id, ["click", "@ref"], timeout=timeout)
         _, argv, kwargs = calls[-1]
-        assert kwargs["timeout"] == timeout
+        # The process outlives the CLI, which outlives the daemon budget.
+        assert kwargs["timeout"] == (timeout if budget is None else timeout + 10)
         if budget is None:
             assert "--command-budget" not in argv
         else:
             i = argv.index("--command-budget")
             assert argv[i : i + 2] == ["--command-budget", budget]
-    assert len(calls) == 3
+    assert len(calls) == 4
 
 
 @pytest.mark.parametrize("failure", ["download", "version", "browsers"])
