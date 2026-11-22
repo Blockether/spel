@@ -3617,6 +3617,54 @@
       (when-not (str/blank? desc) desc))
     (catch Exception _ nil)))
 
+(defn- temp-image-path
+  "Returns a new image path `<dir>/<prefix><millis><ext>`.
+
+   Params:
+   `prefix` - String. Start of the file name, for example \"spel-screenshot-\".
+   `ext`    - String, optional. Default \".png\".
+   `dir`    - String, optional. Default: the system temp directory.
+
+   Returns:
+   String."
+  (^String [prefix]
+   (temp-image-path prefix ".png" (System/getProperty "java.io.tmpdir")))
+  (^String [prefix ext dir]
+   (str dir File/separator prefix (System/currentTimeMillis) ext)))
+
+(defn- write-image!
+  "Writes image bytes to a file. Creates the parent directories.
+
+   Params:
+   `path-str` - String. Output file.
+   `bs`       - Byte array.
+
+   Returns:
+   Map with :path and :size (bytes)."
+  [^String path-str ^bytes bs]
+  (let [out-path (Path/of path-str (into-array String []))]
+    (when-let [parent (.getParent out-path)]
+      (Files/createDirectories parent (into-array java.nio.file.attribute.FileAttribute [])))
+    (Files/write out-path bs
+      ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
+    {:path path-str :size (alength bs)}))
+
+(defn- overview-response
+  "Returns the :path, :size and :annotated of a `helpers/overview!` result.
+   A result with :bytes had no output path: its image goes to a new temp file.
+
+   Params:
+   `result` - Map from `helpers/overview!`.
+   `prefix` - String. Start of the temp file name.
+
+   Returns:
+   Map with :path, :size and :annotated."
+  [result prefix]
+  (assoc (if-let [bs (:bytes result)]
+           (write-image! (temp-image-path prefix) bs)
+           (select-keys result [:path :size]))
+    :annotated (:annotated result)))
+
 ;; =============================================================================
 ;; Error Helpers — used by command handlers and process-command
 ;; =============================================================================
@@ -3905,22 +3953,14 @@
     ;; Uses the provided path, or generates a timestamped file in the system
     ;; temp directory when no path is given. Throws on write failure so the
     ;; daemon surfaces the error to the CLI (never silently fails).
-    (let [path-str    (or screenshot-path
-                        (str (System/getProperty "java.io.tmpdir")
-                          java.io.File/separator
-                          "spel-screenshot-"
-                          (System/currentTimeMillis) ".png"))
-          ^bytes ss-bytes (page/screenshot (pg))]
-      (let [out-path (Path/of ^String path-str (into-array String []))]
-        (when-let [parent (.getParent out-path)]
-          (Files/createDirectories parent (into-array java.nio.file.attribute.FileAttribute [])))
-        (java.nio.file.Files/write out-path ss-bytes
-          ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption [])))
-      {:url (page/url (pg)) :title (page/title (pg)) :screenshot path-str :size (alength ss-bytes)
+    (let [{:keys [path size]} (write-image! (or screenshot-path (temp-image-path "spel-screenshot-"))
+                                (page/screenshot (pg)))]
+      {:url (page/url (pg)) :title (page/title (pg)) :screenshot path :size size
        :viewport (page/viewport-size (pg))})
-    (cond-> {:url (page/url (pg)) :title (page/title (pg))}
-      viewport-width (assoc :viewport (page/viewport-size (pg)))
-      (page-description) (assoc :description (page-description)))))
+    (let [description (page-description)]
+      (cond-> {:url (page/url (pg)) :title (page/title (pg))}
+        viewport-width (assoc :viewport (page/viewport-size (pg)))
+        description    (assoc :description description)))))
 
 (defn- build-structured-refs
   "Builds the structured refs map for JSON output (AC-5/AC-6)."
@@ -4101,17 +4141,7 @@
                      (get params "all")                    (assoc :all-frames? true)
                      (get params "viewport")               (assoc :full-page false))
           result   (helpers/overview! (pg) opts)]
-      (if (:bytes result)
-        (let [tmp-path (str (System/getProperty "java.io.tmpdir")
-                         java.io.File/separator
-                         "spel-screenshot-"
-                         (System/currentTimeMillis) ".png")
-              _        (Files/write
-                         (Path/of ^String tmp-path (into-array String []))
-                         ^bytes (:bytes result)
-                         ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))]
-          {:path tmp-path :size (alength ^bytes (:bytes result)) :annotated (:annotated result)})
-        {:path (:path result) :size (:size result) :annotated (:annotated result)}))
+      (overview-response result "spel-screenshot-"))
     ;; Plain (non-annotated) screenshot path
     (let [launch-flags   (get @!state :launch-flags {})
           ;; Global --screenshot-format / --screenshot-quality / --screenshot-dir
@@ -4156,23 +4186,8 @@
                             (if sel
                               (locator/locator-screenshot (resolve-selector sel))
                               (page/screenshot (pg) ss-opts)))]
-      (if path-str
-        (let [out-path (Path/of ^String path-str (into-array String []))]
-          (when-let [parent (.getParent out-path)]
-            (Files/createDirectories parent (into-array java.nio.file.attribute.FileAttribute [])))
-          (Files/write out-path ss-bytes
-            ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-          {:path path-str :size (alength ss-bytes)})
-        (let [_ (.mkdirs (java.io.File. ^String default-dir))
-              tmp-path (str default-dir
-                         java.io.File/separator
-                         "spel-screenshot-"
-                         (System/currentTimeMillis) default-ext)]
-          (java.nio.file.Files/write
-            (Path/of ^String tmp-path (into-array String []))
-            ss-bytes
-            ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-          {:path tmp-path :size (alength ss-bytes)})))))
+      (write-image! (or path-str (temp-image-path "spel-screenshot-" default-ext default-dir))
+        ss-bytes))))
 
 (defmethod handle-cmd "annotate" [_ params]
   (ensure-browser!)
@@ -4263,17 +4278,7 @@
                  (contains? params "show-boxes")      (assoc :show-boxes (get params "show-boxes"))
                  (get params "scope")                 (assoc :scope (get params "scope")))
         result (helpers/overview! (pg) opts)]
-    (if (:bytes result)
-      (let [tmp-path (str (System/getProperty "java.io.tmpdir")
-                       java.io.File/separator
-                       "spel-overview-"
-                       (System/currentTimeMillis) ".png")
-            _        (Files/write
-                       (Path/of ^String tmp-path (into-array String []))
-                       ^bytes (:bytes result)
-                       ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))]
-        {:path tmp-path :size (alength ^bytes (:bytes result)) :annotated (:annotated result)})
-      {:path (:path result) :size (:size result) :annotated (:annotated result)})))
+    (overview-response result "spel-overview-")))
 
 (defmethod handle-cmd "debug" [_ params]
   (ensure-browser!)
@@ -4315,19 +4320,8 @@
                             (contains? params "show-dimensions")          (assoc :show-dimensions (get params "show-dimensions"))
                             (contains? params "show-boxes")               (assoc :show-boxes (get params "show-boxes")))
             ov-result   (helpers/overview! (pg) overview-opts)]
-        (if (:bytes ov-result)
-          (let [tmp-path (str (System/getProperty "java.io.tmpdir")
-                           java.io.File/separator
-                           "spel-emulate-"
-                           (System/currentTimeMillis) ".png")
-                _        (Files/write
-                           (Path/of ^String tmp-path (into-array String []))
-                           ^bytes (:bytes ov-result)
-                           ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))]
-            {:device device-name :preset (:preset result)
-             :path tmp-path :size (alength ^bytes (:bytes ov-result)) :annotated (:annotated ov-result)})
-          {:device device-name :preset (:preset result)
-           :path (:path ov-result) :size (:size ov-result) :annotated (:annotated ov-result)})))))
+        (assoc (overview-response ov-result "spel-emulate-")
+          :device device-name :preset (:preset result))))))
 
 (defmethod handle-cmd "evaluate" [_ {:strs [script base64]}]
   ;; No ensure-page-loaded! here on purpose: evaluating JS against a blank
@@ -4591,13 +4585,8 @@
             pixel-result  (visual-diff/compare-screenshots shot1-bytes shot2-bytes
                             :threshold threshold-val
                             :current-refs (:refs snap2))
-            diff-path     (str (System/getProperty "java.io.tmpdir")
-                            java.io.File/separator
-                            "spel-diff-url-" (System/currentTimeMillis) ".png")
-            _             (java.nio.file.Files/write
-                            (java.nio.file.Path/of ^String diff-path (into-array String []))
-                            ^bytes (:diff-image pixel-result)
-                            ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))]
+            diff-path     (:path (write-image! (temp-image-path "spel-diff-url-")
+                                   (:diff-image pixel-result)))]
         (assoc base-result
           :screenshot_diff {:matched      (:matched pixel-result)
                             :diff_percent (:diff-percent pixel-result)
@@ -4619,14 +4608,8 @@
         result         (visual-diff/compare-screenshots baseline-bytes current-bytes
                          :threshold threshold-val
                          :current-refs (:refs current-snap))
-        diff-path      (or path
-                         (str (System/getProperty "java.io.tmpdir")
-                           java.io.File/separator
-                           "spel-diff-" (System/currentTimeMillis) ".png"))]
-    (java.nio.file.Files/write
-      (java.nio.file.Path/of ^String diff-path (into-array String []))
-      ^bytes (:diff-image result)
-      ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
+        diff-path      (or path (temp-image-path "spel-diff-"))]
+    (write-image! diff-path (:diff-image result))
     (let [raw (-> (dissoc result :diff-image)
                 (assoc :diff-path diff-path))]
       {:matched             (:matched raw)
@@ -6179,18 +6162,8 @@
     (throw (ex-info (str "Annotated screenshots are not supported by the ios "
                       "backend yet. Take a plain screenshot instead.")
              {:error_code "unsupported_capability" :backend "ios"})))
-  (let [b        (ios-backend)
-        ^bytes bs (backend/screenshot! b {})
-        path-str (or (get params "path")
-                   (str (System/getProperty "java.io.tmpdir")
-                     java.io.File/separator
-                     "spel-screenshot-" (System/currentTimeMillis) ".png"))
-        out-path (Path/of ^String path-str (into-array String []))]
-    (when-let [parent (.getParent out-path)]
-      (Files/createDirectories parent (into-array java.nio.file.attribute.FileAttribute [])))
-    (Files/write out-path bs
-      ^"[Ljava.nio.file.OpenOption;" (into-array java.nio.file.OpenOption []))
-    {:path path-str :size (alength bs)}))
+  (write-image! (or (get params "path") (temp-image-path "spel-screenshot-"))
+    (backend/screenshot! (ios-backend) {})))
 
 (defmethod handle-ios-cmd "url" [_ _]
   {:url (backend/current-url (ios-backend))})

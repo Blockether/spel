@@ -705,12 +705,15 @@
   [^String s]
   (boolean (re-matches #"@e[a-z0-9]+" s)))
 
-(defn- resolve-scope
+(defn resolve-scope
   "Resolves a scope value to a CSS selector.
 
-   If the scope is a ref (@e2yrjz), converts to [data-pw-ref='e2yrjz'].
-   Otherwise, passes through as a CSS selector."
-  [^String s]
+   Params:
+   `s` - String. A snapshot ref of the main document (@e2yrjz) or a CSS selector.
+
+   Returns:
+   String. `[data-pw-ref=\"e2yrjz\"]` for a ref, else `s` unchanged."
+  ^String [^String s]
   (if (ref-scope? s)
     (str "[data-pw-ref=\"" (str/replace s #"^@" "") "\"]")
     s))

@@ -14,7 +14,8 @@
    [charred.api :as json]
    [clojure.string :as str]
    [com.blockether.spel.fonts :as fonts]
-   [com.blockether.spel.page :as page])
+   [com.blockether.spel.page :as page]
+   [com.blockether.spel.snapshot :as snapshot])
   (:import
    [com.microsoft.playwright Page]))
 
@@ -632,28 +633,6 @@
 ;; Scope filtering (restrict annotations to a DOM subtree)
 ;; =============================================================================
 
-(defn- escape-js-string
-  "Escapes single quotes and backslashes for embedding in JS string literal."
-  [^String s]
-  (-> s
-    (str/replace "\\" "\\\\")
-    (str/replace "'" "\\'")))
-
-(defn- ref-scope?
-  "Returns true if the scope string is a snapshot ref (must start with @, e.g. @e04a3f)."
-  [^String s]
-  (boolean (re-matches #"@e[a-z0-9]+" s)))
-
-(defn- resolve-scope
-  "Resolves a scope value to a CSS selector.
-
-   If the scope is a ref (@e2yrjz), converts to [data-pw-ref='e2yrjz'].
-   Otherwise, passes through as a CSS selector."
-  [^String s]
-  (if (ref-scope? s)
-    (str "[data-pw-ref=\"" (str/replace s #"^@" "") "\"]")
-    s))
-
 (defn- scope-ref-ids
   "Returns a set of ref IDs whose elements are descendants of the scope selector.
 
@@ -661,9 +640,9 @@
    Queries the DOM for all `data-pw-ref` elements inside the scoped element.
    Requires that `capture-snapshot` has already been called (elements tagged)."
   [^Page page ^String scope-selector]
-  (let [css-sel (resolve-scope scope-selector)
+  (let [css-sel (snapshot/resolve-scope scope-selector)
         js (str "(function(){"
-             "var scope=document.querySelector('" (escape-js-string css-sel) "');"
+             "var scope=document.querySelector(" (json/write-json-str css-sel) ");"
              "if(!scope)return [];"
              "var refs=[];"
              "scope.querySelectorAll('[data-pw-ref]').forEach(function(el){"

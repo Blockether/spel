@@ -454,47 +454,6 @@
                                       (expect (= 0 (count vis))))))))
 
 ;; =============================================================================
-;; Unit Tests — scope filtering
-;; =============================================================================
-
-(defdescribe scope-helpers-test
-  "Unit tests for scope ref resolution helpers"
-  (around [f] (core/with-testing-browser (f)))
-
-  (describe "ref-scope? detection"
-    (it "recognizes @e1 as a ref scope"
-
-      (core/with-testing-page [_pg] (expect (true? (#'sut/ref-scope? "@e1")))))
-
-    (it "rejects bare ref without @ prefix"
-
-      (core/with-testing-page [_pg] (expect (false? (#'sut/ref-scope? "e1")))))
-
-    (it "rejects e123 without @ prefix"
-
-      (core/with-testing-page [_pg] (expect (false? (#'sut/ref-scope? "e123")))))
-
-    (it "rejects CSS selectors"
-
-      (core/with-testing-page [_pg] (expect (false? (#'sut/ref-scope? "#main")))
-        (expect (false? (#'sut/ref-scope? ".container")))
-        (expect (false? (#'sut/ref-scope? "div"))))))
-
-  (describe "resolve-scope"
-    (it "converts @e1 to data-pw-ref selector"
-
-      (core/with-testing-page [_pg] (expect (= "[data-pw-ref=\"e1\"]" (#'sut/resolve-scope "@e1")))))
-
-    (it "passes bare e1 through as CSS (no @ prefix)"
-
-      (core/with-testing-page [_pg] (expect (= "e1" (#'sut/resolve-scope "e1")))))
-
-    (it "passes CSS selectors through unchanged"
-
-      (core/with-testing-page [_pg] (expect (= "#main" (#'sut/resolve-scope "#main")))
-        (expect (= ".container" (#'sut/resolve-scope ".container")))))))
-
-;; =============================================================================
 ;; Integration Tests — annotated-screenshot
 ;; =============================================================================
 

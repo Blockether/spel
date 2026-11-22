@@ -845,6 +845,27 @@
                                                {"display" "block" "color" nil "font-size" nil})]
                                       (expect (= "{display:block}" out)))))))
 
+(defdescribe resolve-scope-test
+  "resolve-scope turns a scope value into a CSS selector"
+
+  (describe "a ref of the main document"
+    (it "becomes a data-pw-ref selector"
+      (expect (= "[data-pw-ref=\"e1\"]" (sut/resolve-scope "@e1")))
+      (expect (= "[data-pw-ref=\"e2yrjz\"]" (sut/resolve-scope "@e2yrjz")))))
+
+  (describe "everything else"
+    (it "passes a bare ref without @ through as CSS"
+      (expect (= "e1" (sut/resolve-scope "e1")))
+      (expect (= "e123" (sut/resolve-scope "e123"))))
+
+    (it "passes CSS selectors through unchanged"
+      (expect (= "#main" (sut/resolve-scope "#main")))
+      (expect (= ".container" (sut/resolve-scope ".container")))
+      (expect (= "div" (sut/resolve-scope "div"))))
+
+    (it "passes a frame ref through, because its attribute is in the frame's document"
+      (expect (= "@f1_e1" (sut/resolve-scope "@f1_e1"))))))
+
 ;; =============================================================================
 ;; Integration Tests — Event Listener Detection
 ;; =============================================================================
