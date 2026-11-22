@@ -3899,12 +3899,15 @@
    reliable marker: release assets are published as `spel-macos-arm64`,
    `spel-windows-x64.exe` and friends, so a daemon started from a downloaded
    asset used to look like a bystander and was refused instead of killed.
+   A renamed copy, such as `spel-0.9.55`, `t14-spel-fixed` or Nix's
+   `.spel-wrapped`, is still the spel binary: its daemon reported `stale` and
+   `close` refused to stop it (issue #190).
    Windows quotes an executable path that holds a space, so a closing quote
    can follow the file name."
   [pid ^String cmd]
   (when (and cmd
           (str/includes? cmd "--session")
-          (or (re-find #"(?:^|\s)(?:\S*[/\\\\])?spel(?:-[\w.-]+)?(?:\.exe)?\"?\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)
+          (or (re-find #"(?:^|\s)(?:\S*[/\\\\])?[\w.-]*spel[\w.-]*\"?\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)
             (re-find #"com\.blockether\.spel\.native\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)))
     {:pid     (str pid)
      :session (second (re-find #"--session[\s=]+(\S+)" cmd))}))

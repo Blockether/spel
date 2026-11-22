@@ -2964,6 +2964,12 @@
       (expect (= "w3" (:session (sut/daemon-process-entry
                                   53 "\"C:\\Users\\Jan Nowak\\bin\\spel.exe\" daemon --session w3")))))
 
+    (it "matches a renamed copy of the binary"
+      (expect (= "r1" (:session (sut/daemon-process-entry
+                                  55 "/tmp/x/t14-spel-fixed daemon --session r1"))))
+      (expect (= "r2" (:session (sut/daemon-process-entry
+                                  56 "/nix/store/abc/bin/.spel-wrapped daemon --session r2")))))
+
     (it "matches a release asset invoked with --session before the subcommand"
       (expect (= "a3" (:session (sut/daemon-process-entry
                                   51 "/tmp/dl/spel-linux-x64 --session a3 daemon"))))))
