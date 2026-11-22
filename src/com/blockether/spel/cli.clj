@@ -3901,6 +3901,12 @@
     (let [cl (.commandLine (.info ph))]
       (when (.isPresent cl) (str (.get cl))))))
 
+(def ^:private own-executable
+  "Path of the running executable, or nil. A native daemon runs the same file
+   as the CLI that started it."
+  (delay (let [o (.command (.info (java.lang.ProcessHandle/current)))]
+           (when (.isPresent o) (str (.get o))))))
+
 (defn daemon-process-entry
   "`{:pid :session}` when `cmd` is the command line of a spel DAEMON, else nil.
 
@@ -3913,13 +3919,18 @@
    asset used to look like a bystander and was refused instead of killed.
    A renamed copy, such as `spel-0.9.55`, `t14-spel-fixed` or Nix's
    `.spel-wrapped`, is still the spel binary: its daemon reported `stale` and
-   `close` refused to stop it (issue #190).
+   `close` refused to stop it (issue #190). A daemon started from this very
+   executable matches whatever its name is.
    Windows quotes an executable path that holds a space, so a closing quote
    can follow the file name."
   [pid ^String cmd]
   (when (and cmd
           (str/includes? cmd "--session")
-          (or (re-find #"(?:^|\s)(?:\S*[/\\\\])?[\w.-]*spel[\w.-]*\"?\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)
+          (or (when-let [exe @own-executable]
+                (re-find (re-pattern (str "^\"?" (java.util.regex.Pattern/quote exe)
+                                       "\"?\\s+(?:--session(?:\\s+|=)\\S+\\s+)?daemon(?:\\s|$)"))
+                  cmd))
+            (re-find #"(?:^|\s)(?:\S*[/\\\\])?[\w.-]*spel[\w.-]*\"?\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)
             (re-find #"com\.blockether\.spel\.native\s+(?:--session(?:\s+|=)\S+\s+)?daemon(?:\s|$)" cmd)))
     {:pid     (str pid)
      :session (second (re-find #"--session[\s=]+(\S+)" cmd))}))

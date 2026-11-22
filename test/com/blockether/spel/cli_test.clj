@@ -2977,6 +2977,14 @@
       (expect (= "r2" (:session (sut/daemon-process-entry
                                   56 "/nix/store/abc/bin/.spel-wrapped daemon --session r2")))))
 
+    (it "matches a daemon of this executable whatever its name"
+      (with-redefs-fn {#'sut/own-executable (delay "/tmp/x/audit-renamed")}
+        (fn []
+          (expect (= "r3" (:session (sut/daemon-process-entry
+                                      57 "/tmp/x/audit-renamed daemon --session r3"))))
+          (expect (nil? (sut/daemon-process-entry
+                          58 "/tmp/x/audit-renamed --session r3 open https://example.com"))))))
+
     (it "matches a release asset invoked with --session before the subcommand"
       (expect (= "a3" (:session (sut/daemon-process-entry
                                   51 "/tmp/dl/spel-linux-x64 --session a3 daemon"))))))
