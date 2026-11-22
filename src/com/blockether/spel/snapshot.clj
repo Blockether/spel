@@ -53,13 +53,16 @@
   const _scopeSel = typeof __SCOPE__ === 'string' ? __SCOPE__ : null;
   const _root = _scopeSel ? deepQuery(document, _scopeSel) : document.body;
 
-  // Clean up any previous refs
+  // An annotation capture adds tags without retiring the last snapshot.
+  const refsOnly = typeof __REFS_ONLY__ === 'boolean' ? __REFS_ONLY__ : false;
+  const reservedRefs = new Set();
   for (const scope of refScopes) {
     scope.querySelectorAll('[data-pw-ref]').forEach(el => {
-      el.removeAttribute('data-pw-ref');
+      if (refsOnly) reservedRefs.add(el.getAttribute('data-pw-ref'));
+      else el.removeAttribute('data-pw-ref');
     });
   }
-  const shadowRefRoots = new Set();
+  const shadowRefRoots = new Set(refsOnly ? refScopes.slice(1) : []);
   window.__spelRefRoots = shadowRefRoots;
 
   let counter = 0;
@@ -70,7 +73,6 @@
   const identityCounts = Object.create(null);
   const usedRefs = new Set();
   const interactiveOnly = typeof __INTERACTIVE__ === 'boolean' ? __INTERACTIVE__ : false;
-  const refsOnly = typeof __REFS_ONLY__ === 'boolean' ? __REFS_ONLY__ : false;
   const viewportOnly = typeof __VIEWPORT_ONLY__ === 'boolean' ? __VIEWPORT_ONLY__ : false;
   const allowedRoles = typeof __ANNOTATION_ROLES__ === 'object' ? new Set(__ANNOTATION_ROLES__) : null;
 
@@ -85,7 +87,12 @@
     const key = identityCounts[base] > 1 ? base + '|' + identityCounts[base] : base;
     let ref = 'e' + (fnv1a(key) >>> 8).toString(36).padStart(5, '0');
     let probe = 0;
-    while (usedRefs.has(ref) && probe < 100) {
+    const previous = refsOnly && el.getAttribute('data-pw-ref');
+    if (previous && !usedRefs.has(previous)) {
+      usedRefs.add(previous);
+      return previous;
+    }
+    while ((usedRefs.has(ref) || reservedRefs.has(ref)) && probe < 100) {
       probe++;
       ref = 'e' + (fnv1a(key + '#' + probe) >>> 8).toString(36).padStart(5, '0');
     }

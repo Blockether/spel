@@ -4825,7 +4825,8 @@
 (defmethod handle-cmd "diff_snapshot" [_ {:strs [baseline selector compact maxDepth no-network no-console]}]
   (ensure-page-loaded!)
   (let [current-snap (:snapshot (handle-cmd "snapshot"
-                                  {"compact" compact
+                                  {"interactive" true
+                                   "compact" compact
                                    "maxDepth" maxDepth
                                    "selector" selector
                                    "no-network" no-network

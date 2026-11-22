@@ -15,7 +15,7 @@
   (:import
    [java.nio.file Files Path]
    [java.nio.file.attribute FileAttribute]
-   [com.microsoft.playwright Frame Page]
+   [com.microsoft.playwright ElementHandle Frame Page]
     [com.microsoft.playwright.options BoundingBox]))
 
 ;; =============================================================================
@@ -258,19 +258,43 @@
 ;; overview! — Annotated screenshot (full page by default)
 ;; =============================================================================
 
+(defn- frame-owned-by-scope?
+  [^Frame frame scope]
+  (let [^Frame top-child (loop [^Frame f frame]
+                           (let [parent (.parentFrame f)]
+                             (if (and parent (.parentFrame parent)) (recur parent) f)))
+        owner (.frameElement top-child)]
+    (true? (.evaluate ^ElementHandle owner
+             "(element, selector) => {
+                function query(root) {
+                  const hit = root.querySelector(selector);
+                  if (hit) return hit;
+                  for (const host of root.querySelectorAll('*')) {
+                    const found = host.shadowRoot && query(host.shadowRoot);
+                    if (found) return found;
+                  }
+                  return null;
+                }
+                const scope = query(element.ownerDocument);
+                for (let n = element; n; n = n.assignedSlot || n.parentNode || n.host)
+                  if (n === scope) return true;
+                return false;
+              }" (snapshot/resolve-scope scope)))))
+
 (defn- frame-overlay-group
   [^Frame frame idx capture-opts viewport]
   (try
     (let [owner (.frameElement frame)
           box (.boundingBox owner)]
-      (when (and box (or (nil? viewport)
+      (when (and box (or (nil? (:scope capture-opts)) (frame-owned-by-scope? frame (:scope capture-opts)))
+                 (or (nil? viewport)
                         (seq (annotate/visible-refs viewport
                                {"frame" {:bbox {:x (.-x ^BoundingBox box) :y (.-y ^BoundingBox box)
                                                 :width (.-width ^BoundingBox box) :height (.-height ^BoundingBox box)}}}))))
         (let [border (.evaluate owner "e => [e.clientLeft, e.clientTop]")
               x (+ (.-x ^BoundingBox box) (double (first border)))
               y (+ (.-y ^BoundingBox box) (double (second border)))
-              snap (snapshot/capture-snapshot-for-frame frame idx (assoc capture-opts :viewport-only? true))
+              snap (snapshot/capture-snapshot-for-frame frame idx (assoc (dissoc capture-opts :scope) :viewport-only? true))
               prefix (:prefix snap)
               local (into {} (map (fn [[id info]] [(subs id (count prefix)) info])) (:refs snap))
               local (annotate/filter-annotatable local {:show-text true})

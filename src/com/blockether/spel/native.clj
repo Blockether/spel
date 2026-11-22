@@ -1435,7 +1435,9 @@
 
       ;; Help — bare `spel --help` / `spel -h` / `spel help` / `spel` (no args)
       ;; Per-command help (e.g. `spel open --help`) falls through to cli/run-cli!
-      (or (nil? first-arg)
+      (or (and (nil? first-arg)
+               (not-any? #(or (= "--command-budget" %)
+                            (str/starts-with? % "--command-budget=")) args))
         (#{"--help" "-h" "help"} first-arg))
       (print-help)
 

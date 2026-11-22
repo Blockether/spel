@@ -2451,6 +2451,29 @@
         (expect (= ["Mark"] (mapv :name (get-in r [:annotated :entries]))))
         (finally (Files/deleteIfExists (Path/of ^String (:path r) (into-array String [])))))))
 
+  ;; Regression, issue #202: an annotated capture removed refs from the last snapshot.
+  (it "preserves a full snapshot's navigation ref after an annotated screenshot"
+    (cmd "navigate" {"url" "data:text/html,<nav aria-label='Main'><button>Target</button></nav><p>Outside</p>"})
+    (let [full (cmd "snapshot" {})
+          ref (some (fn [[id info]] (when (= "navigation" (:role info)) id)) (:refs full))
+          shot (cmd "screenshot" {"annotate" true})]
+      (try
+        (expect (some? ref))
+        (let [scoped (cmd "snapshot" {"selector" (str "@" ref)})]
+          (expect (str/includes? (:snapshot scoped) "Target"))
+          (expect (not (str/includes? (:snapshot scoped) "Outside"))))
+        (finally (Files/deleteIfExists (Path/of ^String (:path shot) (into-array String [])))))))
+
+  ;; Regression, issue #202: a scope selector was applied inside the owned frame.
+  (it "marks frames owned by the scope and skips frames outside it"
+    (cmd "navigate" {"url" (str "data:text/html,<section id='scope'>"
+                             "<iframe srcdoc='<button>Inside</button>'></iframe></section>"
+                             "<iframe srcdoc='<button>Outside</button>'></iframe>")})
+    (let [r (cmd "screenshot" {"annotate" true "all" true "scope" "#scope"})]
+      (try
+        (expect (= ["Inside"] (mapv :name (get-in r [:annotated :entries]))))
+        (finally (Files/deleteIfExists (Path/of ^String (:path r) (into-array String [])))))))
+
   (it "marks a shadow control and an iframe control in screenshot coordinates"
     (cmd "navigate" {"url" "data:text/html,<title>Frame marks</title><div id='host'></div><iframe style='display:block;margin-left:75px' srcdoc='<button>Frame control</button>'></iframe>"})
     (cmd "evaluate" {"script" "document.querySelector('#host').attachShadow({mode:'open'}).innerHTML = '<button>Shadow control</button>'; true"})
@@ -4162,9 +4185,10 @@
 
   (describe "diff_snapshot handler"
 
-    (it "detects no changes when baseline matches current"
+    ;; Regression, issue #203: diff compared an interactive baseline to a full snapshot.
+    (it "detects no changes against an interactive baseline on the same page"
       (nav! "/test-page")
-      (let [snap (:snapshot (cmd "snapshot" {}))
+      (let [snap (:snapshot (cmd "snapshot" {"interactive" true}))
             r    (cmd "diff_snapshot" {"baseline" snap})]
         (expect (= 0 (:added r)))
         (expect (= 0 (:removed r)))
@@ -4173,8 +4197,8 @@
 
     (it "detects changes after page modification"
       (nav! "/test-page")
-      (let [snap-before (:snapshot (cmd "snapshot" {}))
-            _          (cmd "evaluate" {"script" "document.querySelector('h1').textContent = 'Changed'"})
+      (let [snap-before (:snapshot (cmd "snapshot" {"interactive" true}))
+            _          (cmd "evaluate" {"script" "document.querySelector('button').textContent = 'Changed'"})
             r          (cmd "diff_snapshot" {"baseline" snap-before})]
         (expect (or (pos? (:changed r)) (pos? (:added r)) (pos? (:removed r))))))
 
