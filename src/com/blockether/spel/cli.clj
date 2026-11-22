@@ -4643,10 +4643,21 @@
     (log/init! {:session session :component "cli" :mirror :warn})
 
     ;; Check for parse errors
-    (when (:error command)
-      (binding [*out* *err*]
-        (println (:error command)))
-      (System/exit 1))
+    ;; Regression, issue #185: parse errors ignored --json and gave no next step.
+    (when-let [err (:error command)]
+      (let [unknown? (str/starts-with? (str err) "Unknown command")
+            hint     (if unknown?
+                       "Run `spel --help` for the commands."
+                       "Run `spel <command> --help` for its arguments.")]
+        (if (:json flags)
+          (println (json/write-json-str {:error      err
+                                         :error_code (if unknown? "unknown_command" "invalid_arguments")
+                                         :hint       hint}
+                     :escape-slash false))
+          (binding [*out* *err*]
+            (println err)
+            (println (str "  hint: " hint))))
+        (System/exit 1)))
 
     ;; Subcommand --help: print help and exit
     (when (= "help" (:action command))
@@ -5017,6 +5028,12 @@
         (let [{:keys [error attempts]} @!daemon-failure]
           (log/error! "no daemon response: session=" (:session flags)
             " attempts=" attempts " cause=" (transport-cause error))
-          (binding [*out* *err*]
-            (println (daemon-failure-report (:session flags) error attempts)))
+          (let [report (daemon-failure-report (:session flags) error attempts)]
+            (if (:json flags)
+              (println (json/write-json-str {:error      report
+                                             :error_code "daemon_unreachable"
+                                             :hint       (str "Run `spel --session " (:session flags)
+                                                           " health` for the cause.")}
+                         :escape-slash false))
+              (binding [*out* *err*] (println report))))
           (System/exit 1))))))

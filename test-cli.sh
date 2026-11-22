@@ -867,6 +867,48 @@ assert_jq "click that opens a confirm → ends before the budget" "{\"seconds\":
 OUT=$(timeout 10 "$SPEL" --json eval-js "() => window.__answer" 2>&1)
 assert_jq "click that opens a confirm → dialog accept answers it" "$OUT" '.result == true'
 
+# Regression, issue #180: a queued command took the dialog of the running
+# command, and each later `health` failed. A command behind a dialog waited
+# 12.5 s and named itself as the blocker.
+RACE_1="$TEST_TMP_DIR/test-cli-race-1.json"
+TEMP_FILES+=("$RACE_1")
+timeout 20 "$SPEL" --json eval-js "new Promise(r => setTimeout(() => r(confirm('race?')), 800))" > "$RACE_1" 2>&1 &
+RACE_PID=$!
+sleep 0.3
+START=$(date +%s)
+OUT=$(timeout 20 "$SPEL" --json eval-js "document.title" 2>&1) || true
+END=$(date +%s)
+assert_jq "a command behind a dialog → names the command that opened it" "$OUT" '.error_code == "dialog_open" and .blocked_by.action == "evaluate"'
+assert_jq "a command behind a dialog → answers before the lock wait" "{\"seconds\": $((END - START))}" '.seconds < 5'
+wait "$RACE_PID" || true
+assert_jq "a command behind a dialog → the first command gets the dialog" "$(cat "$RACE_1")" '.error_code == "dialog_open" and (has("blocked_by") | not)'
+OUT=$(timeout 10 "$SPEL" --json health 2>&1)
+assert_jq "a dialog that blocks a command → health shows both" "$OUT" '.status == "busy" and .in_flight[0].phase == "dialog" and .dialogs[0].message == "race?"'
+OUT=$(timeout 10 "$SPEL" --json dialog accept 2>&1)
+assert_jq "a dialog that blocks a command → dialog accept names it" "$OUT" '.pending == false and .answered.message == "race?"'
+sleep 0.5
+OUT=$(timeout 10 "$SPEL" --json health 2>&1)
+assert_jq "a dialog that blocks a command → health is ok after the answer" "$OUT" '.status == "ok" and (.in_flight | length) == 0'
+
+# Regression, issue #185: parse errors ignored --json.
+OUT=$("$SPEL" --json not-a-spel-command 2>/dev/null) || true
+assert_jq_eq "unknown command → JSON error" "$OUT" '.error_code' 'unknown_command'
+
+# Regression, issue #184: `close` exited while another command ran. Its client
+# got EOF, started a new daemon, sent the command again and failed.
+CLOSE_SESSION="close-$$"
+CLOSE_OUT="$TEST_TMP_DIR/test-cli-close.json"
+TEMP_FILES+=("$CLOSE_OUT")
+"$SPEL" --session "$CLOSE_SESSION" open "data:text/html,<p>x</p>" >/dev/null 2>&1
+timeout 30 "$SPEL" --session "$CLOSE_SESSION" --json eval-js "new Promise(r => setTimeout(() => r(1), 4000))" > "$CLOSE_OUT" 2>&1 &
+CLOSE_PID=$!
+sleep 1
+"$SPEL" --session "$CLOSE_SESSION" close >/dev/null 2>&1
+wait "$CLOSE_PID" || true
+assert_jq_eq "close while a command runs → the command gets session_closed" "$(cat "$CLOSE_OUT")" '.error_code' 'session_closed'
+OUT=$("$SPEL" --session "$CLOSE_SESSION" --json health 2>&1) || true
+assert_jq_eq "close while a command runs → no new daemon starts" "$OUT" '.status' 'down'
+
 # Regression, issue #171: the dialog of a second tab replaced the dialog of the
 # first tab, and the first tab stayed blocked.
 "$SPEL" eval-js "$OPEN_CONFIRM" >/dev/null 2>&1
