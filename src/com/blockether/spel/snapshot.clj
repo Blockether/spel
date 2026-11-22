@@ -27,7 +27,9 @@
   "JavaScript to walk DOM, compute ARIA roles + names, assign refs,
    and return the tree with bounding boxes.
 
-   Uses Element.computedRole and Element.computedName (Chromium 93+)."
+   Uses Element.computedRole and Element.computedName where the browser has
+   them. Chromium has them only behind a flag, so the walker's own role and
+   name rules give the result there."
   "(() => {
   // Clean up any previous refs
   document.querySelectorAll('[data-pw-ref]').forEach(el => {
@@ -131,6 +133,29 @@
     return TAG_FALLBACK_ROLES[tag] || '';
   }
 
+  // The first label of each labeled control, for each document or shadow root.
+  // `el.labels` gives the same label, but each read makes a live list on the
+  // document. The browser finds the labels again for each element, and then
+  // updates every list on each later change of the DOM: the capture takes
+  // time in proportion to the square of the number of controls, and the page
+  // stays slow after it. One pass over the labels has neither cost.
+  const labelsByRoot = new Map();
+  function firstLabel(el) {
+    const root = el.getRootNode();
+    let byControl = labelsByRoot.get(root);
+    if (!byControl) {
+      byControl = new Map();
+      if (root.querySelectorAll) {
+        for (const label of root.querySelectorAll('label')) {
+          const control = label.control;
+          if (control && !byControl.has(control)) byControl.set(control, label);
+        }
+      }
+      labelsByRoot.set(root, byControl);
+    }
+    return byControl.get(el) || null;
+  }
+
   function getName(el) {
     // 1. aria-label
     const ariaLabel = el.getAttribute('aria-label');
@@ -152,9 +177,8 @@
     }
 
     // 4. Label element (for inputs)
-    if (el.labels && el.labels.length) {
-      return (el.labels[0].textContent || '').trim();
-    }
+    const label = firstLabel(el);
+    if (label) return (label.textContent || '').trim();
 
     // 5. Title, alt, placeholder, value
     const alt = el.getAttribute('alt');

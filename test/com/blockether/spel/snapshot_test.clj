@@ -1509,6 +1509,42 @@
           (expect (nil? (sut/truncation-note (:truncated snap))))
           (expect (str/includes? (:tree snap) "BTN299")))))))
 
+;; Regression, issue #155: the walker read `el.labels` for each control.
+;; Chromium keeps a live label list for a control after that read, so each later
+;; DOM insertion on the page paid for every control: 12 000 inserted nodes took
+;; 1 ms before a snapshot of 6 000 buttons and 174 ms after it.
+(defdescribe snapshot-label-lookup-test
+  "capture-snapshot names labelled controls and leaves the page as fast as it was"
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "DOM insertion after a capture"
+    (it "costs what it cost before the capture"
+      (core/with-testing-page [pg]
+        (fill-buttons! pg 6000)
+        (let [insert-ms #(double (page/evaluate pg
+                                   (str "(()=>{const t=performance.now();"
+                                     "const f=document.createDocumentFragment();"
+                                     "for(let i=0;i<12000;i++)f.appendChild(document.createElement('i'));"
+                                     "document.body.appendChild(f);const d=performance.now()-t;"
+                                     "document.querySelectorAll('i').forEach(e=>e.remove());return d;})()")))
+              before    (insert-ms)
+              snap      (sut/capture-snapshot pg)
+              after     (insert-ms)]
+          (expect (str/includes? (:tree snap) "BTN5999"))
+          (expect (< after (+ 30.0 (* 5.0 before))))))))
+
+  (describe "a control with a label"
+    (it "takes its name from the first label in document order"
+      (core/with-testing-page [pg]
+        (page/set-content! pg
+          (str "<label for='a'>First</label><label for='a'>Second</label><input id='a'/>"
+            "<label>Wrapped <input id='b'/></label>"
+            "<label for='c'>Outer</label><label>Inner <select id='c'><option>x</option></select></label>"))
+        (let [names (set (map (juxt :role :name) (vals (:refs (sut/capture-snapshot pg)))))]
+          (expect (contains? names ["textbox" "First"]))
+          (expect (contains? names ["textbox" "Wrapped"]))
+          (expect (contains? names ["combobox" "Outer"])))))))
+
 
 ;; Regression, user report: `capture-full-snapshot` (and `snapshot -a`) promised
 ;; "includes iframes; refs prefixed f1_e1", but capture-snapshot-for-frame was a
