@@ -11,7 +11,7 @@
    [com.blockether.spel.dom-util :as dom]
    [com.blockether.spel.options :as opts])
   (:import
-   [com.microsoft.playwright Page Locator Frame
+   [com.microsoft.playwright Page Page$WaitForLoadStateOptions Locator Frame
     Dialog Download ConsoleMessage Clock
     Worker FileChooser WebError BrowserContext CDPSession WebSocketRoute]
    [com.microsoft.playwright.options LoadState
@@ -790,17 +790,20 @@
    Params:
    `page`  - Page instance.
    `state` - Keyword, optional. :load :domcontentloaded :networkidle.
+   `opts`  - Map, optional. :timeout is the wait limit in milliseconds.
    
    Returns:
    nil or anomaly map on timeout."
   ([^Page page]
    (safe (.waitForLoadState page)))
-  ([^Page page state]
+  ([^Page page state] (wait-for-load-state page state {}))
+  ([^Page page state {:keys [timeout]}]
    (safe (.waitForLoadState page (case state
-                                   :load LoadState/LOAD
                                    :domcontentloaded LoadState/DOMCONTENTLOADED
                                    :networkidle LoadState/NETWORKIDLE
-                                   LoadState/LOAD)))))
+                                   LoadState/LOAD)
+           (cond-> (Page$WaitForLoadStateOptions.)
+             timeout (.setTimeout (double timeout)))))))
 
 (defn wait-for-url
   "Waits for the page to navigate to a URL.

@@ -497,7 +497,7 @@
      ["screenshot - Take a screenshot"
       ""
       "Usage:"
-      "  spel screenshot [path] [flags]"
+      "  spel screenshot [path.png|path.jpg|path.jpeg] [flags]"
       ""
       "Examples:"
       "  spel screenshot"
@@ -1775,7 +1775,8 @@
      "                          console and page-error capture are not available)"
      "  --no-undetected         Use the standard Playwright driver (default)"
      "  --extension PATH        Load Chrome extension (repeatable, Chromium-only)"
-     "  --timeout MS            Command timeout in milliseconds"
+     "  --timeout MS            Playwright action timeout in milliseconds"
+     "  --command-budget MS     Extend this command budget (up to 900000 ms)"
      "  --debug                 Enable debug logging"
      ""
      "Agent Safety (opt-in, all three work together or independently):"
@@ -2097,6 +2098,15 @@
 
                 (str/starts-with? arg "--timeout=")
                 (recur (rest args) (assoc flags :timeout (parse-long (subs arg 10))) remaining)
+
+                (= "--command-budget" arg)
+                (let [value (second args)]
+                  (if-let [ms (and value (parse-long value))]
+                    (recur (drop 2 args) (assoc flags :command-budget ms) remaining)
+                    (recur (rest args) (assoc flags :command-budget 0) remaining)))
+
+                (str/starts-with? arg "--command-budget=")
+                (recur (rest args) (assoc flags :command-budget (or (parse-long (subs arg 17)) 0)) remaining)
 
                 (= "--stealth" arg)
                 (recur (rest args) (assoc flags :stealth true) remaining)
@@ -2550,8 +2560,14 @@
                                path      (first path-args)
                                full?     (some #{"-f" "--full-page" "--full"} cmd-args)
                                viewport? (some #{"--viewport"} cmd-args)]
-                           (if (and full? viewport?)
+                           (cond
+                             (and full? viewport?)
                              {:error "--viewport and --full-page cannot be combined"}
+
+                             (and path (not (re-find #"(?i)\.(?:png|jpe?g)$" path)))
+                             {:error "The screenshot argument is an output path. Use a path that ends in .png, .jpg or .jpeg, or omit it."}
+
+                             :else
                              (cond-> {:action "screenshot"}
                                path (assoc :path (resolve-path path))
                                full? (assoc :fullPage true)
@@ -3205,7 +3221,10 @@
           ;; Default — unknown command
             {:error (str "Unknown command: " cmd)}))]
 
-    {:command command :flags flags}))
+    {:command (if (and (contains? flags :command-budget) (not (pos? (long (:command-budget flags)))))
+                {:error "--command-budget requires a positive number of milliseconds."}
+                command)
+     :flags flags}))
 
 ;; =============================================================================
 ;; Daemon Communication
@@ -3234,9 +3253,17 @@
    the CLI reported `Daemon response timed out` while the daemon was still
    working, then wrote its answer into a closed socket. Deriving the value from
    `daemon/client-timeout-ms` keeps the two ends of the transport in agreement."
-  ^long [command-map]
-  (max (long default-client-timeout-ms)
-    (daemon/client-timeout-ms (or (get command-map "action") (get command-map :action)))))
+  (^long [command-map] (client-timeout-for command-map {}))
+  (^long [command-map flags]
+   (max (long default-client-timeout-ms)
+     (daemon/client-timeout-ms (or (get command-map "action") (get command-map :action))
+       (= "ios" (:provider flags)) (:timeout flags)
+       (or (get command-map "budget_ms") (get command-map :budget_ms))))))
+
+(defn- with-command-budget
+  [command flags]
+  (cond-> command
+    (:command-budget flags) (assoc :budget_ms (:command-budget flags))))
 
 (defn send-command!
   "Sends a JSON command to the daemon and returns the parsed response.
@@ -4762,8 +4789,7 @@
                        (System/exit 1))
             session  (or (:session flags) "default")
             _        (ensure-daemon! session flags)
-            flag-keys (dissoc flags :session :headless :json)
-            timeout  (if-let [ms (:timeout flags)] (+ (long ms) 2000) default-client-timeout-ms)
+            flag-keys (dissoc flags :session :headless :json :command-budget)
             results  (loop [remaining (seq batch)
                             acc       []]
                        (if (empty? remaining)
@@ -4783,7 +4809,8 @@
                                                     (assoc sub-command :_flags
                                                       (into {} (map (fn [[k v]] [(name k) v]) flag-keys)))
                                                     sub-command)
-                                   resp           (send-command! session cmd-with-flags timeout)
+                                   request        (with-command-budget cmd-with-flags flags)
+                                   resp           (send-command! session request (client-timeout-for request flags))
                                    result         {:cmd     sub-args
                                                    :success (boolean (:success resp))
                                                    :data    (:data resp)
@@ -4823,7 +4850,7 @@
                 ;; so the exit code travels out and we exit AFTER the cleanup.
                 exit-code (try
                             (ensure-daemon! session flags)
-                            (let [flag-keys (dissoc flags :session :headless :json)
+                            (let [flag-keys (dissoc flags :session :headless :json :command-budget)
                                   html      (when-not url (if file (slurp (io/file file)) input))
                     ;; Auto-prepend https:// for protocol-less URLs (issue #86)
                                   effective-url (when url
@@ -4840,15 +4867,16 @@
                                                   (.getBytes ^String html java.nio.charset.StandardCharsets/UTF_8))))
                                   nav-cmd   (cond-> {:action "navigate" :url nav-url}
                                               (seq flag-keys) (assoc :_flags (into {} (map (fn [[k v]] [(name k) v]) flag-keys))))
-                                  timeout   (if-let [ms (:timeout flags)] (+ (long ms) 2000) default-client-timeout-ms)
-                                  _         (send-command! session nav-cmd timeout)
+                                  send!     (fn [cmd]
+                                              (let [request (with-command-budget cmd flags)]
+                                                (send-command! session request (client-timeout-for request flags))))
+                                  _         (send! nav-cmd)
                     ;; Extra wait-for-load to handle redirects (issue #86)
                                   _         (when effective-url
-                                              (send-command! session {:action "wait" :state "load"} timeout))
-                                  resp      (send-command! session (cond-> {:action "markdownify"}
-                                                                     (contains? command :title) (assoc :title title)
-                                                                     (contains? command :readable) (assoc :readable readable))
-                                              timeout)]
+                                              (send! {:action "wait" :state "load"}))
+                                  resp      (send! (cond-> {:action "markdownify"}
+                                                     (contains? command :title) (assoc :title title)
+                                                     (contains? command :readable) (assoc :readable readable)))]
                               (print-result resp flags)
                               (if (:success resp) 0 1))
                             (finally
@@ -5000,20 +5028,14 @@
                 (println (str "spel: action '" action-name "' denied by --confirm-actions policy")))
               (System/exit 2))
           ;; Send command with global flags for daemon to use
-          flag-keys (dissoc flags :session :headless :json :confirm-actions)
+          flag-keys (dissoc flags :session :headless :json :confirm-actions :command-budget)
           command-id (str "r-" (java.util.UUID/randomUUID))
-          cmd-with-flags (cond-> (assoc command :_command_id command-id)
+          cmd-with-flags (cond-> (with-command-budget (assoc command :_command_id command-id) flags)
                            (seq flag-keys)
                            (assoc :_flags (into {} (map (fn [[k v]] [(name k) v]) flag-keys))))
-          ;; Transport gets 2s headroom beyond Playwright. The browser default is
-          ;; 10s: fast enough for an agent harness, still overridable with --timeout.
-          ;; On iOS the client must outlast the DAEMON's own budget, not a
-          ;; hand-picked five minutes: every iOS command runs behind WDA, and a
-          ;; client that walks away first leaves the daemon answering a closed
-          ;; socket.
-          timeout-ms (if-let [ms (:timeout flags)]
-                       (+ (long ms) 2000)
-                       (client-timeout-for command))
+          ;; The transport must outlast the daemon, including persisted defaults.
+          timeout-ms (client-timeout-for cmd-with-flags
+                       (merge {:timeout (get persisted "timeout") :provider (get persisted "provider")} flags))
           !daemon-failure (atom {:error nil :attempts 0})
           response (loop [retries 0]
                        (let [res (try

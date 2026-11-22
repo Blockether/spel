@@ -562,6 +562,13 @@
       (let [c (cmd ["screenshot" "shot.png"])]
         (expect (nil? (:cropToContent c)))))
 
+    ;; Regression, issue #196: a selector-like word was used as an output filename.
+    (it "rejects a screenshot path without a supported image extension"
+      (doseq [path ["button" "css=[" "out.gif"]]
+        (expect (str/includes? (:error (cmd ["screenshot" path]) "") ".png")))
+      (doseq [path ["out.png" "out.JPG" "out.jpeg"]]
+        (expect (= (abs-path path) (:path (cmd ["screenshot" path]))))))
+
     (it "parses --session with screenshot path"
       (let [r (sut/parse-args ["--session" "mysess" "screenshot" "some_path/screenshot.png"])
             f (:flags r)
@@ -3163,6 +3170,18 @@
 ;; Regression, issue #134: commands sent to a persisted iOS session without
 ;; repeating `--provider ios` used the generic 30-second transport timeout even
 ;; though the daemon kept processing the slower XCTest operation.
+;; Regression, issue #199: callers could not extend the daemon budget for one command.
+(defdescribe command-budget-option-test
+  (it "parses both forms of the global flag"
+    (doseq [args [["--command-budget" "55000"] ["--command-budget=55000"]]]
+      (expect (= 55000 (get-in (sut/parse-args (conj args "snapshot")) [:flags :command-budget])))))
+  (it "rejects a missing or invalid budget"
+    (doseq [args [["--command-budget"] ["--command-budget=oops" "snapshot"] ["--command-budget=-1" "snapshot"]]]
+      (expect (str/includes? (get-in (sut/parse-args args) [:command :error] "") "--command-budget"))))
+  (it "sets the transport above the extended budget, with a 15-minute cap"
+    (expect (= 60000 (#'sut/client-timeout-for {:action "snapshot" :budget_ms 55000})))
+    (expect (= 905000 (#'sut/client-timeout-for {"action" "snapshot" "budget_ms" 9999999})))))
+
 (defdescribe client-timeout-for-test
   "Unit tests for client-timeout-for — the CLI must outlive the daemon budget"
 

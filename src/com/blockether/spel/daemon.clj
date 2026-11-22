@@ -4147,6 +4147,14 @@
     {:hint "PDF is Chromium-only — Firefox and WebKit have no PDF backend at all. Re-run this session with --browser chromium; headed is fine."
      :error_code :pdf_unsupported}
 
+    (str/includes? msg "Execution context was destroyed")
+    {:hint "The page navigated during the command. Wait for the new page (spel wait --load domcontentloaded); then run the command again if it is safe to repeat."
+     :error_code :execution_context_destroyed}
+
+    (str/includes? msg "Cannot find web frame for the frame id")
+    {:hint "WebKit lost the frame during navigation. Wait for the tab to finish loading, then run `spel open` again. If it still fails, use `spel tab new` and open the URL in that tab."
+     :error_code :webkit_frame_lost}
+
     (re-find #"(?i)timeout .* exceeded|timed out" msg)
     {:hint "The operation timed out. Verify selector/page state and consider increasing --timeout for slow pages."
      :error_code :timeout}
@@ -4216,7 +4224,7 @@
   ;; turned a blocked, refused or unresolvable address into a successful command
   ;; reporting the URL of the tab the caller never left (issue #131).
   (unwrap-anomaly! (page/navigate (pg) url))
-  (page/wait-for-load-state (pg))
+  (unwrap-anomaly! (page/wait-for-load-state (pg)))
   ;; Track page navigation for page refs
   (track-page-navigation! (page/url (pg)) 200 (try (page/title (pg)) (catch Exception _ "")))
   (if screenshot
@@ -4225,7 +4233,7 @@
     ;; temp directory when no path is given. Throws on write failure so the
     ;; daemon surfaces the error to the CLI (never silently fails).
     (let [{:keys [path size]} (write-image! (or screenshot-path (temp-image-path "spel-screenshot-"))
-                                (page/screenshot (pg)))]
+                                (unwrap-anomaly! (page/screenshot (pg))))]
       {:url (page/url (pg)) :title (page/title (pg)) :screenshot path :size size
        :viewport (page/viewport-size (pg))})
     (let [description (page-description)]
@@ -4261,7 +4269,7 @@
         no-console?    (get params "no_console")
         device         (:device @!state)
         frame          (when-not all? (current-frame))
-        snap           (cond
+        capture        #(cond
                          all?
                          (snapshot/capture-full-snapshot (pg))
                          frame
@@ -4278,7 +4286,15 @@
                                                            styles?       (assoc :styles true)
                                                            styles-detail (assoc :styles-detail styles-detail)
                                                            max-nodes     (assoc :max-nodes max-nodes)
-                                                           device        (assoc :device device))))]
+                                                           device        (assoc :device device))))
+        first-snap     (capture)
+        snap           (if (and (anomaly/anomaly? first-snap)
+                             (str/includes? (or (::anomaly/message first-snap) "")
+                               "Execution context was destroyed")
+                             (not (anomaly/anomaly?
+                                    (page/wait-for-load-state (pg) :domcontentloaded {:timeout 2000}))))
+                         (capture)
+                         first-snap)]
     ;; A crashed renderer or an aborted capture is surfaced on the command that
     ;; caused it — never rendered as a successful snapshot with an empty tree.
     (when (and sel (not (anomaly/anomaly? snap)) (nil? (:tree snap)))
@@ -4450,7 +4466,7 @@
                                              "Failed to evaluate content height")
                                  vp-w      (:width original-vp)]
                              (page/set-viewport-size! (pg) (long vp-w) (max 1 (long content-h)))))
-          ^bytes ss-bytes (if crop?
+          ss-bytes       (if crop?
                           ;; try/finally guarantees viewport restore on any exception
                             (try
                               (page/screenshot (pg) ss-opts)
@@ -4462,7 +4478,7 @@
                               (locator/locator-screenshot (resolve-selector sel))
                               (page/screenshot (pg) ss-opts)))]
       (write-image! (or path-str (temp-image-path "spel-screenshot-" default-ext default-dir))
-        ss-bytes))))
+        (unwrap-anomaly! ss-bytes)))))
 
 (defmethod handle-cmd "annotate" [_ params]
   (ensure-browser!)
@@ -4602,11 +4618,12 @@
   ;; No ensure-page-loaded! here on purpose: evaluating JS against a blank
   ;; page is legitimate (bootstrapping a fixture, probing a replacement tab
   ;; created by `tab close`), and Playwright evaluates fine on about:blank.
-  (let [result (unwrap-anomaly!
+  (let [p      (live-page)
+        result (unwrap-anomaly!
                  (if-let [f (current-frame)]
                    (let [r (frame/frame-evaluate f script)]
                      (if (anomaly/anomaly? r) r (core/java->clj r)))
-                   (page/evaluate (pg) script)))]
+                   (page/evaluate p script)))]
     (if base64
       {:result (.encodeToString (Base64/getEncoder)
                  (.getBytes (str result) "UTF-8"))}
@@ -4835,18 +4852,16 @@
   (when (or (str/blank? (str url1)) (str/blank? (str url2)))
     (throw (ex-info "diff url requires two URLs" {})))
   (let [wait-state  (or wait-until "load")
-        _           (page/navigate (pg) url1)
-        _           (page/wait-for-load-state (pg) wait-state)
-        snap1       (snapshot/capture-snapshot (pg)
-                      (cond-> {:interactive? true}
-                        selector (assoc :scope selector)))
-        shot1-bytes (when screenshot (page/screenshot (pg) {:full-page true}))
-        _           (page/navigate (pg) url2)
-        _           (page/wait-for-load-state (pg) wait-state)
-        snap2       (snapshot/capture-snapshot (pg)
-                      (cond-> {:interactive? true}
-                        selector (assoc :scope selector)))
-        shot2-bytes (when screenshot (page/screenshot (pg) {:full-page true}))
+        opts        (cond-> {:interactive? true} selector (assoc :scope selector))
+        load!       (fn [url]
+                      (unwrap-anomaly! (page/navigate (pg) url))
+                      (unwrap-anomaly! (page/wait-for-load-state (pg) (keyword wait-state))))
+        _           (load! url1)
+        snap1       (unwrap-anomaly! (snapshot/capture-snapshot (pg) opts))
+        shot1-bytes (when screenshot (unwrap-anomaly! (page/screenshot (pg) {:full-page true})))
+        _           (load! url2)
+        snap2       (unwrap-anomaly! (snapshot/capture-snapshot (pg) opts))
+        shot2-bytes (when screenshot (unwrap-anomaly! (page/screenshot (pg) {:full-page true})))
         snapshot-diff (snapshot/diff-snapshots
                         (str/trim (str (:tree snap1)))
                         (str/trim (str (:tree snap2))))
@@ -4877,8 +4892,8 @@
   (ensure-page-loaded!)
   (let [baseline-bytes (java.nio.file.Files/readAllBytes
                          (java.nio.file.Path/of ^String baseline (into-array String [])))
-        current-bytes  (page/screenshot (pg))
-        current-snap   (snapshot/capture-snapshot (pg))
+        current-bytes  (unwrap-anomaly! (page/screenshot (pg)))
+        current-snap   (unwrap-anomaly! (snapshot/capture-snapshot (pg)))
         threshold-val  (if threshold
                          (Double/parseDouble (str/replace (str threshold) #"," "."))
                          0.1)
@@ -5038,8 +5053,8 @@
   ;; wedged the daemon. Synthetic DOM events are deterministic and instant.
   (let [src-loc (resolve-selector source)
         tgt-loc (resolve-selector target)
-        _       (locator/scroll-into-view src-loc)
-        _       (locator/scroll-into-view tgt-loc)
+        _       (unwrap-anomaly! (locator/scroll-into-view src-loc))
+        _       (unwrap-anomaly! (locator/scroll-into-view tgt-loc))
         src-bb  (locator/bounding-box src-loc)
         tgt-bb  (locator/bounding-box tgt-loc)]
     (when-not src-bb
@@ -6793,8 +6808,8 @@
   [url]
   (when (and url (not (contains? #{"" "about:blank"} url)))
     (try
-      (page/navigate (pg) url)
-      (page/wait-for-load-state (pg))
+      (unwrap-anomaly! (page/navigate (pg) url))
+      (unwrap-anomaly! (page/wait-for-load-state (pg)))
       (log/info! "restored " url " on the relaunched browser")
       (catch Throwable e
         (log/warn! "could not restore " url " after relaunch: " (.getMessage e))))))
@@ -7096,9 +7111,9 @@
      :hint       (if-let [dialog (first @!pending-dialogs)]
                    (str "A `" (:type dialog) "` dialog is open and blocks the page. Answer "
                      "it with `spel dialog accept` or `spel dialog dismiss`.")
-                   (str "Raise the ceiling with SPEL_COMMAND_BUDGET_MS=<ms> if the work is "
-                     "genuinely long; the daemon is still alive and `spel health` shows "
-                     "what is running."))
+                   (str "If the work needs more time, use --command-budget <ms> for this command. "
+                      "To change the session default, set SPEL_COMMAND_BUDGET_MS before starting the daemon. "
+                      "Run `spel health` to see what is running."))
      :command_id cid}))
 
 (defn- page-crash-response
@@ -7214,13 +7229,21 @@
    see `client-timeout-ms`."
   (^long [action] (command-budget-ms action (ios-provider?)))
   (^long [action ios?]
+   (command-budget-ms action ios? (get-in @!state [:launch-flags "timeout"])))
+  (^long [action ios? action-timeout]
    (if (or ios?
          (contains? open-ended-actions action)
          (str/starts-with? (str action) "ios"))
      900000
      (max (long default-command-budget-ms)
-       (* 2 (long (or (get-in @!state [:launch-flags "timeout"])
-                    default-action-timeout-ms)))))))
+       (* 2 (long (or action-timeout default-action-timeout-ms)))))))
+
+(defn- effective-command-budget-ms
+  "A request may extend the session budget, but cannot reduce it."
+  ^long [^long base requested]
+  (if (and (integer? requested) (pos? (compare requested base)))
+    (max base (if (pos? (compare requested 900000)) 900000 (long requested)))
+    base))
 
 (def ^:private client-transport-slack-ms
   "Head start the daemon keeps over its client. The daemon must report a wedged
@@ -7240,7 +7263,10 @@
   (^long [action]
    (+ (command-budget-ms action) (long client-transport-slack-ms)))
   (^long [action ios?]
-   (+ (command-budget-ms action ios?) (long client-transport-slack-ms))))
+   (+ (command-budget-ms action ios?) (long client-transport-slack-ms)))
+  (^long [action ios? action-timeout requested]
+   (+ (effective-command-budget-ms (command-budget-ms action ios? action-timeout) requested)
+     (long client-transport-slack-ms))))
 
 (def ^:private signal-frame-prefixes
   ["com.blockether." "com.microsoft.playwright." "sci."])
@@ -7401,7 +7427,7 @@
    so the worker's own `InterruptedException` answer — which races this one and
    sometimes wins — reports the budget rather than a phantom cancellation."
   [cid action params]
-  (let [budget   (command-budget-ms action)
+  (let [budget   (effective-command-budget-ms (command-budget-ms action) (get params "budget_ms"))
         deadline (+ (System/currentTimeMillis) budget)
         ;; A dialog that opens while THIS command runs blocks it (issue #170).
         ;; The dialogs that were open when it got the lock are not its own, and

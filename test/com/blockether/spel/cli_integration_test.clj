@@ -10,6 +10,7 @@
   (:require
    [clojure.string :as str]
    [charred.api :as json]
+   [com.blockether.anomaly.core :as anomaly]
    [clojure.java.io :as io]
    [com.blockether.spel.backend :as backend]
    [com.blockether.spel.cli :as cli]
@@ -20,6 +21,7 @@
    [com.blockether.spel.logging :as log]
    [com.blockether.spel.sci-env :as sci-env]
    [com.blockether.spel.page :as page]
+   [com.blockether.spel.snapshot :as snapshot]
    [com.blockether.spel.test-server
     :refer [*test-server-url* with-test-server]]
    [com.blockether.spel.allure :refer [around defdescribe describe expect it]])
@@ -1443,6 +1445,76 @@
           (expect (not (str/includes? (pr-str metadata) "example-refresh")))
           (expect (str/includes? (pr-str metadata) "view=home")))
         (expect (= url actual))))))
+
+(defdescribe browser-command-failure-test
+  (around [f] (core/with-testing-browser ((:around with-test-server) (fn [] ((:around with-daemon-state) f)))))
+
+  ;; Regression, issue #196: eval on a new session dereferenced a nil page.
+  (it "evaluates against a blank page in a new session"
+    (let [state @#'daemon/!state
+          p (:page @state)]
+      (swap! state dissoc :page)
+      (with-redefs [daemon/ensure-browser! (fn [] (swap! state assoc :page p))]
+        (expect (= {:result 3} (cmd "evaluate" {"script" "1+2"}))))))
+
+  ;; Regression, issue #196: screenshot replaced the capture error with a byte-array cast error.
+  (it "reports a screenshot failure from the browser"
+    (nav! "/test-page")
+    (let [state @#'daemon/!state]
+      (swap! state assoc :launch-flags {"screenshot-format" "jpeg" "screenshot-quality" 200})
+      (let [r (json/read-json (#'daemon/process-command* "screenshot" {}))]
+        (expect (false? (get r "success")))
+        (expect (str/includes? (get r "error") "quality"))
+        (expect (not (str/includes? (get r "error") "byte[]"))))))
+
+  ;; Regression, issue #198: snapshot failed during a document transition.
+  (it "waits for DOM content and tries an interrupted snapshot once more"
+    (nav! "/test-page")
+    (let [calls (atom 0)
+          waits (atom [])
+          original snapshot/capture-snapshot
+          lost (anomaly/anomaly ::anomaly/fault "Execution context was destroyed.")]
+      (with-redefs [snapshot/capture-snapshot (fn [p opts]
+                                               (if (= 1 (swap! calls inc)) lost (original p opts)))
+                    page/wait-for-load-state (fn [_ state opts] (swap! waits conj [state opts]))]
+        (let [r (cmd "snapshot" {})]
+          (expect (string? (:snapshot r)))
+          (expect (= 2 @calls))
+          (expect (= [:domcontentloaded] (mapv first @waits)))
+          (expect (pos? (:timeout (second (first @waits)))))))))
+
+  (it "reports a second snapshot failure instead of trying again"
+    (nav! "/test-page")
+    (let [calls (atom 0)
+          lost (anomaly/anomaly ::anomaly/fault "Execution context was destroyed.")]
+      (with-redefs [snapshot/capture-snapshot (fn [_ _] (swap! calls inc) lost)]
+        (let [r (json/read-json (#'daemon/process-command* "snapshot" {}))]
+          (expect (= 2 @calls))
+          (expect (= "Execution context was destroyed." (get r "error")))))))
+
+  ;; Regression, issue #198: eval did not say how to recover from a document transition.
+  (it "keeps the eval error and does not run the script again"
+    (nav! "/test-page")
+    (let [calls (atom 0)]
+      (with-redefs [page/evaluate (fn [_ _]
+                                  (swap! calls inc)
+                                  (anomaly/anomaly ::anomaly/fault "Execution context was destroyed."))]
+        (let [r (json/read-json (#'daemon/process-command* "evaluate" {"script" "1+2"}))]
+          (expect (= 1 @calls))
+          (expect (= "Execution context was destroyed." (first (str/split-lines (get r "error")))))
+          (expect (str/includes? (get r "hint" "") "Wait for the new page")))))))
+
+;; Regression, issue #199: the daemon interrupted a command before its requested budget.
+(defdescribe per-command-budget-test
+  (it "allows a command to run longer than the session budget"
+    (with-redefs-fn {#'daemon/command-budget-ms (fn ^long [_] 150)
+                     #'daemon/process-command* (fn [_ _]
+                                                (Thread/sleep 400)
+                                                "{\"success\":true}")}
+      (fn []
+        (expect (true? (get (json/read-json
+                             (#'daemon/run-guarded-command! "test-budget" "snapshot" {"budget_ms" 2000}))
+                         "success")))))))
 
 ;; Regression, Blockether/vis#227: explicit CDP session initialization was ignored.
 (defdescribe cdp-session-bootstrap-test
