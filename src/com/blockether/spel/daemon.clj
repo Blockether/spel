@@ -55,7 +55,6 @@
    [javax.net.ssl HostnameVerifier HttpsURLConnection SSLContext TrustManager X509TrustManager]))
 
 (declare stop-daemon!)
-(declare save-inflight-trace!)
 (declare pg)
 (declare daemon-running?)
 
@@ -3120,6 +3119,9 @@
    The new context opens before the old one closes. When it cannot open, the
    session keeps its context and this fn throws.
 
+   A trace belongs to its context and cannot go to the next one. This fn throws
+   while a trace is active (issue #169).
+
    Params:
    `opts` - Map, optional.
      `:session`            - Keys to merge into `!state` with the new context,
@@ -3142,6 +3144,10 @@
                         "and that context cannot be replaced. Close the session and give "
                         "the option as a launch flag.")
                {:error_code "persistent_context"})))
+    (when (:tracing? state)
+      (throw (ex-info (str "This command makes a new browser context, and that ends the trace. "
+                        "Run `spel trace stop` first, then this command, then start the trace again.")
+               {:error_code "trace_active"})))
     (let [old-pages   (if old-ctx (live-context-pages old-ctx) [])
           tabs        (or (not-empty (mapv #(tab-memory % (nil? storage-state-path)) old-pages))
                         [{:url nil}])
@@ -3163,12 +3169,11 @@
                              (try (.close ^BrowserContext new-ctx) (catch Exception _ nil))
                              (throw e)))
           new-pg      (nth new-pages active)]
-      (save-inflight-trace!)
       (when old-page
         (try (core/close-page! old-page) (catch Exception e (warn "close-page" e))))
       (when old-ctx
         (try (.close ^BrowserContext old-ctx) (catch Exception e (warn "close-context" e))))
-      (swap! !state merge session {:context new-ctx :page new-pg :tracing? false})
+      (swap! !state merge session {:context new-ctx :page new-pg})
       (reset! !pending-dialog nil)
       (reset! !console-messages empty-window)
       (reset! !page-errors empty-window)

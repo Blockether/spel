@@ -587,6 +587,16 @@ assert_jq_eq "set device while a HAR records → har_recording_active" "$OUT" '.
 OUT=$("$SPEL" --session "$CTX_SESSION" --json network har stop 2>&1)
 assert_jq "har stop after the refusal → saves the file" "$OUT" '.size > 0'
 
+# Regression, issue #169: a command that made a new context ended a trace
+# with no message.
+CTX_TRACE="$TEST_TMP_DIR/spel-test-ctx-trace.zip"
+TEMP_FILES+=("$CTX_TRACE")
+"$SPEL" --session "$CTX_SESSION" trace start >/dev/null 2>&1
+OUT=$("$SPEL" --session "$CTX_SESSION" --json set device "pixel 7" 2>&1) || true
+assert_jq_eq "set device while a trace records → trace_active" "$OUT" '.error_code' 'trace_active'
+OUT=$("$SPEL" --session "$CTX_SESSION" --json trace stop "$CTX_TRACE" 2>&1)
+assert_jq_eq "trace stop after the refusal → saves the trace" "$OUT" '.trace' 'stopped'
+
 # Regression, issue #167: a new context lost the emulation of `set media`,
 # `set geo` and `set offline`, and `set media` changed the active tab only.
 "$SPEL" --session "$CTX_SESSION" open "https://example.com/?emulation" >/dev/null 2>&1
