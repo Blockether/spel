@@ -1423,7 +1423,17 @@
     (it "parses find role with --exact"
       (let [c (cmd ["find" "role" "button" "click" "--exact"])]
         (expect (= "find" (:action c)))
-        (expect (true? (:exact c))))))
+        (expect (true? (:exact c)))))
+
+    (it "reads --name and --exact at any place"
+      (let [c (cmd ["find" "role" "textbox" "--exact" "--name" "Email" "fill" "hello"])]
+        (expect (= "fill" (:find_action c)))
+        (expect (= "hello" (:find_value c)))
+        (expect (= "Email" (:name c)))
+        (expect (true? (:exact c))))
+      (let [c (cmd ["find" "textbox" "fill" "--name" "Email" "hello"])]
+        (expect (= "role" (:by c)))
+        (expect (= "hello" (:find_value c))))))
 
   (describe "find by text"
     (it "parses find text"

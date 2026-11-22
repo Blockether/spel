@@ -2477,7 +2477,7 @@
         (try
           (reset! state-atom {:page (Object.)})
           (with-redefs-fn {#'sut/ensure-page-loaded! (fn [] nil)
-                           #'page/get-by-text        (fn [_ _] ::locator)
+                           #'sut/find-locator        (fn [_] ::locator)
                            #'locator/click           (fn [_] failure)}
             (fn []
               (let [msg (refusal-message #(#'sut/handle-cmd "find" {"by" "text" "value" "Submit"

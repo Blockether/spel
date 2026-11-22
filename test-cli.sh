@@ -434,6 +434,58 @@ assert_jq_eq "find title → .found" "$OUT" '.found' 'title'
 OUT=$("$SPEL" --json find testid "submit-btn" click 2>&1)
 assert_jq_eq "find testid → .found" "$OUT" '.found' 'testid'
 
+# Regression, issue #160: `get count` and `count` did not accept a snapshot ref.
+FIND_SESSION="find-$$"
+FIND_PAGE="$TEST_TMP_DIR/test-cli-find.html"
+TEMP_FILES+=("$FIND_PAGE")
+cat > "$FIND_PAGE" << 'FINDHTML'
+<!doctype html><html><body>
+<button onclick="document.title='main clicked'">Both</button>
+<button>A.B</button><button>AXb</button><button>Report (Q1/26)</button>
+<label>Email <input id="email"></label>
+<ul aria-label="Items"><li>one</li><li>two</li></ul>
+<iframe id="kid" srcdoc="<button onclick=&quot;document.title='kid clicked'&quot;>Both</button><p>Child only</p><script>window.inFrame = true</script>"></iframe>
+</body></html>
+FINDHTML
+"$SPEL" --session "$FIND_SESSION" open "file://$FIND_PAGE" >/dev/null 2>&1
+OUT=$("$SPEL" --session "$FIND_SESSION" --json snapshot 2>&1)
+LIST_REF=$(echo "$OUT" | jq -r '.snapshot' | sed -n 's/.*list "Items" \[@\(e[a-z0-9]*\)\].*/\1/p' | head -1)
+OUT=$("$SPEL" --session "$FIND_SESSION" --json get count "@$LIST_REF" 2>&1)
+assert_jq_eq "get count @ref → counts the ref" "$OUT" '.count' '1'
+OUT=$("$SPEL" --session "$FIND_SESSION" --json count "@$LIST_REF" 2>&1)
+assert_jq_eq "count @ref → counts the ref" "$OUT" '.count' '1'
+
+# Regression, issue #162: the role name was a regular expression, the flags
+# were read by position, and an unknown action gave exit code 0.
+OUT=$("$SPEL" --session "$FIND_SESSION" --json find role button count --name "A.B" 2>&1)
+assert_jq_eq "find role --name A.B → the dot is literal" "$OUT" '.count' '1'
+OUT=$("$SPEL" --session "$FIND_SESSION" --json find role button count --name "report (q1/26)" 2>&1)
+assert_jq_eq "find role --name → brackets and a slash are literal" "$OUT" '.count' '1'
+OUT=$("$SPEL" --session "$FIND_SESSION" --json find role button --name "AXb" --exact count 2>&1)
+assert_jq_eq "find role --name before the action → count" "$OUT" '.count' '1'
+"$SPEL" --session "$FIND_SESSION" find role textbox fill --name Email "typed text" >/dev/null 2>&1
+OUT=$("$SPEL" --session "$FIND_SESSION" --json get value "#email" 2>&1)
+assert_jq_eq "find role fill --name → fills the action value" "$OUT" '.value' 'typed text'
+FIND_EXIT=0
+OUT=$("$SPEL" --session "$FIND_SESSION" --json find role button bogus 2>&1) || FIND_EXIT=$?
+assert_jq_contains "find with an unknown action → error" "$OUT" '.error' 'Unknown find action: bogus'
+assert_contains "find with an unknown action → non-zero exit code" "exit=$FIND_EXIT" "exit=1"
+
+# Regression, issue #161: `find` and `wait --fn` ran on the main frame while
+# a child frame was selected.
+"$SPEL" --session "$FIND_SESSION" frame "#kid" >/dev/null 2>&1
+OUT=$("$SPEL" --session "$FIND_SESSION" --json find text "Child only" count 2>&1)
+assert_jq_eq "find text in a selected frame → finds the frame text" "$OUT" '.count' '1'
+OUT=$("$SPEL" --session "$FIND_SESSION" --json wait --fn "window.inFrame === true" --timeout 5000 2>&1)
+assert_jq_eq "wait --fn in a selected frame → reads the frame" "$OUT" '.function_completed' 'true'
+"$SPEL" --session "$FIND_SESSION" find role button click --name Both >/dev/null 2>&1
+OUT=$("$SPEL" --session "$FIND_SESSION" --json eval-js "document.title" 2>&1)
+assert_jq_eq "find role click in a selected frame → clicks in the frame" "$OUT" '.result' 'kid clicked'
+"$SPEL" --session "$FIND_SESSION" frame main >/dev/null 2>&1
+OUT=$("$SPEL" --session "$FIND_SESSION" --json get title 2>&1)
+assert_jq_eq "find role click in a selected frame → leaves the main frame" "$OUT" '.title' ''
+"$SPEL" --session "$FIND_SESSION" close >/dev/null 2>&1
+
 # Restore example.com
 nav "https://example.com"
 

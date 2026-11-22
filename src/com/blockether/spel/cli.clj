@@ -2791,44 +2791,45 @@
           ;;   spel find link click      → spel find role link click
           ;;   spel find button          → spel find role button
           ;;   spel find heading text    → spel find role heading text
-            "find"     (let [by     (first cmd-args)
-                             value  (second cmd-args)
-                             action (nth cmd-args 2 nil)
+            "find"     (let [args     (vec cmd-args)
                              known-types #{"role" "text" "label" "placeholder" "alt" "title" "testid" "first" "last" "nth"}
-                           ;; Parse --name and --exact flags
-                             name-idx (long (.indexOf ^java.util.List (vec cmd-args) "--name"))
+                           ;; --name <text> and --exact can stand at any place, so
+                           ;; take them out before the positions are read.
+                             name-idx (long (.indexOf ^java.util.List args "--name"))
                              name-val (when (>= name-idx 0)
-                                        (nth cmd-args (inc name-idx) nil))
-                             exact?   (some #{"--exact"} cmd-args)
+                                        (nth args (inc name-idx) nil))
+                             exact?   (some #{"--exact"} args)
+                             pos      (vec (keep-indexed
+                                             (fn [i a]
+                                               (when-not (or (= a "--exact")
+                                                           (and (>= name-idx 0)
+                                                             (<= name-idx (long i) (inc name-idx))))
+                                                 a))
+                                             args))
+                             by       (first pos)
+                           ;; nth:        nth <n> <sel> [action] [value]
+                           ;; known type: <by> <value> [action] [value]
+                           ;; any other:  an ARIA role, <role> [action] [value]
                              find-map (cond
-                                      ;; For nth, the args are: nth <n> <sel> <action> [value]
                                         (= by "nth")
-                                        {:action "find" :by "nth" :value value
-                                         :selector (nth cmd-args 2 nil)
-                                         :find_action (nth cmd-args 3 nil)
-                                         :find_value (nth cmd-args 4 nil)}
+                                        {:action "find" :by "nth" :value (nth pos 1 nil)
+                                         :selector (nth pos 2 nil)
+                                         :find_action (nth pos 3 nil)
+                                         :find_value (nth pos 4 nil)}
 
-                                      ;; Known find types: <by> <value> <action> [value]
                                         (contains? known-types by)
-                                        (let [rest-args (drop 3 cmd-args)
-                                              fv (first (remove #(str/starts-with? % "-") rest-args))]
-                                          (cond-> {:action "find" :by by :value value
-                                                   :find_action action}
-                                            fv        (assoc :find_value fv)
-                                            name-val  (assoc :name name-val)
-                                            exact?    (assoc :exact true)))
+                                        {:action "find" :by by :value (nth pos 1 nil)
+                                         :find_action (nth pos 2 nil)
+                                         :find_value (nth pos 3 nil)}
 
-                                      ;; Role shortcut: unknown type treated as ARIA role name
-                                      ;; spel find link click "val" → by=role value=link find_action=click find_value=val
                                         :else
-                                        (let [rest-args (drop 2 cmd-args)
-                                              fv (first (remove #(str/starts-with? % "-") rest-args))]
-                                          (cond-> {:action "find" :by "role" :value by
-                                                   :find_action value}
-                                            fv        (assoc :find_value fv)
-                                            name-val  (assoc :name name-val)
-                                            exact?    (assoc :exact true))))]
-                         find-map)
+                                        {:action "find" :by "role" :value by
+                                         :find_action (nth pos 1 nil)
+                                         :find_value (nth pos 2 nil)})]
+                         (cond-> find-map
+                           (nil? (:find_value find-map)) (dissoc :find_value)
+                           name-val (assoc :name name-val)
+                           exact?   (assoc :exact true)))
 
           ;; Browser settings
             "set"      (let [sub (first cmd-args)]

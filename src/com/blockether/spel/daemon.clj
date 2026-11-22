@@ -1133,7 +1133,7 @@
 (defn- submit-virtual
   "Submits a task to the virtual thread executor."
   [^Runnable f]
-  (.submit !vthread-executor f))
+  (.submit ^ExecutorService !vthread-executor f))
 
 (defn- human-duration
   "Renders a millisecond span the way a person says it: `30 min`, `90s`, `500ms`."
@@ -4387,7 +4387,9 @@
         {:url (get params "url")})
 
     (get params "function")
-    (do (unwrap-anomaly! (page/wait-for-function (pg) (get params "function")))
+    (do (unwrap-anomaly! (if-let [f (current-frame)]
+                           (frame/frame-wait-for-function f (get params "function"))
+                           (page/wait-for-function (pg) (get params "function"))))
         {:function_completed true})
 
     (get params "selector")
@@ -4638,7 +4640,7 @@
 
 (defmethod handle-cmd "count" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  {:count (unwrap-anomaly! (locator/count-elements (scoped-locator selector)))})
+  {:count (unwrap-anomaly! (locator/count-elements (resolve-selector selector)))})
 
 (defmethod handle-cmd "bounding_box" [_ {:strs [selector]}]
   (ensure-page-loaded!)
@@ -4800,7 +4802,7 @@
 
 (defmethod handle-cmd "get_count" [_ {:strs [selector]}]
   (ensure-page-loaded!)
-  {:count (locator/count-elements (scoped-locator selector))})
+  {:count (locator/count-elements (resolve-selector selector))})
 
 (defmethod handle-cmd "get_box" [_ {:strs [selector]}]
   (ensure-page-loaded!)
@@ -4814,27 +4816,43 @@
     (cond-> {:highlighted selector}
       desc (assoc :desc desc))))
 
-(defmethod handle-cmd "find" [_ {:strs [by value find_action find_value name exact selector]}]
+(defn- role-name-selector
+  "Returns the `role=` selector for a role and an accessible name.
+
+   The name is literal text: an exact match compares the whole name with its
+   case, any other match finds the text in the name without regard to case.
+   A selector string keeps GetByRoleOptions out of the native image."
+  ^String [role ^String name exact?]
+  (str "role=" role
+    (if exact?
+      (str "[name=\"" (str/replace name #"[\\\"]" "\\\\$0") "\" s]")
+      (str "[name=/" (str/replace name #"\p{Punct}" "\\\\$0") "/i]"))))
+
+(defn- find-locator
+  "Returns the locator that `find <by> <value>` names, in the selected frame
+   or else in the main frame."
+  [{:strs [by value name exact selector]}]
+  (let [^Frame f (or (current-frame) (.mainFrame ^Page (pg)))
+        text     (str value)]
+    (case by
+      "role"        (if name
+                      (.locator f (role-name-selector value name exact))
+                      (.getByRole f (str->aria-role value)))
+      "text"        (.getByText f text)
+      "label"       (.getByLabel f text)
+      "placeholder" (.getByPlaceholder f text)
+      "alt"         (.getByAltText f text)
+      "title"       (.getByTitle f text)
+      "testid"      (.getByTestId f text)
+      "first"       (locator/first-element (resolve-selector value))
+      "last"        (locator/last-element (resolve-selector value))
+      "nth"         (locator/nth-element (resolve-selector selector)
+                      (Integer/parseInt value))
+      (throw (ex-info (str "Unknown find type: " by) {})))))
+
+(defmethod handle-cmd "find" [_ {:strs [by value find_action find_value] :as params}]
   (ensure-page-loaded!)
-  (let [loc (case by
-              "role"        (if name
-                               ;; Use role selector string to avoid GetByRoleOptions reflection issues in native-image
-                              (let [name-part (if exact
-                                                (str "[name=\"" name "\" s]")
-                                                (str "[name=/" name "/i]"))]
-                                (page/locator (pg) (str "role=" value name-part)))
-                              (page/get-by-role (pg) (str->aria-role value)))
-              "text"        (page/get-by-text (pg) value)
-              "label"       (page/get-by-label (pg) value)
-              "placeholder" (page/get-by-placeholder (pg) value)
-              "alt"         (page/get-by-alt-text (pg) value)
-              "title"       (page/get-by-title (pg) value)
-              "testid"      (page/get-by-test-id (pg) value)
-              "first"       (locator/first-element (resolve-selector value))
-              "last"        (locator/last-element (resolve-selector value))
-              "nth"         (locator/nth-element (resolve-selector selector)
-                              (Integer/parseInt value))
-              (throw (ex-info (str "Unknown find type: " by) {})))]
+  (let [loc (find-locator params)]
     (case find_action
       "click"   (do (unwrap-anomaly! (locator/click loc))
                     {:found by :value value :action "click"})
@@ -4850,7 +4868,9 @@
       "count"   {:found by :value value :count (locator/count-elements loc)}
       "visible" {:found by :value value :visible (locator/is-visible? loc)}
       (nil)     {:found by :value value :count (locator/count-elements loc)}
-      {:error (str "Unknown find action: " find_action)})))
+      (throw (ex-info (str "Unknown find action: " find_action
+                        ". Use click, fill, type, check, uncheck, hover, focus, text, count or visible.")
+               {:find_action find_action})))))
 
 ;; --- Phase 2: Mouse Control ---
 
