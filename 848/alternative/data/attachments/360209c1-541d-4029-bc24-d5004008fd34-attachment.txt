@@ -1,2 +1,0 @@
-2026-11-22T14:31:38.038Z WARN  [spel] the tab spel was driving was closed outside the daemon — fell back to t11, a tab this session still drives
-2026-11-22T14:31:38.301Z WARN  [spel] the tab spel was driving (t12) was closed outside the daemon — fell back to t11, a tab this session still drives
