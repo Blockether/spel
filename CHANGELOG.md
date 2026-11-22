@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.56] - 2026-11-22
+
+### Changed
+- fix(health): ask again before unresponsive (#205)
+- docs(readme): say how large spel health replies can be (#204)
+- fix(snapshot): keep refs after annotate, diff mode (#202 #203)
+- perf(snapshot): -i, annotated capture and health size (#202-#204)
+- fix(vis-spel): the timeout is the daemon budget (#197 #199)
+- fix(vis-spel): name the tool, keep error codes (#197 #200 #201)
+- fix(daemon): keep failure causes, retry snapshot, budget (#196 #199)
+- chore(vis-spel): release v0.1.33 with Spel 0.9.55
+
+
 ## [v0.9.55] - 2026-11-22
 
 ### Changed
@@ -2079,7 +2092,7 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.55...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.56...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -2189,3 +2202,4 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 [v0.9.53]: https://github.com/Blockether/spel/releases/tag/v0.9.53
 [v0.9.54]: https://github.com/Blockether/spel/releases/tag/v0.9.54
 [v0.9.55]: https://github.com/Blockether/spel/releases/tag/v0.9.55
+[v0.9.56]: https://github.com/Blockether/spel/releases/tag/v0.9.56
