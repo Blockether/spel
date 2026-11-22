@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.9.55] - 2026-11-22
+
+### Changed
+- fix(daemon): an answer just after another dialog answer fails (#192)
+- fix(cli): match a daemon of the running executable (#190)
+- fix(daemon): idle list, dialog race, close messages (#191 #192 #194)
+- fix(cli): report a missing wait value or click target (#193)
+- fix(cli): accept a renamed binary as the session daemon (#190)
+- fix(cli): parse errors and transport failures follow --json (#185)
+- fix(cli): clear kill and close answers for stale files (#186)
+- fix(cli): --json failures keep every daemon field (#182)
+- fix(cli): session list asks health first (#178)
+- fix(daemon): answer waiting clients when the session stops (#184)
+- fix(daemon): name the allowlist that blocks a navigation (#188)
+- fix(daemon): report invalid selectors and bound the ref list (#189)
+- fix(cli): name the dialog in dialog, health and busy text (#183)
+- fix(daemon): a queued command never takes a running dialog (#180)
+- fix(daemon): health keeps large responses as a summary (#187)
+- fix(daemon): one dialog accept claims a dialog (#181)
+- fix(daemon): cancel all never interrupts health (#179)
+- chore(vis-spel): use py3 and require Vis SDK 0.5.30
+- fix(ios): find refs inside shadow roots (#177)
+- fix(snapshot): name a button by the text of its children (#176)
+- fix(eval-sci): keep console and page errors in --json (#175)
+- fix(cli): resolve relative paths against the caller (#174)
+- fix(cli): ask the daemon when Windows hides its pid (#172)
+- fix(daemon): answer at once when a command opens a dialog (#170, #171)
+- refactor: share duplicated helpers between namespaces (#173)
+- fix(daemon): refuse a new context while a trace is active (#169)
+- fix(network): route the first request of a popup (#168)
+- fix(daemon): keep offline, position and color scheme (#167)
+- fix(daemon): keep tabs and headers in a new context (#164, #165, #166)
+- perf(daemon): append to a capture window without a copy (#163)
+- fix(find): frame scope, literal names, ref count (#160, #161, #162)
+- fix(snapshot): walk open shadow roots and ref scopes (#158, #159)
+- docs(api): regenerate the API reference and the help registry
+- refactor: remove duplicate helpers in daemon, sci-env, annotate
+- fix(daemon): keep session state in a new context (#157)
+- fix(daemon): answer dialogs without a blocked command (#156)
+- perf(snapshot): find labels one time for each document (#155)
+- perf(annotate): keep annotated capture linear in refs (#154)
+- fix(release): build the release from the tagged commit
+- ci(allure): label a release report only for a release tag
+- ci: split the JVM and native jobs and share the setup steps
+- fix(build): make the GraalVM safety gate fail closed
+- test(cli): share the shell test helpers with test-cli.sh
+- perf(daemon): parse a command response only when it is needed
+- refactor(webdriver): compute the element tap point in one place
+- refactor(daemon): delete a directory tree in one function
+- fix(ios): read stdout and stderr of a command together
+- fix(process): wait until a killed process tree is gone
+- fix(daemon): stop StackOverflowError on request bursts (#135)
+- ci(allure): use a shallow checkout
+- ci: update clojure-lsp to 2026.10.15 and fix its findings
+- ci: cache the Allure CLI and narrow the browser cache key
+- fix(vis-spel): update the locked packages with security alerts
+- ci(pages): deploy in a second job after the upload
+- ci: remove the Node.js 20 warnings from the workflows
+- fix(vis-spel): let a Vis session take a reservation without an owner
+- fix(build): deploy with pomegranate to remove vulnerable deps
+- chore(vis-spel): require vis-agent 0.5.26
+- docs(readme): shorten the Vis Spel overview
+- chore(release): v0.1.30
+- chore(manifest): use the shared Extension Center tags
+- fix(webkit): keep the page alive when it asks for its push subscription
+- test(vis-spel): check the release page shape, not one version
+- feat(vis-spel): put the browser workflow in the extension prompt
+- test(vis-spel): install the browsers of the rollback version
+- chore(vis-spel): release v0.1.28
+
+
 ## [v0.9.54] - 2026-11-04
 
 ### Changed
@@ -2008,7 +2079,7 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 - Allure test reporting integration
 - OpenCode agent scaffolding via init-agents
 
-[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.54...HEAD
+[Unreleased]: https://github.com/Blockether/spel/compare/v0.9.55...HEAD
 [v0.5.0]: https://github.com/Blockether/spel/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/Blockether/spel/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/Blockether/spel/compare/v0.4.0...v0.4.1
@@ -2117,3 +2188,4 @@ The v0.9.35 publication was cancelled; its CDP fixes are included in this releas
 [v0.9.52]: https://github.com/Blockether/spel/releases/tag/v0.9.52
 [v0.9.53]: https://github.com/Blockether/spel/releases/tag/v0.9.53
 [v0.9.54]: https://github.com/Blockether/spel/releases/tag/v0.9.54
+[v0.9.55]: https://github.com/Blockether/spel/releases/tag/v0.9.55
