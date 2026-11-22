@@ -3685,7 +3685,7 @@
   [h]
   (let [{:keys [status session pid uptime commands_total in_flight browser
                 socket log last_exit cause hint state_issue stale_pid
-                handler_errors lost_commands]} h
+                handler_errors lost_commands dialogs]} h
         head (str (or session "default") ": " status
                (condp = status
                  "down"         " — no daemon process"
@@ -3717,10 +3717,23 @@
              ["  state lost: browser replaced; in-page state and references were not restored"])
            (when-not (= "down" status)
              [(str "  in flight: "
-                (if (seq in_flight)
-                  (str/join ", " (map #(str (:id %) " " (:action %) " (" (:running %) ")")
+                (cond
+                  (seq in_flight)
+                  (str/join ", " (map #(str (:id %) " " (:action %) " ("
+                                         (when-let [p (:phase %)]
+                                           (when-not (= "running" p) (str p ", ")))
+                                         (:running %) ")")
                                    in_flight))
-                  "none"))])
+                  ;; Regression, issue #183: a daemon that did not answer was
+                  ;; reported with "in flight: none".
+                  (nil? in_flight) "unknown (the daemon did not answer)"
+                  :else "none"))])
+           (when (seq dialogs)
+             [(str "  dialog:    "
+                (str/join ", " (map (fn [d] (str (:type d) " \"" (:message d) "\""
+                                              (when (:tab d) (str " in tab " (:tab d)))))
+                                 dialogs))
+                " — blocks its tab; answer with `dialog accept` or `dialog dismiss`")])
            ;; A handler that throws on every event breaks capture in silence,
            ;; so the count belongs where a caller already looks (issue #125).
            (when (seq handler_errors)
@@ -4197,6 +4210,26 @@
                                " (running " running_ms "ms)")))
                   (when-let [n (:note data)]
                     (println (str "  note: " n))))))
+
+          ;; dialog accept / dismiss.
+          ;; Regression, issue #183: these and `dialog status` printed a bare value
+          ;; (`1`), not which dialog got the answer or blocks the page.
+          (contains? data :dialog_handler)
+          (if-let [{:keys [type message tab]} (:answered data)]
+            (println (str (str/capitalize (:dialog_handler data)) "ed the " type " dialog "
+                       (pr-str message) (when tab (str " in tab " tab)) "."))
+            (println (str "No dialog was open. The " (:dialog_handler data)
+                       " answer is kept for the next dialog of this session.")))
+
+          ;; dialog status
+          (and (contains? data :pending) (or (= data {:pending false}) (contains? data :count)))
+          (if (:pending data)
+            (do (println (str "Dialog: " (:type data) " " (pr-str (:message data))
+                           (when (:tab data) (str " in tab " (:tab data)))
+                           (when (> (long (or (:count data) 1)) 1)
+                             (str " (" (:count data) " tabs have a dialog)"))))
+                (println "  Answer it with `spel dialog accept [text]` or `spel dialog dismiss`."))
+            (println "No dialog is open."))
 
           ;; Snapshot responses
           (:snapshot data)
@@ -4930,8 +4963,8 @@
                                         :error_code "client_timeout"
                                         :command_id command-id
                                         :hint (str "Inspect command " command-id ": spel --session " (:session flags)
-                                                " health. Cancel it: spel --session " (:session flags)
-                                                " cancel all.")}
+                                                " health. Interrupt only this command: spel --session "
+                                                (:session flags) " cancel " command-id)}
                                        (when (< retries 5)
                                          (warn-daemon-restart! (:session flags) e (inc retries))
                                          (Thread/sleep 200)

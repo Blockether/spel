@@ -6121,6 +6121,10 @@
                        {:reachable (not (some? ios-error))
                         :last_error ios-error})
      :handler_errors handlers
+     ;; A dialog stops its tab; say so where an agent looks first (issue #183).
+     :dialogs        (mapv #(-> (select-keys % [:type :message])
+                              (assoc :tab (some-> (dialog-page %) tab-key-of)))
+                       @!pending-dialogs)
      :lost_commands  lost
      :socket         (try (.toString (socket-path (:session @!state))) (catch Exception _ nil))
      :session_idle_timeout_ms @!session-idle-timeout-ms}))
