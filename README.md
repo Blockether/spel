@@ -355,6 +355,9 @@ agent1: busy — up 4 min, 37 commands
 | `unresponsive` | verified daemon process is alive, socket silent | `spel kill`, then re-run |
 | `down` | no verified daemon (`last exit` says why it went) | just run your command |
 
+`spel health` stays small. It keeps the last 10 replies, and each one keeps
+at most 1 KiB. To see a full result again, run the read-only command again.
+
 If the browser is quit, crashes, or its page is closed behind spel's back, the
 next command relaunches it and re-opens the page it was on — the session does
 not have to be thrown away.
