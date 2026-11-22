@@ -1,1 +1,0 @@
-{"id":"8a664f99173a2eb3af5eedaea82131ba","fullName":"com.blockether.spel.ios-test.The default command runner reads both output streams.returns when a command writes a large stderr","name":"The default command runner reads both output streams > returns when a command writes a large stderr","status":"passed","testResultsByEnv":{"default":"ed79cc1226786b22908e609f33515e9b"}}
