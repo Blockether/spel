@@ -1407,7 +1407,9 @@
           routed     (atom nil)]
       (reset! state-atom {:page nil :browser nil})
       (reset! routes {})
-      (with-redefs-fn {#'sut/ensure-browser! (fn [] (swap! state-atom assoc :page fresh :browser (Object.)))
+      ;; The report was a session on `--cdp`, where a route goes on each tab.
+      (with-redefs-fn {#'sut/ensure-browser! (fn [] (swap! state-atom assoc :page fresh :browser (Object.)
+                                                      :cdp-connected true))
                        #'page/route!         (fn [p url _handler] (reset! routed [p url]))}
         (fn []
           (let [r (#'sut/handle-cmd "network_route" {"url" "**/*.gif"})]

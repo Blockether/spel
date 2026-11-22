@@ -7,12 +7,12 @@
   (:require
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
-   [com.blockether.spel.core :refer [safe java->clj ->js-arg tag-eval-source event-consumer]]
+   [com.blockether.spel.core :refer [safe java->clj ->js-arg tag-eval-source event-consumer release-route!]]
    [com.blockether.spel.options :as opts])
   (:import
    [com.microsoft.playwright Page Locator Frame
     Dialog Download ConsoleMessage Clock
-    Worker FileChooser WebError BrowserContext CDPSession Route WebSocketRoute]
+    Worker FileChooser WebError BrowserContext CDPSession WebSocketRoute]
    [com.microsoft.playwright.options LoadState
     FunctionCallback BindingCallback]
    [java.nio.file Paths]))
@@ -989,18 +989,6 @@
 ;; =============================================================================
 ;; Page Events
 ;; =============================================================================
-
-(defn- release-route!
-  "Last resort for a route whose handler threw: resume the request so it is not
-   left unanswered. An intercepted request that is never resumed, aborted or
-   fulfilled hangs the navigation FOREVER — Playwright has no timeout for it and
-   the failure is invisible, which is how one bad handler wedged whole sessions.
-   Aborts when resuming is impossible (the handler already answered the route)."
-  [route _e]
-  (let [^Route r route]
-    (try (.resume r)
-         (catch Throwable _
-           (try (.abort r "failed") (catch Throwable _ nil))))))
 
 (defn- release-dialog!
   "Last resort for a dialog whose handler threw. Playwright auto-dismisses only

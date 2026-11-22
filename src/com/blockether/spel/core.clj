@@ -30,7 +30,7 @@
    [java.util UUID]
    [com.microsoft.playwright APIRequest APIRequest$NewContextOptions APIRequestContext APIResponse
     Browser BrowserContext BrowserType CDPSession Page Playwright Playwright$CreateOptions
-    PlaywrightException Selectors TimeoutError Tracing Tracing$StartOptions Tracing$StopOptions Video]
+    PlaywrightException Route Selectors TimeoutError Tracing Tracing$StartOptions Tracing$StopOptions Video]
    [com.microsoft.playwright.impl TargetClosedError]
    [com.microsoft.playwright.options FormData RequestOptions]
    [com.google.gson JsonElement JsonObject JsonParser]))
@@ -147,6 +147,18 @@
    (let [guarded (guarded-handler label handler on-error)]
      (reify java.util.function.Consumer
        (accept [_ v] (guarded v))))))
+
+(defn release-route!
+  "Last resort for a route whose handler threw: resume the request so it is not
+   left unanswered. An intercepted request that is never resumed, aborted or
+   fulfilled hangs the navigation FOREVER — Playwright has no timeout for it and
+   the failure is invisible, which is how one bad handler wedged whole sessions.
+   Aborts when resuming is impossible (the handler already answered the route)."
+  [route _e]
+  (let [^Route r route]
+    (try (.resume r)
+         (catch Throwable _
+           (try (.abort r "failed") (catch Throwable _ nil))))))
 
 ;; =============================================================================
 ;; Java → Clojure conversion
@@ -975,6 +987,33 @@
         (reify java.util.function.Predicate
           (test [_ v] (boolean (pattern v))))
         consumer))))
+
+(defn context-route!
+  "Registers a route handler for a URL pattern in the browser context. The
+   route applies to each page of the context. It also answers the first request
+   of a popup, which a route on a page cannot answer.
+
+   Params:
+   `context` - BrowserContext instance.
+   `pattern` - String glob or regex Pattern.
+   `handler` - Function of ONE argument, the Route. A handler that throws is
+               logged and the route is resumed instead."
+  [^BrowserContext context pattern handler]
+  (let [consumer (event-consumer (str "context route " pattern) handler release-route!)]
+    (if (instance? java.util.regex.Pattern pattern)
+      (.route context ^java.util.regex.Pattern pattern consumer)
+      (.route context ^String (str pattern) consumer))))
+
+(defn context-unroute!
+  "Removes a route handler from the browser context.
+
+   Params:
+   `context` - BrowserContext instance.
+   `pattern` - String glob or regex Pattern."
+  [^BrowserContext context pattern]
+  (if (instance? java.util.regex.Pattern pattern)
+    (.unroute context ^java.util.regex.Pattern pattern)
+    (.unroute context ^String (str pattern))))
 
 ;; =============================================================================
 ;; Page Operations

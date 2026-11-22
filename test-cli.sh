@@ -672,6 +672,23 @@ assert_jq_eq "network route *.gif → .route_added" "$OUT" '.route_added' '**/*.
 OUT=$("$SPEL" --json network unroute all 2>&1)
 assert_jq "network unroute all (keyword) → .all_routes_removed" "$OUT" '.all_routes_removed == true'
 
+# Regression, issue #168: a route did not answer the first request of a popup.
+ROUTE_SESSION="route-$$"
+"$SPEL" --session "$ROUTE_SESSION" open "https://example.com/" >/dev/null 2>&1
+"$SPEL" --session "$ROUTE_SESSION" network route "**/popup-first*" --body spel-popup-mock >/dev/null 2>&1
+"$SPEL" --session "$ROUTE_SESSION" eval-js "window.open('https://example.com/popup-first') !== null" >/dev/null 2>&1
+# The tab of the popup opens a moment after the command that made it.
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  "$SPEL" --session "$ROUTE_SESSION" tab 1 >/dev/null 2>&1 && break
+  sleep 0.3
+done
+OUT=$("$SPEL" --session "$ROUTE_SESSION" --json eval-js "document.body.innerText" 2>&1)
+assert_jq_eq "network route → answers the first request of a popup" "$OUT" '.result' 'spel-popup-mock'
+"$SPEL" --session "$ROUTE_SESSION" network unroute "**/popup-first*" >/dev/null 2>&1
+OUT=$("$SPEL" --session "$ROUTE_SESSION" --json eval-js "fetch('/popup-first').then(r => r.text()).then(t => t === 'spel-popup-mock')" 2>&1)
+assert_jq_eq "network unroute → removes the route of the context" "$OUT" '.result' 'false'
+"$SPEL" --session "$ROUTE_SESSION" close >/dev/null 2>&1
+
 # `unroute all` also removed the pinned pages. Serve them again.
 pin_test_pages
 

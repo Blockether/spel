@@ -51,6 +51,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `context-cookies` | [context] | Returns all cookies in the context as Clojure maps. |
 | `context-grant-permissions!` | [context permissions] | Grants permissions to the context. |
 | `context-pages` | [context] | Returns all pages in a context. |
+| `context-route!` | [context pattern handler] | Registers a route handler for a URL pattern in the browser context. The |
 | `context-route-from-har!` | [context har] \| [context har route-opts] | Routes requests in the context from a HAR file. Replays recorded responses |
 | `context-route-web-socket!` | [context pattern handler] | Registers a handler for WebSocket connections matching a URL pattern |
 | `context-save-storage-state!` | [context path] | Saves the storage state (cookies, localStorage) to a file. |
@@ -60,6 +61,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `context-set-offline!` | [context offline] | Sets the context to offline or online mode. |
 | `context-storage-state` | [context] | Returns the storage state (cookies, localStorage) as a JSON string. |
 | `context-tracing` | [context] | Returns the Tracing for a context. |
+| `context-unroute!` | [context pattern] | Removes a route handler from the browser context. |
 | `cookie->map` | [cookie] | Converts a Playwright Cookie Java object to a Clojure map. |
 | `create` | [] \| [{:keys [source-dirs?], :or {source-dirs? true}}] | Creates a new Playwright instance. |
 | `event-consumer` | [label handler] \| [label handler on-error] | A `java.util.function.Consumer` around `guarded-handler` — the one way spel |
@@ -82,6 +84,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `new-page` | [browser] \| [browser context-opts] | Creates a new page in a browser (creates implicit context). |
 | `new-page-from-context` | [context] | Creates a new page in the given context. |
 | `page-api` | [pg] | Returns the APIRequestContext for a Page. |
+| `release-route!` | [route _e] | Last resort for a route whose handler threw: resume the request so it is not |
 | `request!` | [pw method url] \| [pw method url opts] | Fire-and-forget HTTP request. Creates an ephemeral context, makes the |
 | `request-options` | [opts] | Creates RequestOptions from a map. |
 | `reset-handler-errors!` | [] | Forgets every recorded handler failure. |

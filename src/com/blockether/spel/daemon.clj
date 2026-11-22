@@ -2461,6 +2461,24 @@
     (do (reset! !dialog-answer answer)
         true)))
 
+(defn- context-routes?
+  "True when the routes of the session go on its browser context.
+
+   A session that launched its browser owns the context, and only a route on
+   the context answers the first request of a popup (issue #168). A browser that
+   the session reached over CDP can hold the tabs of other sessions in the same
+   context. There each route goes on the tabs that the session drives."
+  []
+  (not (true? (:cdp-connected @!state))))
+
+(defn- route-context!
+  "Puts the routes of the session on `context`, a new context of the session.
+   Does nothing when the routes go on each tab."
+  [context]
+  (when (and context (context-routes?))
+    (doseq [[url handler] @!routes]
+      (core/context-route! context url handler))))
+
 (defn- instrument-page!
   "Registers spel's console, page-error and response listeners on `pg` — exactly
    once per page, however often it is called — and tags everything they capture
@@ -2476,7 +2494,8 @@
    navigations.
 
    Session-wide routes are (re)applied here too, so a tab this session drives is
-   a tab its mocks reach.
+   a tab its mocks reach. When the routes go on the context (`context-routes?`),
+   the context has them already.
 
    Params:
    `pg` - Page instance; nil is ignored.
@@ -2525,8 +2544,9 @@
         ;; replaces a crashed renderer, the page restored after a relaunch — so
         ;; the request went to the real server while the session, and the CDP
         ;; route lock it holds, still reported the mock as active.
-        (doseq [[url handler] @!routes]
-          (page/route! pg url handler))
+        (when-not (context-routes?)
+          (doseq [[url handler] @!routes]
+            (page/route! pg url handler)))
         ;; The headers of `set headers` belong to the session too (issue #166).
         (when-let [headers (:extra-headers @!state)]
           (page/set-extra-http-headers! pg headers))
@@ -3153,6 +3173,7 @@
       (reset! !console-messages empty-window)
       (reset! !page-errors empty-window)
       (reset! !tracked-requests empty-window)
+      (route-context! new-ctx)
       (run! instrument-page! new-pages)
       (dorun (map restore-tab! new-pages tabs))
       (when (:offline state)
@@ -3413,6 +3434,7 @@
          (reset! !page-errors empty-window)
          (reset! !tracked-requests empty-window)
          (instrument-page! pg-inst)
+         (route-context! (:context @!state))
           ;; An auto-launched browser has its context before spel can give it
           ;; options, so the saved session state needs a new context there.
          (when (and (get flags "auto-launch") (not profile-dir))
@@ -5142,11 +5164,14 @@
     ;; not in force on any OTHER tab already open — the request went to the real
     ;; server while the session reported the mock as active. Tabs opened later
     ;; get it from instrument-page!, and network_unroute already sweeps them all.
+    ;; On the context, it also answers the first request of a popup (issue #168).
     (let [current (live-page)]
-      (page/route! current url handler)
-      (doseq [^Page p (session-live-pages)
-              :when (not (identical? p current))]
-        (page/route! p url handler)))
+      (if (context-routes?)
+        (core/context-route! (live-context) url handler)
+        (do (page/route! current url handler)
+            (doseq [^Page p (session-live-pages)
+                    :when (not (identical? p current))]
+              (page/route! p url handler)))))
     (swap! !routes assoc url handler)
     (claim-cdp-route-lock!)
     {:route_added url}))
@@ -5189,16 +5214,22 @@
   ;; Every LIVE tab, not just the one in front: the session's routes are applied
   ;; to every tab it drives, so unrouting the current page alone would leave the
   ;; others intercepting under a lock this session had already released.
-  (let [pages (when-let [context (ctx)] (live-context-pages context))]
+  (let [context  (ctx)
+        pages    (when context (live-context-pages context))
+        ;; A context that is gone has no route to remove.
+        unroute! (fn [u]
+                   (if (context-routes?)
+                     (when context
+                       (try (core/context-unroute! context u)
+                            (catch com.microsoft.playwright.PlaywrightException _ nil)))
+                     (doseq [p pages] (page/unroute! p u))))]
     (if url
-      (do (doseq [p pages] (page/unroute! p url))
+      (do (unroute! url)
           (swap! !routes dissoc url)
           (when (empty? @!routes)
             (release-cdp-route-lock-if-owned!))
           {:route_removed url})
-      (do (doseq [[u _] @!routes
-                  p     pages]
-            (page/unroute! p u))
+      (do (run! unroute! (keys @!routes))
           (reset! !routes {})
           (release-cdp-route-lock-if-owned!)
           {:all_routes_removed true}))))
