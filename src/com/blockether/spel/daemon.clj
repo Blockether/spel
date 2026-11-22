@@ -1207,24 +1207,44 @@
    as busy — `health` would always find itself running."
   #{"health" "cancel"})
 
+(def ^:private max-remembered-response-chars
+  "A remembered response up to this size goes into `health` in full. A larger
+   one, such as a snapshot, goes in as a summary."
+  16384)
+
 (defn- remember-command!
-  "Retains the ten latest non-observer outcomes for timeout recovery. Keeps
-   each response as its JSON text: `recent-commands` parses it on a read."
-  [entry response]
+  "Retains the ten latest non-observer outcomes for timeout recovery.
+
+   Regression, issue #187: each response was kept in full, and `health` parsed
+   and sent all ten. After ten large snapshots one `health` answer was 15 MB.
+   A large response is now kept as a summary, without its body."
+  [entry ^String response]
   (when-not (contains? observer-actions (:action entry))
-    (let [completed (-> (select-keys entry [:id :action :started])
-                      (assoc :phase "completed"
-                        :completed_at (System/currentTimeMillis)
-                        :response response))]
+    (let [big?      (> (.length response) (long max-remembered-response-chars))
+          completed (cond-> (-> (select-keys entry [:id :action :started])
+                              (assoc :phase "completed"
+                                :completed_at (System/currentTimeMillis)
+                                :response_chars (.length response)))
+                      (not big?) (assoc :response response)
+                      big?       (assoc :response_truncated true
+                                   :success (str/starts-with? response "{\"success\":true")))]
       (swap! !recent-commands #(->> (conj % completed) (take-last 10) vec)))))
 
 (defn- recent-commands
-  "The remembered outcomes, each with its response parsed."
+  "The remembered outcomes, each small response parsed."
   []
   (mapv (fn [{:keys [response] :as completed}]
-          (assoc completed :response (try (json/read-json response)
-                                          (catch Exception _ response))))
+          (cond-> completed
+            response (assoc :response (try (json/read-json response)
+                                           (catch Exception _ response)))))
     @!recent-commands))
+
+(defn- ledger-update!
+  "Applies `f` to the ledger row of `cid` while the row exists. A row is gone
+   once its command answered; a late update must not re-create it without its
+   start time."
+  [cid f & args]
+  (swap! !ledger (fn [m] (if (contains? m cid) (apply update m cid f args) m))))
 
 (defn- ledger-entries
   "Real in-flight work, longest-running first, as wire-safe maps. Observer
