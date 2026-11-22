@@ -4,12 +4,12 @@ Automate a browser with the Spel CLI. Verify the native installation, reserve a 
 
 ## Install
 
-Requires Vis / `vis-agent` **0.5.26+**, Python 3.12+, Git and uv. Review the source before you use `--trust`.
+Requires Vis / `vis-agent` **0.5.30+**, Python 3.12+, Git and uv. Review the source before you use `--trust`.
 
 ```bash
-vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --version 0.1.31 --trust
+vis-agent extension install https://github.com/Blockether/spel --subdirectory extensions/vis-spel --version 0.1.32 --trust
 vis-agent extension versions Blockether/spel --subdirectory extensions/vis-spel
-vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.31 --trust
+vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.32 --trust
 vis-agent extension rollback Blockether/spel --subdirectory extensions/vis-spel --version 0.1.1 --trust
 ```
 
@@ -17,7 +17,7 @@ Install once. Use `versions`, `update` or `rollback` only when you need to chang
 
 ## Use
 
-Use the `spel.*` tools in `python_execution`. First call `spel.installed()` to check for a native binary. If none is selected, call `spel.install()`.
+Use the `spel.*` tools in `py3`. First call `spel.installed()` to check for a native binary. If none is selected, call `spel.install()`.
 
 | Tools | Use |
 | --- | --- |

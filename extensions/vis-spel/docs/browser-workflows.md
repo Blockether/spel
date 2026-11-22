@@ -2,7 +2,7 @@
 
 ## Extension versions
 
-Requires Vis / `vis-agent` **0.5.26+**, Python 3.12+, Git and uv.
+Requires Vis / `vis-agent` **0.5.30+**, Python 3.12+, Git and uv.
 Extensions run with your user permissions; review the source before using `--trust`.
 
 Start Vis or run `/reload`. The extension registers `spel.*` tools; it does not
@@ -18,7 +18,7 @@ Use the repository and project folder to manage installed versions:
 
 ```bash
 vis-agent extension versions Blockether/spel --subdirectory extensions/vis-spel
-vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.31 --trust
+vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.32 --trust
 # To roll back: vis-agent extension rollback Blockether/spel --subdirectory extensions/vis-spel --version 0.1.1 --trust
 ```
 
@@ -28,7 +28,7 @@ commands below select the native Spel binary, independently of the extension pac
 
 ## Choose a Spel version
 
-In Vis `python_execution`:
+In Vis `py3`:
 
 ```python
 print(await spel.releases())  # Available stable native releases
@@ -65,7 +65,7 @@ account's signed-in UI is visible, ask Vis to close the session gracefully.
 Later, ask Vis to reuse `x-personal` to visit X.com without signing in again.
 The site may require another sign-in or challenge at any time.
 
-If you prefer to call the tools directly in `python_execution`:
+If you prefer to call the tools directly in `py3`:
 
 ```python
 profile = await spel.prepare_profile("x-personal")
@@ -136,7 +136,7 @@ server without a display, start Xvfb and set `DISPLAY` for Vis before you use
 `headed=True`.
 
 To combine Spel with another extension, call both tool sets from the same
-`python_execution` block, for example `spel.*` with `gh.*`. Vis Spel imports
+`py3` block, for example `spel.*` with `gh.*`. Vis Spel imports
 only the Vis SDK, not other extensions' code.
 
 ## Use a browser
