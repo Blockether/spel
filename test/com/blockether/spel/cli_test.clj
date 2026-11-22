@@ -2270,7 +2270,20 @@
 
     (it "answers the EDN string when a daemon sent no projection"
       (expect (= "{\"result\":\"{:a 1}\"}"
-                (json-line {:success true :data {:result "{:a 1}"}})))))
+                (json-line {:success true :data {:result "{:a 1}"}}))))
+
+    ;; Regression, issue #175: text mode printed the console and the page
+    ;; errors, and --json dropped them.
+    (it "keeps the console messages and page errors in the object"
+      (expect (= (str "{\"result\":1,\"console\":[{\"type\":\"log\",\"text\":\"c1\"}],"
+                   "\"page_errors\":[{\"message\":\"boom\"}]}")
+                (json-line {:success true
+                            :data {:result "1" :result-data 1
+                                   :console [{:type "log" :text "c1"}]
+                                   :page-errors [{:message "boom"}]}})))
+      (expect (= "{\"error\":\"bad\",\"console\":[{\"type\":\"error\",\"text\":\"c2\"}]}"
+                (json-line {:success false :data {:error "bad"}
+                            :console [{:type "error" :text "c2"}]})))))
 
   (describe "a failed evaluation"
     (it "answers an error object carrying the daemon detail"

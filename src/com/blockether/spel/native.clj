@@ -824,6 +824,17 @@
           :else
           (recur (rest remaining) (conj cmd-args arg) opts))))))
 
+(defn- eval-console
+  "The console messages an eval-sci `response` carries. A failure carries
+   them beside the error, not in `:data`."
+  [response]
+  (or (get-in response [:data :console]) (:console response)))
+
+(defn- eval-page-errors
+  "The page errors an eval-sci `response` carries, wherever it put them."
+  [response]
+  (or (get-in response [:data :page-errors]) (:page-errors response)))
+
 (defn- eval-json-line
   "The ONE JSON object `--json` eval-sci writes to stdout.
 
@@ -837,9 +848,11 @@
    from an older spel has none, so its EDN `:result` is answered as-is rather
    than a silent null."
   [response]
-  (let [data   (get response :data)
-        stdout (get data :stdout)
-        base   (if (and response (:success response))
+  (let [data    (get response :data)
+        stdout  (get data :stdout)
+        console (eval-console response)
+        errors  (eval-page-errors response)
+        base    (if (and response (:success response))
                  {:result (if (contains? data :result-data)
                             (get data :result-data)
                             (get data :result))}
@@ -852,7 +865,10 @@
                    (:selector response)   (assoc :selector (:selector response))))]
     (json/write-json-str
       (cond-> base
-        (not (str/blank? stdout)) (assoc :stdout stdout))
+        (not (str/blank? stdout)) (assoc :stdout stdout)
+        ;; Text mode prints these to stderr; --json dropped them (issue #175).
+        (seq console)             (assoc :console console)
+        (seq errors)              (assoc :page_errors errors))
       :escape-slash false)))
 
 (defn- eval-daemon-flags
@@ -966,8 +982,8 @@
                            eval-timeout)
             stdout-str   (get-in response [:data :stdout])
             stderr-str   (get-in response [:data :stderr])
-            console-msgs (get-in response [:data :console])
-            page-errors  (get-in response [:data :page-errors])]
+            console-msgs (eval-console response)
+            page-errors  (eval-page-errors response)]
         ;; Print captured stdout/stderr (from println/binding *err* in evaluated code).
         ;; Under --json the script's stdout goes INSIDE the object instead: printed
         ;; beside it, the stdout an agent parses stops being JSON.
