@@ -552,6 +552,42 @@ assert_jq "set credentials → keeps the viewport" "$OUT" '.result.width == 1280
 OUT=$("$SPEL" --json set media dark 2>&1)
 assert_jq_eq "set media dark → .media.colorScheme" "$OUT" '.media.colorScheme' 'dark'
 
+# Regression, issue #164: a new context closed the other tabs and lost the
+# session storage of each tab.
+CTX_SESSION="ctx-$$"
+"$SPEL" --session "$CTX_SESSION" open "https://example.com/?first" >/dev/null 2>&1
+"$SPEL" --session "$CTX_SESSION" eval-js "sessionStorage.setItem('spel-tab', 'one')" >/dev/null 2>&1
+"$SPEL" --session "$CTX_SESSION" tab new >/dev/null 2>&1
+"$SPEL" --session "$CTX_SESSION" open "https://example.com/?second" >/dev/null 2>&1
+"$SPEL" --session "$CTX_SESSION" tab new >/dev/null 2>&1
+"$SPEL" --session "$CTX_SESSION" tab 1 >/dev/null 2>&1
+"$SPEL" --session "$CTX_SESSION" set headers '{"X-Spel-Keep":"yes"}' >/dev/null 2>&1
+"$SPEL" --session "$CTX_SESSION" set device "iphone 14" >/dev/null 2>&1
+OUT=$("$SPEL" --session "$CTX_SESSION" --json tab list 2>&1)
+assert_jq "set device → keeps each tab in its place" "$OUT" \
+  '[.tabs[].url] == ["https://example.com/?first", "https://example.com/?second", "about:blank"]'
+assert_jq "set device → keeps the active tab" "$OUT" '[.tabs[].active] == [false, true, false]'
+"$SPEL" --session "$CTX_SESSION" tab 0 >/dev/null 2>&1
+OUT=$("$SPEL" --session "$CTX_SESSION" --json eval-js "sessionStorage.getItem('spel-tab')" 2>&1)
+assert_jq_eq "set device → keeps the session storage of a tab" "$OUT" '.result' 'one'
+
+# Regression, issue #166: a new context lost the headers of `set headers`.
+"$SPEL" --session "$CTX_SESSION" open "https://example.com/?headers" >/dev/null 2>&1
+OUT=$("$SPEL" --session "$CTX_SESSION" --json network 2>&1)
+assert_jq "set device → keeps the headers of set headers" "$OUT" \
+  '[.entries[] | select(.url | endswith("?headers")) | .preview.request.headers["x-spel-keep"]] == ["yes"]'
+
+# Regression, issue #165: a command that made a new context ended a HAR
+# recording with no message.
+CTX_HAR="$TEST_TMP_DIR/spel-test-ctx.har"
+TEMP_FILES+=("$CTX_HAR")
+"$SPEL" --session "$CTX_SESSION" network har start "$CTX_HAR" >/dev/null 2>&1
+OUT=$("$SPEL" --session "$CTX_SESSION" --json set device "pixel 7" 2>&1) || true
+assert_jq_eq "set device while a HAR records → har_recording_active" "$OUT" '.error_code' 'har_recording_active'
+OUT=$("$SPEL" --session "$CTX_SESSION" --json network har stop 2>&1)
+assert_jq "har stop after the refusal → saves the file" "$OUT" '.size > 0'
+"$SPEL" --session "$CTX_SESSION" close >/dev/null 2>&1
+
 "$SPEL" reload >/dev/null 2>&1
 
 # =============================================================================

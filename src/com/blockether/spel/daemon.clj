@@ -2526,7 +2526,10 @@
         ;; the request went to the real server while the session, and the CDP
         ;; route lock it holds, still reported the mock as active.
         (doseq [[url handler] @!routes]
-          (page/route! pg url handler)))))
+          (page/route! pg url handler))
+        ;; The headers of `set headers` belong to the session too (issue #166).
+        (when-let [headers (:extra-headers @!state)]
+          (page/set-extra-http-headers! pg headers)))))
   pg)
 (defn- pg ^Page [] (:page @!state))
 (defn- ctx ^BrowserContext [] (:context @!state))
@@ -3031,10 +3034,62 @@
       (get flags "download-path")       (assoc :accept-downloads true)
       (:http-credentials state)         (assoc :http-credentials (:http-credentials state)))))
 
+(defn- tab-memory
+  "Returns what a new context needs to open the tab `p` again: its `:url` and,
+   with `session-storage?`, its `:session-storage` as the JSON text
+   `[origin, entries]`. The cookies and the local storage come from the storage
+   state of the context; session storage is not part of it.
+
+   A tab with an open dialog cannot run a script, so it gives no session
+   storage."
+  [^Page p session-storage?]
+  (let [url     (try (page/url p) (catch Exception _ nil))
+        blocked (some-> ^Dialog (:dialog @!pending-dialog) (.page))]
+    {:url url
+     :session-storage
+     (when (and session-storage? url (not= "about:blank" url) (not (identical? p blocked)))
+       (let [found (try (page/evaluate p "JSON.stringify([location.origin, Object.entries(sessionStorage)])")
+                        (catch Exception _ nil))]
+         (when (and (string? found) (not (str/ends-with? found ",[]]")))
+           found)))}))
+
+(defn- restore-tab!
+  "Opens the URL of a remembered tab in the page `p` of a new context.
+
+   Session storage goes back only when the page is on the origin that owned it:
+   a redirect to another origin gets none of it. The URL then loads one more
+   time, so that the page starts with its data."
+  [^Page p {:keys [url session-storage]}]
+  (when (and url (not= "about:blank" url))
+    (page/navigate p url)
+    (when (and session-storage
+            (true? (page/evaluate p
+                     (str "(() => { const [origin, entries] = " session-storage ";"
+                       " if (location.origin !== origin) return false;"
+                       " for (const [key, value] of entries) sessionStorage.setItem(key, value);"
+                       " return true; })()"))))
+      (page/navigate p url))))
+
+(defn- refuse-while-har-records!
+  "Throws when a HAR recording is active. `command` makes a new browser context,
+   which ends the recording: the requests after it would be missing from the
+   file with no message (issue #165)."
+  [command]
+  (when (:har-recording? @!state)
+    (throw (ex-info (str "`" command "` makes a new browser context, and that ends the HAR recording to "
+                      (:har-path @!state) ". Run `spel network har stop` first, then `" command
+                      "`, then start the recording again.")
+             {:error_code "har_recording_active" :har_path (:har-path @!state)}))))
+
 (defn- recreate-context!
   "Replaces the browser context of the session: same options, same cookies and
-   storage, same viewport, same URL. Commands that need a context-level option
+   storage, same viewport, same tabs. Commands that need a context-level option
    use it.
+
+   Each tab of the old context opens again at its URL, in the same order and
+   with the same active tab (issue #164). Each tab gets its session storage
+   back, but not with `:storage-state-path`: that file replaces the identity of
+   the session.
 
    The new context opens before the old one closes. When it cannot open, the
    session keeps its context and this fn throws.
@@ -3061,7 +3116,10 @@
                         "and that context cannot be replaced. Close the session and give "
                         "the option as a launch flag.")
                {:error_code "persistent_context"})))
-    (let [current-url (try (page/url (pg)) (catch Exception _ nil))
+    (let [old-pages   (if old-ctx (live-context-pages old-ctx) [])
+          tabs        (or (not-empty (mapv #(tab-memory % (nil? storage-state-path)) old-pages))
+                        [{:url nil}])
+          active      (max 0 (.indexOf ^java.util.List old-pages old-page))
           storage     (when-not storage-state-path
                         (try (.storageState ^BrowserContext old-ctx) (catch Exception _ nil)))
           viewport    (when-not (:device session)
@@ -3074,10 +3132,11 @@
                         storage            (assoc :storage-state storage))
           new-ctx     (check-anomaly! (core/new-context browser ctx-opts)
                         "Failed to create the browser context")
-          new-pg      (try (new-spel-page! new-ctx)
+          new-pages   (try (mapv (fn [_] (new-spel-page! new-ctx)) tabs)
                            (catch Throwable e
                              (try (.close ^BrowserContext new-ctx) (catch Exception _ nil))
-                             (throw e)))]
+                             (throw e)))
+          new-pg      (nth new-pages active)]
       (save-inflight-trace!)
       (when old-page
         (try (core/close-page! old-page) (catch Exception e (warn "close-page" e))))
@@ -3088,9 +3147,9 @@
       (reset! !console-messages empty-window)
       (reset! !page-errors empty-window)
       (reset! !tracked-requests empty-window)
-      (instrument-page! new-pg)
-      (when (and current-url (not= "about:blank" current-url))
-        (page/navigate new-pg current-url))
+      (run! instrument-page! new-pages)
+      (dorun (map restore-tab! new-pages tabs))
+      (try (.bringToFront ^Page new-pg) (catch Exception _ nil))
       new-pg)))
 
 (defn- ensure-browser!
@@ -4926,7 +4985,12 @@
     {:offline offline}))
 
 (defmethod handle-cmd "set_headers" [_ {:strs [headers]}]
-  (page/set-extra-http-headers! (live-page) headers)
+  ;; The headers belong to the session, not to one tab: `instrument-page!`
+  ;; gives them to each tab that the session opens later (issue #166).
+  (live-page)
+  (swap! !state assoc :extra-headers headers)
+  (doseq [p (session-live-pages)]
+    (page/set-extra-http-headers! p headers))
   {:headers_set true})
 
 (defmethod handle-cmd "set_media" [_ {:strs [colorScheme]}]
@@ -4940,7 +5004,8 @@
 
 (defmethod handle-cmd "set_device" [_ {:strs [device]}]
   (if-let [preset (devices/resolve-device-by-name device)]
-    (do (ensure-browser!)
+    (do (refuse-while-har-records! "set device")
+        (ensure-browser!)
         (recreate-context! {:session {:device device}})
         {:device device :preset preset})
     {:error (str "Unknown device: " device
@@ -4956,6 +5021,7 @@
 
 (defmethod handle-cmd "set_credentials" [_ {:strs [username password]}]
   ;; HTTP credentials are an option of the context, so it needs a new one.
+  (refuse-while-har-records! "set credentials")
   (ensure-browser!)
   (recreate-context! {:session {:http-credentials {:username username :password password}}})
   {:credentials_set true})
@@ -5238,6 +5304,7 @@
 
 (defmethod handle-cmd "state_load" [_ {:strs [path]}]
   (let [state-path (or path (str "state-" (:session @!state) ".json"))]
+    (refuse-while-har-records! "state load")
     (ensure-browser!)
     (recreate-context! {:storage-state-path state-path})
     {:state "loaded" :path state-path}))
