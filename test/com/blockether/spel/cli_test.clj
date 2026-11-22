@@ -1369,7 +1369,7 @@
       (let [c (cmd ["upload" "input#file" "file1.txt" "file2.pdf"])]
         (expect (= "upload" (:action c)))
         (expect (= "input#file" (:selector c)))
-        (expect (= ["file1.txt" "file2.pdf"] (:files c)))))))
+        (expect (= [(abs-path "file1.txt") (abs-path "file2.pdf")] (:files c)))))))
 
 ;; =============================================================================
 ;; Download
@@ -1383,21 +1383,21 @@
       (let [c (cmd ["download" "#export-btn" "./report.csv"])]
         (expect (= "download" (:action c)))
         (expect (= "#export-btn" (:selector c)))
-        (expect (= "./report.csv" (:save-path c))))))
+        (expect (= (abs-path "./report.csv") (:save-path c))))))
 
   (describe "download with ref"
     (it "parses download with element ref"
       (let [c (cmd ["download" "@e5" "./file.zip"])]
         (expect (= "download" (:action c)))
         (expect (= "@e5" (:selector c)))
-        (expect (= "./file.zip" (:save-path c))))))
+        (expect (= (abs-path "./file.zip") (:save-path c))))))
 
   (describe "download with timeout"
     (it "parses download with --timeout flag"
       (let [c (cmd ["download" "--timeout" "5000" "#btn" "./out.pdf"])]
         (expect (= "download" (:action c)))
         (expect (= "#btn" (:selector c)))
-        (expect (= "./out.pdf" (:save-path c)))
+        (expect (= (abs-path "./out.pdf") (:save-path c)))
         (expect (= 5000 (:timeout-ms c)))))))
 
 ;; =============================================================================
@@ -1695,7 +1695,12 @@
     (it "parses trace stop"
       (let [c (cmd ["trace" "stop" "trace.zip"])]
         (expect (= "trace_stop" (:action c)))
-        (expect (= (abs-path "trace.zip") (:path c)))))))
+        (expect (= (abs-path "trace.zip") (:path c)))))
+
+    ;; Regression, issue #174: the daemon wrote the default trace into its own
+    ;; directory, not the caller's.
+    (it "resolves the default trace path against the caller's directory"
+      (expect (= (abs-path "trace.zip") (:path (cmd ["trace" "stop"])))))))
 
 ;; =============================================================================
 ;; Console & Errors
@@ -1767,24 +1772,35 @@
     (it "parses state list"
       (expect (= "state_list" (:action (cmd ["state" "list"]))))))
 
+  ;; Regression, issue #174: relative names and defaults went to the daemon
+  ;; unchanged, and it read and wrote them in its own directory.
+  (describe "state paths"
+    (it "resolves defaults and directories against the caller's directory"
+      (expect (= (abs-path "state-default.json") (:path (cmd ["state" "save"]))))
+      (expect (= (abs-path "state-default.json") (:path (cmd ["state" "load"]))))
+      (expect (= (abs-path "state-default.json") (:name (cmd ["state" "clear"]))))
+      (expect (= (abs-path ".") (:dir (cmd ["state" "list"]))))
+      (expect (= (abs-path ".") (:dir (cmd ["state" "clear" "--all"]))))
+      (expect (= (abs-path ".") (:dir (cmd ["state" "clean"]))))))
+
   (describe "state show"
     (it "parses state show"
       (let [c (cmd ["state" "show" "state.json"])]
         (expect (= "state_show" (:action c)))
-        (expect (= "state.json" (:file c))))))
+        (expect (= (abs-path "state.json") (:file c))))))
 
   (describe "state rename"
     (it "parses state rename"
       (let [c (cmd ["state" "rename" "old.json" "new.json"])]
         (expect (= "state_rename" (:action c)))
-        (expect (= "old.json" (:old_name c)))
-        (expect (= "new.json" (:new_name c))))))
+        (expect (= (abs-path "old.json") (:old_name c)))
+        (expect (= (abs-path "new.json") (:new_name c))))))
 
   (describe "state clear"
     (it "parses state clear with name"
       (let [c (cmd ["state" "clear" "session1"])]
         (expect (= "state_clear" (:action c)))
-        (expect (= "session1" (:name c)))))
+        (expect (= (abs-path "session1") (:name c)))))
 
     (it "parses state clear --all"
       (let [c (cmd ["state" "clear" "--all"])]

@@ -5383,8 +5383,8 @@
     (recreate-context! {:storage-state-path state-path})
     {:state "loaded" :path state-path}))
 
-(defmethod handle-cmd "state_list" [_ _]
-  (let [dir (java.io.File. ".")
+(defmethod handle-cmd "state_list" [_ {:strs [dir]}]
+  (let [dir (java.io.File. (str (or dir ".")))
         files (->> (.listFiles dir)
                 (filter (fn [^File f] (and (.isFile f)
                                         (str/ends-with? (.getName f) ".json")
@@ -5401,9 +5401,9 @@
     ^"[Ljava.nio.file.CopyOption;" (into-array java.nio.file.CopyOption []))
   {:renamed {:from old_name :to new_name}})
 
-(defmethod handle-cmd "state_clear" [_ {:strs [name all]}]
+(defmethod handle-cmd "state_clear" [_ {:strs [name all dir]}]
   (if all
-    (let [dir (java.io.File. ".")
+    (let [dir (java.io.File. (str (or dir ".")))
           files (->> (.listFiles dir)
                   (filter (fn [^File f] (and (.isFile f)
                                           (str/ends-with? (.getName f) ".json")
@@ -5414,10 +5414,10 @@
       (Files/deleteIfExists (Path/of file-name (into-array String [])))
       {:cleared file-name})))
 
-(defmethod handle-cmd "state_clean" [_ {:strs [older_than_days]}]
+(defmethod handle-cmd "state_clean" [_ {:strs [older_than_days dir]}]
   (let [days     (long (or older_than_days 30))
         cutoff   (- (System/currentTimeMillis) (* days 24 60 60 1000))
-        dir      (java.io.File. ".")
+        dir      (java.io.File. (str (or dir ".")))
         files    (->> (.listFiles dir)
                    (filter (fn [^File f] (and (.isFile f)
                                            (str/ends-with? (.getName f) ".json")

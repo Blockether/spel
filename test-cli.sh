@@ -986,7 +986,7 @@ assert_jq_eq "state load of a missing file → keeps the page" "$OUT" '.url' 'ht
 # state rename
 "$SPEL" state save >/dev/null 2>&1
 OUT=$("$SPEL" --json state rename "state-$SESSION.json" state-renamed.json 2>&1)
-assert_jq_eq "state rename → .renamed.to" "$OUT" '.renamed.to' 'state-renamed.json'
+assert_jq_contains "state rename → .renamed.to" "$OUT" '.renamed.to' 'state-renamed.json'
 "$SPEL" state clear --all >/dev/null 2>&1
 
 # state clear --all
@@ -1002,6 +1002,22 @@ assert_jq "state clean --older-than → success" "$OUT" 'has("error") | not'
 
 OUT=$("$SPEL" --json state clean 2>&1)
 assert_jq "state clean → success" "$OUT" 'has("error") | not'
+
+# Regression, issue #174: relative paths went to the daemon unchanged, and it
+# resolved them against its own directory, not the caller's.
+CWD174="$TEST_TMP_DIR/cwd-174"
+mkdir -p "$CWD174" && echo x > "$CWD174/pick-174.txt"
+"$SPEL" eval-js "document.body.insertAdjacentHTML('beforeend', '<input type=file id=f174>')" >/dev/null 2>&1
+OUT=$(cd "$CWD174" && "$SPEL" --json upload '#f174' pick-174.txt 2>&1)
+assert_jq "upload of a relative path from another directory → success" "$OUT" 'has("error") | not'
+OUT=$("$SPEL" --json eval-js "document.querySelector('#f174').files[0].name" 2>&1)
+assert_jq_eq "upload of a relative path → the page gets the file" "$OUT" '.result' 'pick-174.txt'
+OUT=$(cd "$CWD174" && "$SPEL" --json state save 2>&1)
+assert_jq_contains "state save from another directory → writes there" "$OUT" '.path' "cwd-174/state-$SESSION.json"
+OUT=$(cd "$CWD174" && "$SPEL" --json state show "state-$SESSION.json" 2>&1)
+assert_jq "state show of a relative path from another directory → success" "$OUT" 'has("error") | not'
+OUT=$(cd "$CWD174" && "$SPEL" --json state list 2>&1)
+assert_jq_eq "state list from another directory → lists its files" "$OUT" '.states | length' '1'
 
 # =============================================================================
 # SESSIONS (10)

@@ -2376,7 +2376,7 @@
           ;; Download
             "download" (let [[selector save-path] cmd-args
                              timeout-ms (:timeout flags)]
-                         (cond-> {:action "download" :selector selector :save-path save-path}
+                         (cond-> {:action "download" :selector selector :save-path (resolve-path save-path)}
                            timeout-ms (assoc :timeout-ms timeout-ms)))
 
           ;; Input
@@ -2520,7 +2520,7 @@
 
             "upload"   {:action "upload"
                         :selector (first cmd-args)
-                        :files (vec (rest cmd-args))}
+                        :files (mapv resolve-path (rest cmd-args))}
 
           ;; Screenshot
             "screenshot" (let [path-args (remove #(str/starts-with? % "-") cmd-args)
@@ -2960,7 +2960,7 @@
                            "start" {:action "trace_start"
                                     :name (second cmd-args)}
                            "stop"  {:action "trace_stop"
-                                    :path (resolve-path (second cmd-args))}
+                                    :path (resolve-path (or (second cmd-args) "trace.zip"))}
                            {:error (str "Unknown trace command: " sub)}))
 
             "console"  (let [args-set (set cmd-args)
@@ -3025,20 +3025,24 @@
                            {:action "pages_list"}))
 
           ;; State management
-            "state"    (let [sub (first cmd-args)]
+            "state"    (let [sub     (first cmd-args)
+                             ;; The daemon's directory is the one it started in,
+                             ;; not the caller's (issue #174).
+                             default (str "state-" (or (:session flags) "default") ".json")
+                             dir     (resolve-path ".")]
                          (case sub
-                           "save"   {:action "state_save" :path (resolve-path (second cmd-args))}
-                           "load"   {:action "state_load" :path (resolve-path (second cmd-args))}
-                           "list"   {:action "state_list"}
-                           "show"   {:action "state_show" :file (second cmd-args)}
+                           "save"   {:action "state_save" :path (resolve-path (or (second cmd-args) default))}
+                           "load"   {:action "state_load" :path (resolve-path (or (second cmd-args) default))}
+                           "list"   {:action "state_list" :dir dir}
+                           "show"   {:action "state_show" :file (resolve-path (second cmd-args))}
                            "rename" {:action "state_rename"
-                                     :old_name (second cmd-args)
-                                     :new_name (nth cmd-args 2)}
+                                     :old_name (resolve-path (second cmd-args))
+                                     :new_name (resolve-path (nth cmd-args 2 nil))}
                            "clear"  (if (some #{"--all"} cmd-args)
-                                      {:action "state_clear" :all true}
-                                      {:action "state_clear" :name (second cmd-args)})
+                                      {:action "state_clear" :all true :dir dir}
+                                      {:action "state_clear" :name (resolve-path (or (second cmd-args) default))})
                            "clean"  (let [idx (long (.indexOf ^java.util.List (vec cmd-args) "--older-than"))]
-                                      {:action "state_clean"
+                                      {:action "state_clean" :dir dir
                                        :older_than_days (when (>= idx 0)
                                                           (try (Integer/parseInt (nth cmd-args (inc idx)))
                                                                (catch Exception _ 30)))})
