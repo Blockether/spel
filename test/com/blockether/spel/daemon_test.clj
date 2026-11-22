@@ -3315,10 +3315,48 @@
           t       (Thread. ^Runnable (fn [] nil))]
       (try
         (swap! !ledger assoc "c-health" {:id "c-health" :action "health" :phase "running"
+                                         :observer (#'sut/observer-command? "health" {})
                                          :started (System/currentTimeMillis) :thread t})
         (expect (empty? (#'sut/ledger-cancel! "all")))
         (expect (not (get-in @!ledger ["c-health" :cancel-requested])))
         (finally (swap! !ledger dissoc "c-health")))))
+
+  (it "does not report the session_info of session list as work"
+    (let [!ledger (deref #'sut/!ledger)
+          info    (#'sut/ledger-start! "session_info" {} nil)
+          connect (#'sut/ledger-start! "session_info" {"connect" true} nil)]
+      (try
+        (expect (= [connect] (mapv :id (filter #(#{info connect} (:id %)) (#'sut/ledger-entries)))))
+        (finally (swap! !ledger dissoc info connect)))))
+
+  (it "keeps no answer for the next dialog when a concurrent command claimed the dialog"
+    (let [!ledger (deref #'sut/!ledger)
+          !claim  (deref #'sut/!last-dialog-claim)
+          !answer (deref #'sut/!dialog-answer)
+          before  [@!claim @!answer]
+          cid     (#'sut/ledger-start! "dialog_accept" {} nil)]
+      (try
+        (reset! !answer nil)
+        (reset! !claim {:at (System/currentTimeMillis) :info {:type "confirm" :message "m"}})
+        (let [e (try (#'sut/answer-or-keep-dialog-answer! [:accept nil] nil) nil
+                     (catch clojure.lang.ExceptionInfo e e))]
+          (expect (= "dialog_already_answered" (:error_code (ex-data e))))
+          (expect (nil? @!answer)))
+        ;; A claim before this command started is an earlier dialog: keep the answer.
+        (reset! !claim {:at 1 :info {:type "confirm" :message "m"}})
+        (expect (nil? (#'sut/answer-or-keep-dialog-answer! [:accept nil] nil)))
+        (expect (= [:accept nil] @!answer))
+        ;; A client process that started before the claim was concurrent.
+        (reset! !answer nil)
+        (reset! !claim {:at 5000 :info {:type "confirm" :message "m"}})
+        (expect (= "dialog_already_answered"
+                  (try (#'sut/answer-or-keep-dialog-answer! [:accept nil] 4000) nil
+                       (catch clojure.lang.ExceptionInfo e (:error_code (ex-data e))))))
+        (expect (nil? @!answer))
+        (finally
+          (swap! !ledger dissoc cid)
+          (reset! !claim (first before))
+          (reset! !answer (second before))))))
 
   (it "keeps a large response in the recent commands as a summary"
     (let [!recent (deref #'sut/!recent-commands)

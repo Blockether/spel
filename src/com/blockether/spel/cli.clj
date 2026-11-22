@@ -1868,6 +1868,17 @@
                                         (str/join ", " values)))
       :else           (assoc m k (first values)))))
 
+(defn- process-started-ms
+  "When this CLI process started, in epoch ms. A `dialog accept` that two
+   agents start at the same moment can reach the daemon after the other one
+   answered the dialog; this time tells the daemon that it was concurrent
+   (issue #192)."
+  ^long []
+  (let [^java.util.Optional o (.startInstant (.info (java.lang.ProcessHandle/current)))]
+    (if (.isPresent o)
+      (.toEpochMilli ^java.time.Instant (.get o))
+      (System/currentTimeMillis))))
+
 (defn parse-args
   "Parses CLI argv into a command map suitable for sending to the daemon.
 
@@ -2949,8 +2960,9 @@
           ;; Dialogs
             "dialog"   (let [sub (first cmd-args)]
                          (case sub
-                           "accept"  {:action "dialog_accept" :text (second cmd-args)}
-                           "dismiss" {:action "dialog_dismiss"}
+                           "accept"  {:action "dialog_accept" :text (second cmd-args)
+                                      :issued_at (process-started-ms)}
+                           "dismiss" {:action "dialog_dismiss" :issued_at (process-started-ms)}
                            "status"  {:action "dialog_status"}
                            {:error (str "Unknown dialog command: " sub)}))
 
@@ -4860,7 +4872,7 @@
                        (cond
                          closed  (str "closed" (when pid (str " pid " pid)) " (" method ")")
                          killed  (str "killed pid " pid " (" method ")")
-                         refused (str "not killed: " error)
+                         refused (str (if close? "not closed: " "not killed: ") error)
                          error   (str "NOT CLOSED " error)
                          :else   "no daemon running")))))
         (System/exit (if success? 0 1))))

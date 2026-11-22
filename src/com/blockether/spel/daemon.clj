@@ -1179,15 +1179,34 @@
    the command lock until the dialog has an answer (issue #170)."
   #{"health" "cancel" "close" "dialog_status" "dialog_accept" "dialog_dismiss"})
 
+(def ^:private observer-actions
+  "Diagnostics that watch the daemon rather than do work. They are ledger
+   entries like anything else, but listing them would report every idle daemon
+   as busy — `health` would always find itself running."
+  #{"health" "cancel"})
+
+(defn- observer-command?
+  "Whether `action` with `params` only watches the daemon. `session_info`
+   without `connect` reads metadata only.
+
+   Regression, issue #191: `spel session list` sends `session_info` to each idle session,
+   and `health` of that session then said `busy`."
+  [action params]
+  (or (contains? observer-actions action)
+    (and (= "session_info" action) (not (get params "connect")))))
+
 (defn- ledger-start!
   "Records a command as in-flight on the calling thread. Returns its stable id."
-  [^String action requested-id]
+  [^String action params requested-id]
   (let [id (or requested-id (str "c" (swap! !command-seq inc)))]
-    (swap! !ledger assoc id {:id      id
-                             :action  action
-                             :phase   (if (contains? control-actions action) "running" "queued")
-                             :started (System/currentTimeMillis)
-                             :thread  (Thread/currentThread)})
+    (swap! !ledger assoc id {:id       id
+                             :action   action
+                             :observer (observer-command? action params)
+                             :phase    (if (contains? control-actions action) "running" "queued")
+                             :started  (System/currentTimeMillis)
+                             :thread   (Thread/currentThread)
+                             ;; :thread moves to a worker; this one stays.
+                             :conn-thread (Thread/currentThread)})
     id))
 
 (defn- ledger-finish!
@@ -1207,12 +1226,6 @@
     (reset! !last-command-at (System/currentTimeMillis))
     entry))
 
-(def ^:private observer-actions
-  "Diagnostics that watch the daemon rather than do work. They are ledger
-   entries like anything else, but listing them would report every idle daemon
-   as busy — `health` would always find itself running."
-  #{"health" "cancel"})
-
 (def ^:private max-remembered-response-chars
   "A remembered response up to this size goes into `health` in full. A larger
    one, such as a snapshot, goes in as a summary."
@@ -1225,7 +1238,7 @@
    and sent all ten. After ten large snapshots one `health` answer was 15 MB.
    A large response is now kept as a summary, without its body."
   [entry ^String response]
-  (when-not (contains? observer-actions (:action entry))
+  (when-not (:observer entry)
     (let [big?      (> (.length response) (long max-remembered-response-chars))
           completed (cond-> (-> (select-keys entry [:id :action :started])
                               (assoc :phase "completed"
@@ -1258,7 +1271,7 @@
   []
   (let [now (System/currentTimeMillis)]
     (->> (vals @!ledger)
-      (remove #(contains? observer-actions (:action %)))
+      (remove :observer)
       (sort-by :started)
       (mapv (fn [{:keys [id action phase started cancel-requested]}]
               (let [ms (- now (long started))]
@@ -1279,7 +1292,7 @@
         ;; Regression, issue #179: `cancel all` also interrupted a concurrent
         ;; `health`, which then answered `unresponsive`.
         entries (remove #(or (identical? self (:thread %))
-                           (contains? observer-actions (:action %)))
+                           (:observer %))
                   (vals @!ledger))
         targets (vec (if (or (nil? id) (= "all" id))
                        entries
@@ -1678,6 +1691,9 @@
 ;; The `[action text]` answer that `dialog_accept` or `dialog_dismiss` gave
 ;; before a dialog was open. The next dialog takes it.
 (defonce ^:private !dialog-answer (atom nil))
+;; The latest dialog claim, `{:at ms :info dialog-info}`. A `dialog accept` that
+;; ran while another command claimed a dialog must not keep its answer.
+(defonce ^:private !last-dialog-claim (atom nil))
 (defonce ^:private !tracked-requests (atom empty-window))
 (def ^:private max-tracked-requests 500)
 (defonce ^:private !routes (atom {}))
@@ -2512,20 +2528,44 @@
                              (filterv #(not (identical? (:dialog info) (:dialog %))) dialogs)
                              dialogs)))]
     (when (not= (count before) (count after))
-      (pick before))))
+      (let [info (pick before)]
+        (reset! !last-dialog-claim {:at (System/currentTimeMillis) :info info})
+        info))))
+
+(defn- own-command-started
+  "Start time of the ledger row of the calling thread, or nil."
+  []
+  (let [self (Thread/currentThread)]
+    (some #(when (identical? self (:thread %)) (:started %)) (vals @!ledger))))
 
 (defn- answer-or-keep-dialog-answer!
   "Gives `answer` to the pending dialog, or keeps it for the next dialog.
 
+   Regression, issue #192: of two concurrent answers, the one that lost the claim kept its
+   answer for the NEXT dialog, which then got an answer that nobody gave it.
+   When another command claimed a dialog while this command ran, this command
+   fails with `dialog_already_answered` and keeps nothing. `issued-at`, the
+   start of the client process, counts as the start of this command: a client
+   that started before the claim can arrive after it.
+
    Returns:
    The dialog info that got the answer, or nil when no dialog was pending and
    the answer waits for the next one."
-  [answer]
+  [answer issued-at]
   (if-let [info (claim-pending-dialog!)]
     (do (answer-dialog! (:dialog info) answer)
         info)
-    (do (reset! !dialog-answer answer)
-        nil)))
+    (let [{:keys [at info]} @!last-dialog-claim
+          started (->> [(own-command-started) issued-at] (filter number?) (map long) seq
+                    (apply min Long/MAX_VALUE))]
+      (when (and at (>= (long at) (long started)))
+        (throw (ex-info (str "A concurrent command answered the " (name (or (:type info) "dialog"))
+                          " dialog '" (:message info) "' first. This answer was not used "
+                          "and is not kept for the next dialog.")
+                 {:error_code "dialog_already_answered"
+                  :hint       "Run `spel dialog status` to see whether another dialog is open."})))
+      (reset! !dialog-answer answer)
+      nil)))
 
 (defn- dialog-answer-response
   "The answer of `dialog accept` and `dialog dismiss`. Says which dialog got
@@ -3659,6 +3699,10 @@
   [v]
   (if v "Yes" "No"))
 
+(def ^:private invalid-selector-re
+  "Words of a Playwright error about selector syntax."
+  #"(?i)while parsing|not a valid selector|unknown engine|unexpected token")
+
 (defn- locator-diagnostics
   "Collects lightweight click diagnostics for a locator.
 
@@ -3671,7 +3715,7 @@
                  (catch Exception e (vreset! !err e) 0))
         found? (clojure.core/pos? (long countv))
         msg    (some-> ^Throwable @!err .getMessage)]
-    {:invalid (when (and msg (re-find #"(?i)while parsing|not a valid selector|unknown engine|unexpected token" msg))
+    {:invalid (when (and msg (re-find invalid-selector-re msg))
                 msg)
      :count   countv
      :found   found?
@@ -3712,8 +3756,15 @@
      ;; Regression, issue #189: a selector with a syntax error was reported
      ;; as "Selector not found".
      (when-let [why (:invalid diag)]
+       ;; Issue #194: Playwright's message starts with `Error {`; the cause is on the
+       ;; `message='…'` line.
        (throw (ex-info (str "Invalid selector " selector ": "
-                         (first (str/split-lines (str/replace why #"^Error: " ""))))
+                         (-> (or (some #(when (re-find invalid-selector-re %) %) (str/split-lines why))
+                               why)
+                           str/trim
+                           (str/replace #"^message='" "")
+                           (str/replace #"^Error: " "")
+                           (str/replace #"'$" "")))
                 {:selector   selector
                  :error_code :invalid_selector
                  :hint       "Correct the selector, or take a new snapshot and use an @ref."})))
@@ -5386,13 +5437,15 @@
 
 ;; --- Phase 4: Dialogs ---
 
-(defmethod handle-cmd "dialog_accept" [_ {:strs [text]}]
+(defmethod handle-cmd "dialog_accept" [_ {:strs [text] :as params}]
   ;; `:pending` is true when no dialog was open: the answer waits for the next
   ;; dialog, for callers that answer before the click that opens it.
-  (dialog-answer-response "accept" text (answer-or-keep-dialog-answer! [:accept text])))
+  (dialog-answer-response "accept" text
+    (answer-or-keep-dialog-answer! [:accept text] (get params "issued_at"))))
 
-(defmethod handle-cmd "dialog_dismiss" [_ _]
-  (dialog-answer-response "dismiss" nil (answer-or-keep-dialog-answer! [:dismiss nil])))
+(defmethod handle-cmd "dialog_dismiss" [_ params]
+  (dialog-answer-response "dismiss" nil
+    (answer-or-keep-dialog-answer! [:dismiss nil] (get params "issued_at"))))
 
 (defmethod handle-cmd "dialog_status" [_ _]
   ;; Reports whether a dialog is currently blocking the page. Agents poll this
@@ -7474,7 +7527,7 @@
             (swap! !state update :launch-flags merge flags)
             (persist-launch-flags!))
           (let [t0    (System/nanoTime)
-                cid   (ledger-start! action request-id)
+                cid   (ledger-start! action params request-id)
                 resp  (try
                         (if (contains? control-actions action)
                           (process-command* action params)
@@ -7601,13 +7654,17 @@
    with `browser_handle_lost` on a blank page."
   [reason]
   (doseq [client (keys @!waiting-clients)]
-    (when-let [{:keys [^OutputStreamWriter writer action]} (take-waiting-client! client)]
+    (when-let [{:keys [^OutputStreamWriter writer action thread]} (take-waiting-client! client)]
       (try
         (.write writer ^String (json/write-json-str
                                  {:success    false
-                                  :error      (str "The session stopped (" reason ") while '" action
-                                                "' ran. The command did not finish; its effect "
-                                                "on the page is unknown.")
+                                  :error      (if (= "queued" (some #(when (identical? thread (:conn-thread %)) (:phase %))
+                                                                (vals @!ledger)))
+                                                (str "The session stopped (" reason ") before '" action
+                                                  "' started. The command did not run.")
+                                                (str "The session stopped (" reason ") while '" action
+                                                  "' ran. The command did not finish; its effect "
+                                                  "on the page is unknown."))
                                   :error_code "session_closed"
                                   :hint       (str "Check the page before you repeat a command "
                                                 "that changes it. The next command starts a new browser.")}))
@@ -7629,6 +7686,7 @@
           (let [stop (when-not (str/blank? line)
                        (swap! !waiting-clients assoc client
                          {:writer writer
+                          :thread (Thread/currentThread)
                           :action (or (second (re-find #"\"action\"\s*:\s*\"([^\"]+)\"" line))
                                     "command")})
                        (let [response (process-command line)]
