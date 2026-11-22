@@ -3694,6 +3694,24 @@
    daemon that stopped answering, which is the exact thing being asked about."
   1000)
 
+(def ^:private health-probe-retry-ms
+  "The second, longer window after a first health timeout. A short pause of the
+   daemon process, such as a garbage collection on a slow CI machine, made one
+   missed window report a live daemon as `unresponsive`."
+  3000)
+
+(defn health-probe
+  "Returns a probe that calls `send!` with the health window, and one more time
+   with a longer window when the first call times out."
+  [send!]
+  (fn []
+    (try
+      (send! health-probe-timeout-ms)
+      (catch clojure.lang.ExceptionInfo e
+        (if (:timeout-ms (ex-data e))
+          (send! health-probe-retry-ms)
+          (throw e))))))
+
 (defn daemon-health
   "Health of the daemon for `session`, WITHOUT ever starting one.
 
@@ -4936,7 +4954,7 @@
     (when (= "health" (:action command))
       (let [session (:session flags)
             report  (daemon-health session
-                      #(send-command! session {:action "health"} health-probe-timeout-ms))]
+                      (health-probe #(send-command! session {:action "health"} %)))]
         (if (:json flags)
           (println (json/write-json-str report :escape-slash false))
           (println (health-report report)))

@@ -2867,6 +2867,26 @@
               (expect (= "unresponsive" (:status h)))
               (expect (str/includes? (:cause h) "without answering")))))))))
 
+(defdescribe health-probe-test
+  "One missed health window must not call a live daemon unresponsive."
+
+  (it "asks again with a longer window after a timeout"
+    (let [windows (atom [])
+          probe   (sut/health-probe
+                    (fn [ms]
+                      (swap! windows conj ms)
+                      (if (= 1 (count @windows))
+                        (throw (ex-info "Daemon response timed out" {:timeout-ms ms}))
+                        {:success true :data {:status "ok"}})))]
+      (expect (= "ok" (get-in (probe) [:data :status])))
+      (expect (= [1000 3000] @windows))))
+
+  (it "does not ask again after a failure that is not a timeout"
+    (let [calls (atom 0)
+          probe (sut/health-probe (fn [_] (swap! calls inc) (throw (ex-info "refused" {}))))]
+      (expect (= :thrown (try (probe) (catch clojure.lang.ExceptionInfo _ :thrown))))
+      (expect (= 1 @calls)))))
+
 (defdescribe health-report-test
   "The terminal rendering: one status line plus only the facts that decide what
    to do next."
