@@ -855,6 +855,36 @@ OUT=$(timeout 10 "$SPEL" --json eval-js "() => window.__answer" 2>&1)
 assert_jq "open confirm in a new tab → the page gets false" "$OUT" '.result == false'
 "$SPEL" tab close >/dev/null 2>&1
 
+# Regression, issue #170: a click that opened a confirm waited for the whole
+# command budget.
+"$SPEL" eval-js "() => { const b = document.createElement('button'); b.id = 'spel-confirm'; b.textContent = 'c'; b.onclick = () => { window.__answer = confirm('click?') }; document.body.append(b); return 1 }" >/dev/null 2>&1
+START=$(date +%s)
+OUT=$(timeout 20 "$SPEL" --json click "#spel-confirm" 2>&1) || true
+END=$(date +%s)
+assert_jq_eq "click that opens a confirm → dialog_open" "$OUT" '.error_code' 'dialog_open'
+assert_jq "click that opens a confirm → ends before the budget" "{\"seconds\": $((END - START))}" '.seconds < 10'
+"$SPEL" dialog accept >/dev/null 2>&1
+OUT=$(timeout 10 "$SPEL" --json eval-js "() => window.__answer" 2>&1)
+assert_jq "click that opens a confirm → dialog accept answers it" "$OUT" '.result == true'
+
+# Regression, issue #171: the dialog of a second tab replaced the dialog of the
+# first tab, and the first tab stayed blocked.
+"$SPEL" eval-js "$OPEN_CONFIRM" >/dev/null 2>&1
+sleep 0.5
+"$SPEL" tab new https://the-internet.herokuapp.com/javascript_alerts >/dev/null 2>&1
+"$SPEL" eval-js "$OPEN_CONFIRM" >/dev/null 2>&1
+sleep 0.5
+OUT=$(timeout 10 "$SPEL" --json dialog status 2>&1)
+assert_jq "a dialog in two tabs → dialog status counts both" "$OUT" '.pending == true and .count == 2'
+"$SPEL" dialog accept >/dev/null 2>&1
+OUT=$(timeout 10 "$SPEL" --json eval-js "() => window.__answer" 2>&1)
+assert_jq "a dialog in two tabs → dialog accept answers the current tab" "$OUT" '.result == true'
+"$SPEL" tab close >/dev/null 2>&1
+OUT=$(timeout 10 "$SPEL" --json dialog dismiss 2>&1)
+assert_jq "a dialog in two tabs → the first dialog is still there" "$OUT" '.pending == false'
+OUT=$(timeout 10 "$SPEL" --json eval-js "() => window.__answer" 2>&1)
+assert_jq "a dialog in two tabs → the first tab gets false" "$OUT" '.result == false'
+
 # A page with a dialog listener of a script owns its dialogs: the listener of
 # the daemon must not answer them first.
 OUT=$(timeout 10 "$SPEL" --json eval-sci '(spel/auto-accept-dialogs! "typed") (spel/eval-js "prompt(\"name?\", \"x\")")' 2>&1)

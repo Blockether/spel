@@ -1171,8 +1171,11 @@
 (defonce ^:private !lost-commands (atom []))
 
 (def ^:private control-actions
-  "Commands that must answer even while browser execution is wedged."
-  #{"health" "cancel" "close"})
+  "Commands that must answer even while browser execution is wedged.
+
+   The dialog commands are here because a command that opened a dialog holds
+   the command lock until the dialog has an answer (issue #170)."
+  #{"health" "cancel" "close" "dialog_status" "dialog_accept" "dialog_dismiss"})
 
 (defn- ledger-start!
   "Records a command as in-flight on the calling thread. Returns its stable id."
@@ -1635,10 +1638,11 @@
 (defonce ^:private !console-messages (atom empty-window))
 (defonce ^:private !page-errors (atom empty-window))
 
-;; The dialog that blocks a page now: :type, :message, :default-value and the
-;; :dialog itself. `dialog_status` reads it; `dialog_accept` and
-;; `dialog_dismiss` answer its :dialog.
-(defonce ^:private !pending-dialog (atom nil))
+;; The dialogs that block pages now, oldest first: each has :type, :message,
+;; :default-value and the :dialog itself. Each tab can have its own dialog
+;; (issue #171). `dialog_status` reads them; `dialog_accept` and
+;; `dialog_dismiss` answer one :dialog.
+(defonce ^:private !pending-dialogs (atom []))
 
 ;; The `[action text]` answer that `dialog_accept` or `dialog_dismiss` gave
 ;; before a dialog was open. The next dialog takes it.
@@ -2410,7 +2414,7 @@
      dialog, one time.
    - `alert` and `beforeunload` are accepted, unless `--no-auto-dialog` is set:
      they carry no decision and would stop each navigation.
-   - Each other dialog stays open in `!pending-dialog` until `dialog accept` or
+   - Each other dialog stays open in `!pending-dialogs` until `dialog accept` or
      `dialog dismiss` answers it.
 
    A page with a dialog listener of a script owns its dialogs: this fn does
@@ -2431,21 +2435,33 @@
         (answer-dialog! dialog [:accept nil])
 
         :else
-        (reset! !pending-dialog {:type          dtype
-                                 :message       (.message dialog)
-                                 :default-value (.defaultValue dialog)
-                                 :dialog        dialog}))))
+        (swap! !pending-dialogs conj {:type          dtype
+                                      :message       (.message dialog)
+                                      :default-value (.defaultValue dialog)
+                                      :dialog        dialog}))))
   nil)
 
-(defn- pending-dialog
-  "Returns the dialog that blocks a page now, or nil. A dialog whose page is
-   closed is gone, so this forgets it."
+(defn- dialog-page
+  "Returns the page of the dialog `info`."
+  ^Page [info]
+  (.page ^Dialog (:dialog info)))
+
+(defn- open-dialogs
+  "Returns the dialogs that block pages now, oldest first. A dialog whose page
+   is closed is gone, so this forgets it."
   []
-  (when-let [info @!pending-dialog]
-    (let [^Page owner (.page ^Dialog (:dialog info))]
-      (if (and owner (.isClosed owner))
-        (reset! !pending-dialog nil)
-        info))))
+  (swap! !pending-dialogs
+    (fn [dialogs]
+      (filterv #(let [owner (dialog-page %)] (not (and owner (.isClosed owner)))) dialogs))))
+
+(defn- pending-dialog
+  "Returns the dialog that blocks the current tab, else the oldest dialog of
+   another tab, or nil."
+  []
+  (let [dialogs (open-dialogs)
+        current (:page @!state)]
+    (or (some #(when (identical? current (dialog-page %)) %) dialogs)
+      (first dialogs))))
 
 (defn- answer-or-keep-dialog-answer!
   "Gives `answer` to the pending dialog, or keeps it for the next dialog.
@@ -2455,7 +2471,8 @@
   [answer]
   (if-let [info (pending-dialog)]
     (do (answer-dialog! (:dialog info) answer)
-        (reset! !pending-dialog nil)
+        (swap! !pending-dialogs
+          (fn [dialogs] (filterv #(not (identical? (:dialog info) (:dialog %))) dialogs)))
         false)
     (do (reset! !dialog-answer answer)
         true)))
@@ -3068,10 +3085,10 @@
    storage."
   [^Page p session-storage?]
   (let [url     (try (page/url p) (catch Exception _ nil))
-        blocked (some-> ^Dialog (:dialog @!pending-dialog) (.page))]
+        blocked (into #{} (map dialog-page) @!pending-dialogs)]
     {:url url
      :session-storage
-     (when (and session-storage? url (not= "about:blank" url) (not (identical? p blocked)))
+     (when (and session-storage? url (not= "about:blank" url) (not (contains? blocked p)))
        (let [found (try (page/evaluate p "JSON.stringify([location.origin, Object.entries(sessionStorage)])")
                         (catch Exception _ nil))]
          (when (and (string? found) (not (str/ends-with? found ",[]]")))
@@ -3174,7 +3191,7 @@
       (when old-ctx
         (try (.close ^BrowserContext old-ctx) (catch Exception e (warn "close-context" e))))
       (swap! !state merge session {:context new-ctx :page new-pg})
-      (reset! !pending-dialog nil)
+      (reset! !pending-dialogs [])
       (reset! !console-messages empty-window)
       (reset! !page-errors empty-window)
       (reset! !tracked-requests empty-window)
@@ -3434,7 +3451,7 @@
        (when-let [pg-inst (:page @!state)]
          (page/set-default-timeout! pg-inst
            (double (or (get flags "timeout") default-action-timeout-ms)))
-         (reset! !pending-dialog nil)
+         (reset! !pending-dialogs [])
          (reset! !console-messages empty-window)
          (reset! !page-errors empty-window)
          (reset! !tracked-requests empty-window)
@@ -5295,11 +5312,15 @@
 (defmethod handle-cmd "dialog_status" [_ _]
   ;; Reports whether a dialog is currently blocking the page. Agents poll this
   ;; before issuing actions that would otherwise be silently stalled.
+  ;; `:tab` names the tab of the dialog that `dialog accept` answers next, and
+  ;; `:count` says how many tabs have a dialog (issue #171).
   (if-let [info (pending-dialog)]
     {:pending true
      :type (:type info)
      :message (:message info)
-     :default_value (:default-value info)}
+     :default_value (:default-value info)
+     :tab (tab-key-of (dialog-page info))
+     :count (count @!pending-dialogs)}
     {:pending false}))
 
 ;; --- Phase 4: Debug ---
@@ -6920,7 +6941,7 @@
      :error      (str "command '" action "' exceeded the daemon budget of "
                    budget-ms "ms and was interrupted")
      :error_code "command_timeout"
-     :hint       (if-let [dialog @!pending-dialog]
+     :hint       (if-let [dialog (first @!pending-dialogs)]
                    (str "A `" (:type dialog) "` dialog is open and blocks the page. Answer "
                      "it with `spel dialog accept` or `spel dialog dismiss`.")
                    (str "Raise the ceiling with SPEL_COMMAND_BUDGET_MS=<ms> if the work is "
@@ -6949,6 +6970,30 @@
      :error_code "page_crashed"
      :hint       "Re-run the command; `spel health` shows the fresh tab."
      :command_id cid}))
+
+(defn- dialog-open-response
+  "The answer for a command that opened a dialog. The page cannot go on until the
+   dialog has an answer, so the client gets this answer as soon as the dialog
+   opens, not when the budget runs out (issue #170).
+
+   Params:
+   `cid`    - String command id.
+   `action` - String action name.
+   `dialog` - The dialog info of `!pending-dialogs`.
+
+   Returns:
+   JSON string."
+  [^String cid ^String action dialog]
+  (json/write-json-str
+    {:success       false
+     :error         (str "`" action "` opened a `" (:type dialog) "` dialog: "
+                      (pr-str (:message dialog)) ". The page waits for an answer.")
+     :error_code    "dialog_open"
+     :hint          "Answer it with `spel dialog accept [text]` or `spel dialog dismiss`."
+     :dialog        {:type          (:type dialog)
+                     :message       (:message dialog)
+                     :default_value (:default-value dialog)}
+     :command_id    cid}))
 
 (defn- cancelled-response
   "The answer for a command that ended because it was cancelled. Its own failure
@@ -7077,7 +7122,10 @@
                        (str "'" (:action e) "' (" (:id e) ") has been running for " (:running e))
                        "another command is still running"))
        :error_code "daemon_busy"
-       :hint       "Inspect it with `spel health`, then `spel cancel all` to clear it."
+       :hint       (if-let [dialog (first @!pending-dialogs)]
+                     (str "A `" (:type dialog) "` dialog blocks the page. Answer it with "
+                       "`spel dialog accept` or `spel dialog dismiss`.")
+                     "Inspect it with `spel health`, then `spel cancel all` to clear it.")
        :in_flight  in-flight})))
 
 (def ^:private wedge-grace-ms
@@ -7162,6 +7210,9 @@
   [cid action params]
   (let [budget   (command-budget-ms action)
         deadline (+ (System/currentTimeMillis) budget)
+        ;; A dialog that opens while the command runs blocks it (issue #170).
+        before   (set (map :dialog @!pending-dialogs))
+        new-dialog #(first (remove (comp before :dialog) @!pending-dialogs))
         result (promise)
         worker (Thread.
                  nil
@@ -7206,6 +7257,7 @@
                        (cond
                          (not= r ::timeout)                       r
                          (page-crashed? (:page @!state))          ::crashed
+                         (new-dialog)                             ::dialog
                          (>= (System/currentTimeMillis) deadline) ::timeout
                          :else                                    (recur))))]
       (cond
@@ -7220,6 +7272,15 @@
           (when (= ::timeout (deref result wedge-grace-ms ::timeout))
             (abandon-wedged-command! cid action))
           (page-crash-response cid action url))
+
+        (= r ::dialog)
+        ;; The worker waits in the Playwright pipe and cannot take an interrupt.
+        ;; It keeps the command lock and ends by itself when `dialog accept` or
+        ;; `dialog dismiss` answers the dialog.
+        (let [dialog (new-dialog)]
+          (log/info! "command " cid " (" action ") opened a " (:type dialog)
+            " dialog — answering now; the command ends when the dialog has an answer")
+          (dialog-open-response cid action dialog))
 
         (= r ::timeout)
         (do
