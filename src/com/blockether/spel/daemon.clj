@@ -57,6 +57,7 @@
 
 (declare stop-daemon!)
 (declare pg)
+(declare tab-key-of)
 (declare daemon-running?)
 
 (defn- warn
@@ -2467,19 +2468,50 @@
     (or (some #(when (identical? current (dialog-page %)) %) dialogs)
       (first dialogs))))
 
+(defn- claim-pending-dialog!
+  "Removes the dialog that `pending-dialog` would pick from `!pending-dialogs`
+   and returns it, or nil. Only one caller can claim a dialog.
+
+   Regression, issue #181: two concurrent `dialog accept` calls both answered
+   the same dialog and both said so, but only one answer reached the page."
+  []
+  (open-dialogs)
+  (let [current (:page @!state)
+        pick    (fn [dialogs]
+                  (or (some #(when (identical? current (dialog-page %)) %) dialogs)
+                    (first dialogs)))
+        [before after] (swap-vals! !pending-dialogs
+                         (fn [dialogs]
+                           (if-let [info (pick dialogs)]
+                             (filterv #(not (identical? (:dialog info) (:dialog %))) dialogs)
+                             dialogs)))]
+    (when (not= (count before) (count after))
+      (pick before))))
+
 (defn- answer-or-keep-dialog-answer!
   "Gives `answer` to the pending dialog, or keeps it for the next dialog.
 
    Returns:
-   True when no dialog was pending and the answer waits for the next one."
+   The dialog info that got the answer, or nil when no dialog was pending and
+   the answer waits for the next one."
   [answer]
-  (if-let [info (pending-dialog)]
+  (if-let [info (claim-pending-dialog!)]
     (do (answer-dialog! (:dialog info) answer)
-        (swap! !pending-dialogs
-          (fn [dialogs] (filterv #(not (identical? (:dialog info) (:dialog %))) dialogs)))
-        false)
+        info)
     (do (reset! !dialog-answer answer)
-        true)))
+        nil)))
+
+(defn- dialog-answer-response
+  "The answer of `dialog accept` and `dialog dismiss`. Says which dialog got
+   the answer, or that the answer waits for the next dialog."
+  [handler text answered]
+  (cond-> {:dialog_handler handler :pending (nil? answered)}
+    text (assoc :text text)
+    answered (assoc :answered {:type    (:type answered)
+                               :message (:message answered)
+                               :tab     (some-> (dialog-page answered) tab-key-of)})
+    (nil? answered) (assoc :note (str "No dialog was open. The answer is kept for the "
+                                   "next dialog of this session."))))
 
 (defn- context-routes?
   "True when the routes of the session go on its browser context.
@@ -5306,12 +5338,10 @@
 (defmethod handle-cmd "dialog_accept" [_ {:strs [text]}]
   ;; `:pending` is true when no dialog was open: the answer waits for the next
   ;; dialog, for callers that answer before the click that opens it.
-  {:dialog_handler "accept" :text text
-   :pending (answer-or-keep-dialog-answer! [:accept text])})
+  (dialog-answer-response "accept" text (answer-or-keep-dialog-answer! [:accept text])))
 
 (defmethod handle-cmd "dialog_dismiss" [_ _]
-  {:dialog_handler "dismiss"
-   :pending (answer-or-keep-dialog-answer! [:dismiss nil])})
+  (dialog-answer-response "dismiss" nil (answer-or-keep-dialog-answer! [:dismiss nil])))
 
 (defmethod handle-cmd "dialog_status" [_ _]
   ;; Reports whether a dialog is currently blocking the page. Agents poll this
