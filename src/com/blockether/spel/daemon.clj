@@ -3565,8 +3565,11 @@
   "The error for an @ref no capture can find, listing what is addressable."
   [^String selector ^String ref-id]
   (let [refs (:refs @!state)
+        ;; Regression, issue #189: the message listed every ref (10,000 on a
+        ;; large page) and said "Run 'snapshot'" next to a hint that said it too.
+        shown 20
         hint (if (seq refs)
-               (let [rows (for [[k v] (sort-by key refs)]
+               (let [rows (for [[k v] (take shown (sort-by key refs))]
                             (str "  @" k "  " (:role v)
                               (when-let [n (:name v)]
                                 (when-not (str/blank? n)
@@ -3574,7 +3577,8 @@
                                                (str (subs n 0 37) "...")
                                                n) "\"")))))]
                  (str "Available refs:\n" (str/join "\n" rows)
-                   "\nRun 'snapshot' to refresh."))
+                   (when (> (count refs) shown)
+                     (str "\n  … " (- (count refs) shown) " more"))))
                "No refs available. Run 'snapshot' first to assign refs (@e2yrjz, @e9mter, \u2026).")]
     (ex-info (str "Ref " ref-id " not found.\n" hint)
       {:selector selector :found false :stale-ref true})))
@@ -3661,11 +3665,15 @@
    Returns:
    {:count long :found boolean :visible boolean? :enabled boolean?}"
   [loc]
-  (let [countv (try
+  (let [!err   (volatile! nil)
+        countv (try
                  (locator/count-elements loc)
-                 (catch Exception _ 0))
-        found? (clojure.core/pos? (long countv))]
-    {:count   countv
+                 (catch Exception e (vreset! !err e) 0))
+        found? (clojure.core/pos? (long countv))
+        msg    (some-> ^Throwable @!err .getMessage)]
+    {:invalid (when (and msg (re-find #"(?i)while parsing|not a valid selector|unknown engine|unexpected token" msg))
+                msg)
+     :count   countv
      :found   found?
      :visible (when found?
                 (try (boolean (locator/is-visible? loc))
@@ -3701,6 +3709,14 @@
   ([^String selector opts]
    (let [loc  (resolve-selector selector)
          diag (locator-diagnostics loc)]
+     ;; Regression, issue #189: a selector with a syntax error was reported
+     ;; as "Selector not found".
+     (when-let [why (:invalid diag)]
+       (throw (ex-info (str "Invalid selector " selector ": "
+                         (first (str/split-lines (str/replace why #"^Error: " ""))))
+                {:selector   selector
+                 :error_code :invalid_selector
+                 :hint       "Correct the selector, or take a new snapshot and use an @ref."})))
      (when-not (:found diag)
        (throw (ex-info
                 (str "Selector not found: " selector "\n"
