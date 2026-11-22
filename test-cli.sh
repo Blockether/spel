@@ -437,9 +437,17 @@ OUT=$("$SPEL" --json set viewport 1280 720 2>&1)
 assert_jq "set viewport → .viewport.width == 1280" "$OUT" '.viewport.width == 1280'
 assert_jq "set viewport → .viewport.height == 720" "$OUT" '.viewport.height == 720'
 
+# Regression, issue #157: `set device` and `set credentials` made the new
+# context without the cookies, the storage and the viewport of the session.
+"$SPEL" eval-js "() => {localStorage.setItem('spel-keep', 'v'); document.cookie = 'spel_keep=1; Max-Age=3600; SameSite=Lax'; return 1}" >/dev/null 2>&1
+KEEP_JS="() => ({storage: localStorage.getItem('spel-keep'), cookie: document.cookie, ua: navigator.userAgent, width: window.innerWidth})"
+
 # set device restarts context
 OUT=$("$SPEL" --json set device "iphone 14" 2>&1)
 assert_jq "set device → success" "$OUT" 'has("error") | not'
+OUT=$("$SPEL" --json eval-js "$KEEP_JS" 2>&1)
+assert_jq_eq "set device → keeps localStorage" "$OUT" '.result.storage' 'v'
+assert_jq_contains "set device → keeps the cookie" "$OUT" '.result.cookie' 'spel_keep=1'
 "$SPEL" set viewport 1280 720 >/dev/null 2>&1
 
 OUT=$("$SPEL" --json set geo 37.7 -122.4 2>&1)
@@ -455,6 +463,12 @@ assert_jq "set headers → success" "$OUT" 'has("error") | not'
 # set credentials restarts context
 OUT=$("$SPEL" --json set credentials testuser testpass 2>&1)
 assert_jq "set credentials → success" "$OUT" 'has("error") | not'
+OUT=$("$SPEL" --json eval-js "$KEEP_JS" 2>&1)
+assert_jq_eq "set credentials → keeps localStorage" "$OUT" '.result.storage' 'v'
+assert_jq_contains "set credentials → keeps the cookie" "$OUT" '.result.cookie' 'spel_keep=1'
+assert_jq_contains "set credentials → keeps the device" "$OUT" '.result.ua' 'iPhone'
+assert_jq "set credentials → keeps the viewport" "$OUT" '.result.width == 1280'
+"$SPEL" eval-js "localStorage.removeItem('spel-keep')" >/dev/null 2>&1
 
 OUT=$("$SPEL" --json set media dark 2>&1)
 assert_jq_eq "set media dark → .media.colorScheme" "$OUT" '.media.colorScheme' 'dark'
@@ -776,6 +790,13 @@ assert_jq "state load → success" "$OUT" 'has("error") | not'
 OUT=$("$SPEL" --json get url 2>&1)
 assert_jq_eq "get url after state load → .url" "$OUT" '.url' 'https://example.com/'
 
+# Regression, issue #157: a state file that did not load closed the page
+# and gave an error without a cause.
+OUT=$("$SPEL" --json state load "$TEST_TMP_DIR/no-such-state.json" 2>&1)
+assert_jq_contains "state load of a missing file → names the file" "$OUT" '.error' 'no-such-state.json'
+OUT=$("$SPEL" --json get url 2>&1)
+assert_jq_eq "state load of a missing file → keeps the page" "$OUT" '.url' 'https://example.com/'
+
 # state rename
 "$SPEL" state save >/dev/null 2>&1
 OUT=$("$SPEL" --json state rename "state-$SESSION.json" state-renamed.json 2>&1)
@@ -990,6 +1011,15 @@ assert_jq_contains "--device iPhone 14 → navigator.userAgent contains iPhone" 
 # --device viewport is mobile-sized (iPhone 14 = 390x844)
 OUT=$(timeout 10 "$SPEL" --json eval-js "window.innerWidth" 2>&1)
 assert_jq_eq "--device iPhone 14 → viewport.width=390" "$OUT" '.result' '390'
+
+# Regression, issue #157: `network har start` dropped the --device preset.
+DEVICE_HAR="$TEST_TMP_DIR/spel-test-device.har"
+TEMP_FILES+=("$DEVICE_HAR")
+"$SPEL" network har start "$DEVICE_HAR" >/dev/null 2>&1
+OUT=$(timeout 10 "$SPEL" --json eval-js "() => ({ua: navigator.userAgent, width: window.innerWidth})" 2>&1)
+assert_jq_contains "har start → keeps the --device user agent" "$OUT" '.result.ua' 'iPhone'
+assert_jq "har start → keeps the --device viewport" "$OUT" '.result.width == 390'
+"$SPEL" network har stop >/dev/null 2>&1
 
 "$SPEL" close >/dev/null 2>&1
 

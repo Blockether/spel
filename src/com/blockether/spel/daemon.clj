@@ -2859,36 +2859,14 @@
   (let [flags (get @!state :launch-flags {})]
     (not (get flags "no-persist"))))
 
-(defn- auto-load-session-state!
-  "If persistence is enabled, loads saved cookies/storage from a previous session.
-   Uses the session name from !state as the persistence key.
-   Called after browser/context creation to restore state across daemon restarts."
+(defn- persisted-state-path
+  "Returns the state file that the last run of this session saved, or nil when
+   persistence is off or the session has no file."
   []
   (when (persist-enabled?)
-    (let [sn         (:session @!state)
-          state-path (session-state-path sn)]
-      (when (Files/exists (Path/of state-path (into-array String []))
-              (into-array java.nio.file.LinkOption []))
-        ;; Save in-flight trace before destroying context
-        (save-inflight-trace!)
-        ;; Close current page and context, re-create with saved state
-        (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
-        (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-        ;; Merge launch-flag opts into the reloaded context so device emulation,
-        ;; user-agent overrides, etc. survive state-restore. Without this, any
-        ;; --device or --user-agent flag passed to the CLI gets silently dropped
-        ;; when a persisted state file exists.
-        (let [flags      (get @!state :launch-flags {})
-              device-preset (when-let [dn (get flags "device")]
-                              (devices/resolve-device-by-name dn))
-              ctx-opts   (cond-> (or device-preset {})
-                           true                       (assoc :storage-state-path state-path)
-                           (get flags "user-agent")   (assoc :user-agent (get flags "user-agent"))
-                           (get flags "ignore-https-errors") (assoc :ignore-https-errors true))
-              new-ctx (core/new-context (:browser @!state) ctx-opts)
-              new-pg  (new-spel-page! new-ctx)]
-          (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
-          (instrument-page! new-pg))))))
+    (let [state-path (session-state-path (:session @!state))]
+      (when (.exists (File. state-path))
+        state-path))))
 
 (defn- auto-save-session-state!
   "Saves the current browser context state (cookies/storage) to a file.
@@ -3006,6 +2984,101 @@
     (and (:undetected state) (not (get flags "channel")) (not (get flags "executable-path")))
     (assoc :channel "chromium")))
 
+;; Regression, issue #157: five places built a new context, each from its
+;; own part of the session. `set device` and `set credentials` deleted cookies
+;; and storage, `network har start` dropped the --device preset, and a saved
+;; session state dropped --headers and the undetected user agent.
+(defn- session-context-opts
+  "Returns the browser context options that `state` asks for. Each context of a
+   session comes from this fn, so each has the same device, user agent, headers
+   and credentials.
+
+   The device preset gives viewport, device-scale-factor, is-mobile, has-touch
+   and user-agent. A --user-agent flag wins over the preset. Firefox rejects
+   is-mobile and has-touch.
+
+   Params:
+   `state` - Value of `!state`. `:device` (from `set device`) wins over the
+             --device flag.
+
+   Returns:
+   Map for `core/new-context`, without cookies and storage."
+  [state]
+  (let [flags  (:launch-flags state {})
+        preset (some-> (or (:device state) (get flags "device"))
+                 devices/resolve-device-by-name)]
+    (cond-> (or preset {})
+      (= "firefox" (get flags "browser")) (dissoc :is-mobile :has-touch)
+      (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
+      (get flags "ignore-https-errors") (assoc :ignore-https-errors true)
+      (get flags "headers")             (assoc :extra-http-headers
+                                          (try (json/read-json (get flags "headers"))
+                                               (catch Exception _ {})))
+      (get flags "download-path")       (assoc :accept-downloads true)
+      (:http-credentials state)         (assoc :http-credentials (:http-credentials state)))))
+
+(defn- recreate-context!
+  "Replaces the browser context of the session: same options, same cookies and
+   storage, same viewport, same URL. Commands that need a context-level option
+   use it.
+
+   The new context opens before the old one closes. When it cannot open, the
+   session keeps its context and this fn throws.
+
+   Params:
+   `opts` - Map, optional.
+     `:session`            - Keys to merge into `!state` with the new context,
+                             for example `{:device \"iPhone 14\"}`. The context
+                             options come from the merged state. A `:device`
+                             gives its own viewport.
+     `:extra-opts`         - Options for this context only (HAR recording).
+     `:storage-state-path` - File that gives the cookies and storage. Default:
+                             the cookies and storage of the current context.
+
+   Returns:
+   The new page."
+  [{:keys [session extra-opts storage-state-path]}]
+  (let [state    (merge @!state session)
+        browser  (:browser state)
+        old-ctx  (:context state)
+        old-page (:page state)]
+    (when (or (nil? browser) (:persistent-profile state))
+      (throw (ex-info (str "This session runs in the one context of its --profile directory, "
+                        "and that context cannot be replaced. Close the session and give "
+                        "the option as a launch flag.")
+               {:error_code "persistent_context"})))
+    (let [current-url (try (page/url (pg)) (catch Exception _ nil))
+          storage     (when-not storage-state-path
+                        (try (.storageState ^BrowserContext old-ctx) (catch Exception _ nil)))
+          viewport    (when-not (:device session)
+                        (try (page/viewport-size old-page) (catch Exception _ nil)))
+          ctx-opts    (cond-> (merge (with-undetected-user-agent state (session-context-opts state)
+                                       #(.version ^com.microsoft.playwright.Browser browser))
+                                extra-opts)
+                        viewport           (assoc :viewport viewport)
+                        storage-state-path (assoc :storage-state-path storage-state-path)
+                        storage            (assoc :storage-state storage))
+          new-ctx     (check-anomaly! (core/new-context browser ctx-opts)
+                        "Failed to create the browser context")
+          new-pg      (try (new-spel-page! new-ctx)
+                           (catch Throwable e
+                             (try (.close ^BrowserContext new-ctx) (catch Exception _ nil))
+                             (throw e)))]
+      (save-inflight-trace!)
+      (when old-page
+        (try (core/close-page! old-page) (catch Exception e (warn "close-page" e))))
+      (when old-ctx
+        (try (.close ^BrowserContext old-ctx) (catch Exception e (warn "close-context" e))))
+      (swap! !state merge session {:context new-ctx :page new-pg :tracing? false})
+      (reset! !pending-dialog nil)
+      (reset! !console-messages [])
+      (reset! !page-errors [])
+      (reset! !tracked-requests [])
+      (instrument-page! new-pg)
+      (when (and current-url (not= "about:blank" current-url))
+        (page/navigate new-pg current-url))
+      new-pg)))
+
 (defn- ensure-browser!
   "Lazily starts browser on first command. Uses launch-flags from !state.
 
@@ -3095,31 +3168,23 @@
                          (update :args (fnil into [])
                            ["--allow-file-access-from-files" "--allow-file-access"]))
            launch-opts (with-undetected-channel @!state flags launch-opts)
-            ;; Resolve --device "iPhone 14" etc. to a Playwright device preset.
-            ;; The preset contributes viewport, device-scale-factor, is-mobile,
-            ;; has-touch, and user-agent — all merged into ctx-opts. If the user
-            ;; also passes --user-agent, their override wins because it comes
-            ;; after in the cond->.
-           device-preset (when-let [device-name (get flags "device")]
-                           (or (devices/resolve-device-by-name device-name)
-                             (throw (ex-info
-                                      (str "Unknown device: " device-name
-                                        ". Run 'spel set-device' with no args or see `devices/available-device-names`.")
-                                      {:device device-name}))))
+            ;; An unknown --device must stop the launch, not give a desktop page.
+           _           (when-let [device-name (get flags "device")]
+                         (when-not (devices/resolve-device-by-name device-name)
+                           (throw (ex-info
+                                    (str "Unknown device: " device-name
+                                      ". Run 'spel set-device' with no args or see `devices/available-device-names`.")
+                                    {:device device-name}))))
            browser-type  (get flags "browser" "chromium")
            _             (check-undetected-browser! @!state browser-type (get flags "engine"))
-           device-opts   (if (= "firefox" browser-type)
-                            ;; Firefox rejects :is-mobile / :has-touch
-                           (dissoc device-preset :is-mobile :has-touch)
-                           device-preset)
-           ctx-opts    (cond-> (or device-opts {})
-                         (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
-                         (get flags "ignore-https-errors")  (assoc :ignore-https-errors true)
-                         (get flags "headers")             (assoc :extra-http-headers
-                                                             (try (json/read-json (get flags "headers"))
-                                                                  (catch Exception _ {})))
-                         (get flags "storage-state")       (assoc :storage-state-path (get flags "storage-state"))
-                         (get flags "download-path")       (assoc :accept-downloads true))
+            ;; The state that the last run of this session saved wins over
+            ;; --storage-state. A profile directory and an attached browser
+            ;; have their own cookies and storage.
+           state-path  (or (when-not (or profile-dir (get flags "cdp") (get flags "auto-launch"))
+                             (persisted-state-path))
+                         (get flags "storage-state"))
+           ctx-opts    (cond-> (session-context-opts @!state)
+                         state-path (assoc :storage-state-path state-path))
            pw          (create-playwright!)]
        (cond
           ;; ── Mode 0: --engine lightpanda → spawn Lightpanda, connect CDP ───
@@ -3267,9 +3332,11 @@
          (reset! !page-errors [])
          (reset! !tracked-requests [])
          (instrument-page! pg-inst)
-          ;; Auto-load persisted session state (not for persistent/CDP profiles)
-         (when-not (or profile-dir (get flags "cdp"))
-           (auto-load-session-state!)))))))
+          ;; An auto-launched browser has its context before spel can give it
+          ;; options, so the saved session state needs a new context there.
+         (when (and (get flags "auto-launch") (not profile-dir))
+           (when-let [state-path (persisted-state-path)]
+             (recreate-context! {:storage-state-path state-path}))))))))
 
 ;; =============================================================================
 ;; Ref Resolution
@@ -4851,32 +4918,12 @@
     {:media {:colorScheme colorScheme}}))
 
 (defmethod handle-cmd "set_device" [_ {:strs [device]}]
-  (let [preset (devices/resolve-device-by-name device)]
-    (if preset
-      (let [browser      (do (ensure-browser!) (:browser @!state))
-            current-url  (try (page/url (pg)) (catch Exception _ nil))
-            browser-type (get-in @!state [:launch-flags "browser"] "chromium")
-            ctx-opts     (if (= "firefox" browser-type)
-                           (dissoc preset :is-mobile)
-                           preset)]
-        (save-inflight-trace!)
-        (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
-        (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-        (let [new-ctx (check-anomaly!
-                         (core/new-context browser ctx-opts)
-                        "Failed to create device context")
-              new-pg  (check-anomaly!
-                        (new-spel-page! new-ctx)
-                        "Failed to create page for device")]
-          (swap! !state assoc :context new-ctx :page new-pg :tracing? false :device device)
-          (reset! !console-messages [])
-          (reset! !page-errors [])
-          (reset! !tracked-requests [])
-          (instrument-page! new-pg)
-          (when current-url (page/navigate new-pg current-url))
-          {:device device :preset preset}))
-      {:error (str "Unknown device: " device
-                ". Available: " (clojure.string/join ", " (devices/available-device-names)))})))
+  (if-let [preset (devices/resolve-device-by-name device)]
+    (do (ensure-browser!)
+        (recreate-context! {:session {:device device}})
+        {:device device :preset preset})
+    {:error (str "Unknown device: " device
+              ". Available: " (clojure.string/join ", " (devices/available-device-names)))}))
 
 (defmethod handle-cmd "set_geo" [_ {:strs [latitude longitude accuracy]}]
   (let [context (live-context)]
@@ -4887,27 +4934,10 @@
     {:geolocation {:latitude latitude :longitude longitude}}))
 
 (defmethod handle-cmd "set_credentials" [_ {:strs [username password]}]
-  ;; HTTP credentials require recreating the context
-  (let [browser     (do (ensure-browser!) (:browser @!state))
-        current-url (try (page/url (pg)) (catch Exception _ nil))]
-    ;; Save in-flight trace before destroying context
-    (save-inflight-trace!)
-    (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
-    (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-    (let [new-ctx (check-anomaly!
-                    (core/new-context browser
-                      {:http-credentials {:username username :password password}})
-                    "Failed to create context with credentials")
-          new-pg  (check-anomaly!
-                    (new-spel-page! new-ctx)
-                    "Failed to create page with credentials")]
-      (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
-      (reset! !console-messages [])
-      (reset! !page-errors [])
-      (reset! !tracked-requests [])
-      (instrument-page! new-pg)
-      (when current-url (page/navigate new-pg current-url))
-      {:credentials_set true})))
+  ;; HTTP credentials are an option of the context, so it needs a new one.
+  (ensure-browser!)
+  (recreate-context! {:session {:http-credentials {:username username :password password}}})
+  {:credentials_set true})
 
 ;; --- Phase 3: Cookies ---
 
@@ -5017,50 +5047,6 @@
     (claim-cdp-route-lock!)
     {:route_added url}))
 
-(defn- recreate-context-with-opts!
-  "Closes the current browser context and recreates it with merged opts,
-   preserving storage state and navigating back to the current URL. Used by
-   HAR start/stop and other features that require context-level options.
-
-   Returns the new page instance.
-
-   `extra-opts` is merged on top of the existing base ctx-opts derived from
-   launch-flags."
-  [extra-opts]
-  (let [current-url  (try (page/url (pg)) (catch Exception _ nil))
-        flags        (get @!state :launch-flags {})
-        browser      (:browser @!state)
-        base-opts    (cond-> {}
-                       (get flags "user-agent")          (assoc :user-agent (get flags "user-agent"))
-                       (get flags "ignore-https-errors") (assoc :ignore-https-errors true)
-                       (get flags "headers")             (assoc :extra-http-headers
-                                                           (try (json/read-json (get flags "headers"))
-                                                                (catch Exception _ {}))))
-        ctx-opts     (merge base-opts extra-opts)]
-    ;; Save in-flight trace + storage state before teardown
-    (save-inflight-trace!)
-    (let [storage-state (try (.storageState ^BrowserContext (:context @!state))
-                             (catch Exception _ nil))]
-      (when-let [p (:page @!state)]
-        (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
-      (when-let [c (:context @!state)]
-        (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-      (let [ctx-opts-with-state (cond-> ctx-opts
-                                  storage-state (assoc :storage-state storage-state))
-            new-ctx (check-anomaly!
-                      (core/new-context browser ctx-opts-with-state)
-                      "Failed to recreate browser context")
-            new-pg  (check-anomaly!
-                      (new-spel-page! new-ctx)
-                      "Failed to create page in recreated context")]
-        (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
-        (reset! !console-messages [])
-        (reset! !page-errors [])
-        (reset! !tracked-requests [])
-        (instrument-page! new-pg)
-        (when current-url (page/navigate new-pg current-url))
-        new-pg))))
-
 (defmethod handle-cmd "har_start" [_ {:strs [path mode omit-content url-filter]}]
   (ensure-browser!)
   (ensure-page-loaded!)
@@ -5077,7 +5063,7 @@
                    mode         (assoc :record-har-mode (keyword mode))
                    omit-content (assoc :record-har-omit-content true)
                    url-filter   (assoc :record-har-url-filter url-filter))]
-    (recreate-context-with-opts! opts)
+    (recreate-context! {:extra-opts opts})
     (swap! !state assoc :har-recording? true :har-path har-path)
     {:recording true :path har-path}))
 
@@ -5088,7 +5074,7 @@
   (let [har-path (:har-path @!state)]
     ;; Closing the context flushes the HAR file to disk. Recreate a fresh
     ;; context without recordHar so the session stays usable.
-    (recreate-context-with-opts! {})
+    (recreate-context! {})
     (swap! !state assoc :har-recording? false :har-path nil)
     (let [size (try (.length (java.io.File. ^String har-path)) (catch Exception _ -1))]
       {:recording false :path har-path :size size})))
@@ -5230,28 +5216,10 @@
     {:state "saved" :path save-path}))
 
 (defmethod handle-cmd "state_load" [_ {:strs [path]}]
-  (let [state-path  (or path (str "state-" (:session @!state) ".json"))
-        browser     (do (ensure-browser!) (:browser @!state))
-        current-url (try (page/url (pg)) (catch Exception _ nil))]
-    ;; Save in-flight trace before destroying context
-    (save-inflight-trace!)
-    (when-let [p (:page @!state)] (try (core/close-page! p) (catch Exception e (warn "close-page" e))))
-    (when-let [c (:context @!state)] (try (.close ^BrowserContext c) (catch Exception e (warn "close-context" e))))
-    (let [new-ctx (core/new-context browser {:storage-state-path state-path})]
-      (if (anomaly/anomaly? new-ctx)
-        {:error (str "Failed to load state: " (:anomaly/message new-ctx))}
-        (let [new-pg (new-spel-page! new-ctx)]
-          (if (anomaly/anomaly? new-pg)
-            (do (.close ^BrowserContext new-ctx)
-                {:error (str "Failed to create page: " (:anomaly/message new-pg))})
-            (do
-              (swap! !state assoc :context new-ctx :page new-pg :tracing? false)
-              (reset! !console-messages [])
-              (reset! !page-errors [])
-              (reset! !tracked-requests [])
-              (instrument-page! new-pg)
-              (when current-url (page/navigate new-pg current-url))
-              {:state "loaded" :path state-path})))))))
+  (let [state-path (or path (str "state-" (:session @!state) ".json"))]
+    (ensure-browser!)
+    (recreate-context! {:storage-state-path state-path})
+    {:state "loaded" :path state-path}))
 
 (defmethod handle-cmd "state_list" [_ _]
   (let [dir (java.io.File. ".")

@@ -883,25 +883,61 @@
         (#'sut/auto-save-session-state!)
         (expect true))))
 
-  (describe "auto-load skips when --no-persist"
-    (it "does nothing when no-persist flag is set"
+  (describe "persisted state path with --no-persist"
+    (it "is nil when the no-persist flag is set"
       (let [state-atom (deref #'sut/!state)]
         (reset! state-atom {:pw nil :browser nil :context nil :page nil
                             :refs {} :counter 0 :headless true :session "test"
                             :launch-flags {"no-persist" true}})
-        ;; Should not throw
-        (#'sut/auto-load-session-state!)
-        (expect true))))
+        (expect (nil? (#'sut/persisted-state-path))))))
 
-  (describe "auto-load skips when file doesn't exist"
-    (it "does nothing when state file missing"
+  (describe "persisted state path without a state file"
+    (it "is nil when the session saved no state"
       (let [state-atom (deref #'sut/!state)]
         (reset! state-atom {:pw nil :browser nil :context nil :page nil
                             :refs {} :counter 0 :headless true :session "nonexistent-session-xyz"
                             :launch-flags {}})
-        ;; Should not throw — file doesn't exist so it just returns
-        (#'sut/auto-load-session-state!)
-        (expect true)))))
+        (expect (nil? (#'sut/persisted-state-path)))))))
+
+;; Regression, issue #157: each place that made a new context read its own
+;; part of the session, so a new context lost the options of the old one.
+(defdescribe session-context-opts-test
+  "Unit tests for the context options that a session state asks for"
+
+  (describe "launch flags"
+    (it "gives the device preset, headers and downloads of the flags"
+      (let [opts (#'sut/session-context-opts
+                  {:launch-flags {"device" "iPhone 14" "headers" "{\"X-T\":\"1\"}"
+                                  "download-path" "/tmp/d" "ignore-https-errors" true}})]
+        (expect (= 390 (get-in opts [:viewport :width])))
+        (expect (true? (:is-mobile opts)))
+        (expect (= {"X-T" "1"} (:extra-http-headers opts)))
+        (expect (true? (:accept-downloads opts)))
+        (expect (true? (:ignore-https-errors opts)))))
+
+    (it "lets --user-agent win over the user agent of the device"
+      (expect (= "custom/1.0"
+                (:user-agent (#'sut/session-context-opts
+                              {:launch-flags {"device" "iPhone 14" "user-agent" "custom/1.0"}})))))
+
+    (it "drops the mobile options that Firefox rejects"
+      (let [opts (#'sut/session-context-opts
+                  {:launch-flags {"device" "iPhone 14" "browser" "firefox"}})]
+        (expect (= 390 (get-in opts [:viewport :width])))
+        (expect (not (contains? opts :is-mobile)))
+        (expect (not (contains? opts :has-touch))))))
+
+  (describe "state from `set device` and `set credentials`"
+    (it "wins over the --device flag and keeps the credentials"
+      (let [opts (#'sut/session-context-opts
+                  {:launch-flags     {"device" "iPhone 14"}
+                   :device           "Pixel 7"
+                   :http-credentials {:username "u" :password "p"}})]
+        (expect (= 412 (get-in opts [:viewport :width])))
+        (expect (= {:username "u" :password "p"} (:http-credentials opts)))))
+
+    (it "is an empty map for a session with no options"
+      (expect (= {} (#'sut/session-context-opts {:launch-flags {}}))))))
 
 ;; =============================================================================
 ;; Unit Tests — check-anomaly! (private)
