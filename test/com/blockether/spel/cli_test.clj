@@ -3014,6 +3014,23 @@
               (expect (= pid (:pid result)))
               (expect (.isAlive (java.lang.ProcessHandle/current)))))))))
 
+  ;; Regression, issue #172: a Windows CIM query that timed out gave no command
+  ;; line, and health called the session's own daemon a stale pid.
+  (it "asks the daemon when the OS gives no command line for its pid"
+    (let [s   (dfr-session)
+          pid (.pid (java.lang.ProcessHandle/current))]
+      (with-live-pid s
+        (fn []
+          (with-redefs [sut/daemon-process-at-pid (constantly nil)
+                        sut/orphan-daemon-processes (constantly [])
+                        sut/command-line-unknown? (constantly true)]
+            (let [own   (sut/daemon-health s (fn [] {:success true
+                                                     :data {:status "ok" :session s :pid pid}}))
+                  other (sut/daemon-health s (fn [] {:success true
+                                                     :data {:status "ok" :session s :pid (inc pid)}}))]
+              (expect (= "ok" (:status own)))
+              (expect (= "stale" (:status other)))))))))
+
   ;; Regression: a failed graceful close used to remove session files even while
   ;; the daemon remained alive, so a reusable profile could be released too early.
   (it "keeps the daemon and its session files when close is not acknowledged"

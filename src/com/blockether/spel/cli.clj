@@ -3268,7 +3268,7 @@
         (.isAlive ^java.lang.ProcessHandle (.get handle))))
     (catch Exception _ false)))
 
-(declare daemon-process-at-pid daemon-process-for-session)
+(declare daemon-process-at-pid daemon-process-for-session command-line-unknown? probe-names-pid?)
 
 (defn- poll-until
   "Polls `ready?` until it returns truthy or `budget-ms` elapses.
@@ -3631,7 +3631,15 @@
   [session probe]
   (let [file-pid   (read-pid session)
         file-alive (boolean (and file-pid (process-alive? file-pid)))
-        file-entry (when file-alive (daemon-process-at-pid file-pid))
+        cl-entry   (when file-alive (daemon-process-at-pid file-pid))
+        ;; Windows can fail to give a command line (a slow CIM query). Then
+        ;; the pid is not known to be a bystander: the daemon on this
+        ;; session's socket can say that it is that pid (issue #172).
+        early      (when (and file-alive (nil? cl-entry) (command-line-unknown? file-pid))
+                     (try (probe) (catch Exception e {::probe-error e})))
+        file-entry (or cl-entry
+                     (when (probe-names-pid? early session file-pid)
+                       {:pid (str file-pid) :session session}))
         file-valid (and file-entry (= session (:session file-entry)))
         daemon     (or (when file-valid file-entry)
                      (daemon-process-for-session session))
@@ -3650,7 +3658,7 @@
         (daemon-exit-reason session) (assoc :last_exit (daemon-exit-reason session)))
 
       :else
-      (let [resp      (try (probe) (catch Exception e {::probe-error e}))
+      (let [resp      (or early (try (probe) (catch Exception e {::probe-error e})))
             orphaned? (or (nil? file-pid) (not file-valid))]
         (if (and (map? resp) (:success resp) (map? (:data resp)))
           (cond-> (assoc (:data resp) :session session :pid pid :log log-path)
@@ -3773,6 +3781,7 @@
         (.close (.getOutputStream proc))
         (if-not (.waitFor proc 20 java.util.concurrent.TimeUnit/SECONDS)
           (do (.destroyForcibly proc)
+            (.waitFor proc 5 java.util.concurrent.TimeUnit/SECONDS)
             (log/warn! "windows command lines: CIM query timed out after 20s")
             nil)
           (let [text (String. (Files/readAllBytes out)
@@ -3906,6 +3915,22 @@
           (when (.isAlive ph)
             (daemon-process-entry (.pid ph) (process-command-line ph))))))
     (catch Exception _ nil)))
+
+(defn- command-line-unknown?
+  "Whether `pid` is alive but the OS gives no command line for it."
+  [pid]
+  (try
+    (let [handle (java.lang.ProcessHandle/of (Long/parseLong (str/trim (str pid))))]
+      (boolean (and (.isPresent handle)
+                 (nil? (process-command-line (.get handle))))))
+    (catch Exception _ false)))
+
+(defn- probe-names-pid?
+  "Whether the health answer `resp` comes from daemon `pid` of `session`."
+  [resp session pid]
+  (and (map? resp) (:success resp)
+    (= session (get-in resp [:data :session]))
+    (= (str/trim (str pid)) (str (get-in resp [:data :pid])))))
 
 (defn daemon-process-for-session
   "Finds the live, verified spel daemon for `session`.
