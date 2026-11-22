@@ -8,6 +8,7 @@
    [clojure.string :as str]
    [com.blockether.anomaly.core :as anomaly]
    [com.blockether.spel.core :refer [safe java->clj ->js-arg tag-eval-source event-consumer release-route!]]
+   [com.blockether.spel.dom-util :as dom]
    [com.blockether.spel.options :as opts])
   (:import
    [com.microsoft.playwright Page Locator Frame
@@ -478,21 +479,11 @@
   ([^Page page direction]
    (scroll page direction {}))
   ([^Page page direction opts]
-   (let [dir      (name (or direction :down))
-         amount   (long (get opts :amount 500))
-         smooth?  (boolean (get opts :smooth? false))
-         [dx dy]  (case dir
-                    "up"    [0 (- amount)]
-                    "down"  [0 amount]
-                    "left"  [(- amount) 0]
-                    "right" [amount 0]
-                    [0 amount])
-         behavior (if smooth? "'smooth'" "'instant'")
-         js-opts  (str "{left: " dx ", top: " dy ", behavior: " behavior "}")]
+   (let [{:keys [js-opts smooth? result]} (dom/scroll-options direction opts)]
      (safe (.evaluate page (str "window.scrollBy(" js-opts ")")))
      (when smooth?
        (wait-scroll-settled! page 1000))
-     {:scrolled dir :amount amount :smooth smooth?})))
+     result)))
 
 (defn scroll-position
   "Returns the current scroll position of the page.
@@ -565,19 +556,12 @@
    Returns:
    Vector of maps or anomaly map on failure."
   [^Page page]
-  (let [js "() => {
+  (let [js (str "() => {
     const results = [];
     const scrollable = new Set(['auto', 'scroll']);
     const usedRefs = {};
 
-    function fnv1a(str) {
-      let h = 0x811c9dc5;
-      for (let i = 0; i < str.length; i++) {
-        h ^= str.charCodeAt(i);
-        h = Math.imul(h, 0x01000193) >>> 0;
-      }
-      return h;
-    }
+" dom/fnv1a-js "
 
     function assignRef(el) {
       if (el.dataset && el.dataset.pwRef) return el.dataset.pwRef;
@@ -629,7 +613,7 @@
     while (walker.nextNode()) check(walker.currentNode);
 
     return results;
-  }"
+  }")
         result (safe (.evaluate page js))]
     (if (instance? java.util.List result)
       (mapv (fn [^java.util.Map m]

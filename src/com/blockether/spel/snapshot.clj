@@ -14,6 +14,7 @@
    [clojure.string :as str]
    [charred.api :as json]
    [com.blockether.anomaly.core :as anomaly]
+   [com.blockether.spel.dom-util :as dom]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.webdriver :as webdriver])
   (:import
@@ -30,7 +31,7 @@
    Uses Element.computedRole and Element.computedName where the browser has
    them. Chromium has them only behind a flag, so the walker's own role and
    name rules give the result there."
-  "(() => {
+  (str "(() => {
   // A selector query on the document does not enter a shadow tree, so the
   // capture records each open shadow root that it tags. The next capture and
   // the annotation scripts read that set to reach those refs again.
@@ -68,14 +69,7 @@
 
   const identityCounts = {};
 
-  function fnv1a(str) {
-    let h = 0x811c9dc5;
-    for (let i = 0; i < str.length; i++) {
-      h ^= str.charCodeAt(i);
-      h = Math.imul(h, 0x01000193) >>> 0;
-    }
-    return h;
-  }
+" dom/fnv1a-js "
 
   function stableRef(el, role, name) {
     const tag = el.tagName.toLowerCase();
@@ -736,7 +730,7 @@
   return JSON.stringify({ tree: tree, refs: refs, counter: counter,
                           visited: visited, truncated: truncated,
                           nodeBudget: MAX_NODES });
-})()")
+})()"))
 
 ;; =============================================================================
 ;; Tree Formatting

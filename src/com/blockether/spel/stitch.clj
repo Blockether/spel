@@ -4,23 +4,12 @@
    and taking a full-page screenshot — no AWT/ImageIO dependency."
   (:require
    [com.blockether.spel.core :as core]
-   [com.blockether.spel.page :as page])
-  (:import
-   [java.nio.file Files Path]
-   [java.util Base64]))
-
-(defn- file->base64 [^String path]
-  (let [bytes (Files/readAllBytes (Path/of path (into-array String [])))]
-    (.encodeToString (Base64/getEncoder) bytes)))
+   [com.blockether.spel.image-util :as image]
+   [com.blockether.spel.page :as page]))
 
 (defn- png-width
-  "Reads the pixel width from a PNG file header (bytes 16-19, big-endian)."
-  ^long [^String path]
-  (let [^bytes buf (Files/readAllBytes (Path/of path (into-array String [])))]
-    (bit-or (bit-shift-left (long (bit-and (long (aget buf 16)) 0xFF)) 24)
-      (bit-shift-left (long (bit-and (long (aget buf 17)) 0xFF)) 16)
-      (bit-shift-left (long (bit-and (long (aget buf 18)) 0xFF)) 8)
-      (long (bit-and (long (aget buf 19)) 0xFF)))))
+  ^long [path]
+  (image/png-axis-size (image/file->bytes path) 16))
 
 (defn- build-html [base64-images {:keys [overlap-px] :or {overlap-px 0}}]
   (let [overlap (long overlap-px)]
@@ -41,22 +30,11 @@
           base64-images))
       "</body></html>")))
 
-(defn- ensure-playwright!
-  "Guards against anomaly maps from core/create. Throws if Playwright
-   initialization failed instead of passing a map to browser launch."
-  [pw]
-  (when (core/anomaly? pw)
-    (throw (ex-info (str "Failed to create Playwright: " (:anomaly/message pw))
-             (select-keys pw [:anomaly/category :anomaly/message])))))
-
-(defn- resolve-launch-fn
-  "Returns the browser launch function based on browser type string.
-   Reads SPEL_BROWSER env var as fallback. Defaults to chromium."
-  [browser-type]
-  (case (or browser-type (System/getenv "SPEL_BROWSER") "chromium")
-    "firefox" core/launch-firefox
-    "webkit"  core/launch-webkit
-    core/launch-chromium))
+(defn read-image
+  "Reads an image file and returns its base64 encoding.
+   (Replaces the old AWT BufferedImage version.)"
+  [path]
+  (image/bytes->base64 (image/file->bytes path)))
 
 (defn stitch-vertical
   "Stitch multiple images vertically into one PNG using Playwright.
@@ -65,11 +43,11 @@
   (when (empty? paths)
     (throw (IllegalArgumentException. "stitch-vertical requires at least one image path")))
   (let [max-w    (long (apply max (map png-width paths)))
-        b64s     (mapv file->base64 paths)
+        b64s     (mapv read-image paths)
         html     (build-html b64s {})
-        launch-fn (resolve-launch-fn nil)]
+        launch-fn (image/resolve-launch-fn nil)]
     (core/with-playwright [pw]
-      (ensure-playwright! pw)
+      (image/ensure-playwright! pw)
       (core/with-browser [browser (launch-fn pw {:headless true})]
         (core/with-page [pg (core/new-page browser)]
           (page/set-viewport-size! pg max-w 1)
@@ -85,11 +63,11 @@
   (when (empty? paths)
     (throw (IllegalArgumentException. "stitch-vertical-overlap requires at least one image path")))
   (let [max-w    (long (apply max (map png-width paths)))
-        b64s     (mapv file->base64 paths)
+        b64s     (mapv read-image paths)
         html     (build-html b64s {:overlap-px (or overlap-px 0)})
-        launch-fn (resolve-launch-fn browser-type)]
+        launch-fn (image/resolve-launch-fn browser-type)]
     (core/with-playwright [pw]
-      (ensure-playwright! pw)
+      (image/ensure-playwright! pw)
       (core/with-browser [browser (launch-fn pw {:headless true})]
         (core/with-page [pg (core/new-page browser)]
           (page/set-viewport-size! pg max-w 1)
@@ -97,9 +75,3 @@
           (page/wait-for-load-state pg :networkidle)
           (page/screenshot pg {:path out-path :full-page true}))))
     out-path))
-
-(defn read-image
-  "Reads an image file and returns its base64 encoding.
-   (Replaces the old AWT BufferedImage version.)"
-  [path]
-  (file->base64 path))

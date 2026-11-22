@@ -21,13 +21,12 @@
    [com.blockether.spel.allure :as allure]
    [com.blockether.spel.driver :as driver]
    [com.blockether.spel.spel-allure-alternative-html-report :as alternative-report]
+   [com.blockether.spel.reporter-util :as reporter]
    [lazytest.expectation-failed :refer [ex-failed?]]
    [lazytest.reporters :refer [reporter-dispatch]]
-   [lazytest.suite :as s]
    [lazytest.test-case :as tc])
   (:import
    [java.io File PrintWriter StringWriter]
-   [java.net InetAddress]
    [java.security MessageDigest]
    [java.util UUID]))
 
@@ -153,29 +152,9 @@
         har-path   (assoc :allure/har-path   (str har-path))
         video-path (assoc :allure/video-path (str video-path))))))
 
-(defn- install-output-capture!
-  "Patches try-test-case for output capture. Skips if already patched
-   (e.g., by the JUnit reporter running alongside)."
-  []
-  (when-not (:original-try-test-case @run-state)
-    (let [original (deref #'tc/try-test-case)]
-      (swap! run-state assoc :original-try-test-case original)
-      (alter-var-root #'tc/try-test-case wrap-try-test-case))))
-
-(defn- uninstall-output-capture!
-  "Restores the original try-test-case function."
-  []
-  (when-let [original (:original-try-test-case @run-state)]
-    (alter-var-root #'tc/try-test-case (constantly original))))
-
 ;; =============================================================================
 ;; Helpers
 ;; =============================================================================
-
-(defn- hostname
-  ^String []
-  (try (.getHostName (InetAddress/getLocalHost))
-       (catch Exception _ "localhost")))
 
 (defn- uuid
   ^String []
@@ -269,50 +248,6 @@
     (indent v 0)))
 
 ;; =============================================================================
-;; Result Tree Walking (shared with JUnit reporter pattern)
-;; =============================================================================
-
-(defn- doc-str
-  [doc]
-  (cond
-    (instance? clojure.lang.Namespace doc) (str (ns-name doc))
-    (instance? clojure.lang.Var doc)       (str (:name (meta doc)))
-    (and (some? doc)
-      (not (str/blank? (str doc))))     (str doc)
-    :else                                  nil))
-
-(defn- ns-suite?
-  [result]
-  (and (s/suite-result? result)
-    (= :lazytest/ns (-> result :source :type))))
-
-(defn- collect-test-cases
-  "Walk result tree depth-first, collecting leaf test case results.
-   Each result is annotated with:
-     ::path     - vector of describe/suite doc strings
-     ::ns-name  - the namespace name string"
-  [result path ns-name]
-  (if (s/suite-result? result)
-    (let [source-type (-> result :source :type)
-          doc (doc-str (:doc result))
-          new-ns (if (= :lazytest/ns source-type)
-                   (or doc ns-name)
-                   ns-name)
-          new-path (if (and doc
-                         (not= :lazytest/run source-type)
-                         (not= :lazytest/ns source-type))
-                     (conj path doc)
-                     path)]
-      (mapcat #(collect-test-cases % new-path new-ns) (:children result)))
-    ;; Leaf test-case result
-    [(assoc result ::path path ::ns-name ns-name)]))
-
-(defn- ns-package
-  ^String [^String ns-name]
-  (let [idx (.lastIndexOf ns-name ".")]
-    (if (pos? idx) (subs ns-name 0 idx) "")))
-
-;; =============================================================================
 ;; Result Classification
 ;; =============================================================================
 
@@ -352,9 +287,9 @@
 (defn- build-labels
   "Build labels array for a test case result."
   [tc]
-  (let [ns-name  (::ns-name tc)
-        path     (::path tc)
-        pkg      (when ns-name (ns-package ns-name))
+  (let [ns-name  (::reporter/ns-name tc)
+        path     (::reporter/path tc)
+        pkg      (when ns-name (reporter/ns-package ns-name))
         sub      (first path)
         hn       (:hostname @run-state)]
     (cond-> []
@@ -372,8 +307,8 @@
 (defn- build-full-name
   "Build a stable fullName for historyId/testCaseId generation."
   ^String [tc]
-  (let [ns-name (::ns-name tc)
-        path    (::path tc)
+  (let [ns-name (::reporter/ns-name tc)
+        path    (::reporter/path tc)
         name    (tc/identifier tc)
         parts   (filterv some? (concat [ns-name] path [name]))]
     (str/join "." parts)))
@@ -381,7 +316,7 @@
 (defn- build-display-name
   "Build a human-readable test name."
   ^String [tc]
-  (let [path (::path tc)
+  (let [path (::reporter/path tc)
         name (tc/identifier tc)]
     (if (seq path)
       (str (str/join " > " path) " > " name)
@@ -1553,20 +1488,20 @@
     (if (clean?)
       (clean-output-dir! dir)
       (.mkdirs dir))
-    (reset! run-state {:hostname (hostname)
+    (reset! run-state {:hostname (reporter/hostname)
                        :start-ms (System/currentTimeMillis)
                        :output-dir dir})
     (allure/set-reporter-active! true)
-    (install-output-capture!)))
+    (when-not (:original-try-test-case @run-state)
+    (reporter/install-output-capture! run-state wrap-try-test-case))))
 
 (defmethod allure :end-test-run [_ m]
   (allure/set-reporter-active! false)
-  (uninstall-output-capture!)
+  (reporter/uninstall-output-capture! run-state)
   (let [results    (:results m)
         dir        (:output-dir @run-state)
-        ns-suites  (when (s/suite-result? results)
-                     (filter ns-suite? (:children results)))
-        all-cases  (mapcat #(collect-test-cases % [] nil) ns-suites)
+        ns-suites  (reporter/ns-suites results)
+        all-cases  (mapcat reporter/collect-test-cases ns-suites)
         n          (count all-cases)]
     ;; Write individual result files
     (doseq [tc all-cases]
@@ -1713,7 +1648,7 @@
 (defn- ct-build-labels
   [ts sub-suite]
   (let [ns-name  (:ns-name ts)
-        pkg      (when ns-name (ns-package ns-name))
+        pkg      (when ns-name (reporter/ns-package ns-name))
         hn       (:hostname @ct-run-state)]
     (cond-> []
       ns-name   (conj {:name "suite" :value ns-name})
@@ -1866,7 +1801,7 @@
           (doseq [^File f (reverse (file-seq dir))]
             (.delete f))))
       (.mkdirs dir)
-      (reset! ct-run-state {:hostname        (hostname)
+      (reset! ct-run-state {:hostname        (reporter/hostname)
                             :start-ms        (System/currentTimeMillis)
                             :output-dir      dir
                             :output-dir-path dir-path})

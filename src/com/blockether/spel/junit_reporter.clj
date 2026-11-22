@@ -15,13 +15,12 @@
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
+   [com.blockether.spel.reporter-util :as reporter]
    [lazytest.expectation-failed :refer [ex-failed?]]
    [lazytest.reporters :refer [reporter-dispatch]]
-   [lazytest.suite :as s]
    [lazytest.test-case :as tc])
   (:import
    [java.io PrintWriter StringWriter]
-   [java.net InetAddress]
    [java.time LocalDateTime]
    [java.time.format DateTimeFormatter]
    [java.util Locale]))
@@ -56,20 +55,6 @@
       (assoc result
         :system-out (str out-sw)
         :system-err (str err-sw)))))
-
-(defn- install-output-capture!
-  "Monkey-patches lazytest.test-case/try-test-case to capture per-test output.
-   Saves the original function in run-state for later restoration."
-  []
-  (let [original (deref #'tc/try-test-case)]
-    (swap! run-state assoc :original-try-test-case original)
-    (alter-var-root #'tc/try-test-case wrap-try-test-case)))
-
-(defn- uninstall-output-capture!
-  "Restores the original try-test-case function."
-  []
-  (when-let [original (:original-try-test-case @run-state)]
-    (alter-var-root #'tc/try-test-case (constantly original))))
 
 ;; =============================================================================
 ;; XML Helpers
@@ -106,66 +91,10 @@
   ^String [^LocalDateTime ldt]
   (.format (DateTimeFormatter/ofPattern "yyyy-MM-dd'T'HH:mm:ss") ldt))
 
-(defn- hostname
-  "Best-effort hostname. Falls back to localhost."
-  ^String []
-  (try (.getHostName (InetAddress/getLocalHost))
-       (catch Exception _ "localhost")))
-
 (defn- xml-attr
   "Emit a single XML attribute: key=\"escaped-value\""
   ^String [k v]
   (str " " k "=\"" (xml-escape (str v)) "\""))
-
-;; =============================================================================
-;; Result Tree Walking
-;; =============================================================================
-
-(defn- doc-str
-  "Extract a string representation from a doc value, which may be
-   a Namespace, Var, or plain string."
-  [doc]
-  (cond
-    (instance? clojure.lang.Namespace doc) (str (ns-name doc))
-    (instance? clojure.lang.Var doc)       (str (:name (meta doc)))
-    (and (some? doc)
-      (not (str/blank? (str doc))))     (str doc)
-    :else                                  nil))
-
-(defn- ns-suite?
-  "True if result is a namespace-level suite result."
-  [result]
-  (and (s/suite-result? result)
-    (= :lazytest/ns (-> result :source :type))))
-
-(defn- collect-test-cases
-  "Walk result tree depth-first, collecting leaf test case results.
-   Each result is annotated with ::path (vector of parent doc strings,
-   excluding the run-level and namespace-level containers — those become
-   the classname)."
-  [result path]
-  (if (s/suite-result? result)
-    (let [source-type (-> result :source :type)
-          doc (doc-str (:doc result))
-          ;; Run and ns levels don't contribute to the test name path;
-          ;; ns goes into classname instead
-          new-path (if (and doc
-                         (not= :lazytest/run source-type)
-                         (not= :lazytest/ns source-type))
-                     (conj path doc)
-                     path)]
-      (mapcat #(collect-test-cases % new-path) (:children result)))
-    ;; Leaf test-case result
-    [(assoc result ::path path)]))
-
-(defn- ns-package
-  "Extract package from a namespace name.
-   com.blockether.spel.core-test → com.blockether.spel"
-  ^String [^String ns-name]
-  (let [idx (.lastIndexOf ns-name ".")]
-    (if (pos? idx)
-      (subs ns-name 0 idx)
-      "")))
 
 ;; =============================================================================
 ;; Test Result Classification
@@ -275,7 +204,7 @@
    Includes <system-out> and <system-err> when captured output is non-empty."
   ^String [tc classname]
   (let [name      (tc/identifier tc)
-        path      (::path tc)
+        path      (::reporter/path tc)
         ;; Full name: "var > suite > test" chain
         full-name (if (seq path)
                     (str (str/join " > " path) " > " name)
@@ -317,8 +246,8 @@
 (defn- testsuite-xml
   "Generate XML string for a single <testsuite> element (one per namespace)."
   ^String [idx ns-suite-result]
-  (let [ns-name    (or (doc-str (:doc ns-suite-result)) "unknown")
-        test-cases (collect-test-cases ns-suite-result [])
+  (let [ns-name    (or (reporter/doc-str (:doc ns-suite-result)) "unknown")
+        test-cases (reporter/collect-test-cases ns-suite-result)
         total      (count test-cases)
         failures   (count (filter failure? test-cases))
         errors     (count (filter error? test-cases))
@@ -326,7 +255,7 @@
         duration   (nanos->seconds (:lazytest.runner/duration ns-suite-result))
         ts         (:timestamp @run-state)
         hn         (:hostname @run-state)
-        pkg        (ns-package ns-name)
+        pkg        (reporter/ns-package ns-name)
         tc-xmls    (map #(test-case-xml % ns-name) test-cases)
         ;; Aggregate captured output across all test cases in this suite
         agg-out    (aggregate-output test-cases :system-out)
@@ -357,9 +286,8 @@
 (defn- results->junit-xml
   "Transform lazytest result tree into a fully-compliant JUnit XML string."
   ^String [results]
-  (let [ns-suites  (when (s/suite-result? results)
-                     (filter ns-suite? (:children results)))
-        all-cases  (mapcat #(collect-test-cases % []) ns-suites)
+  (let [ns-suites  (reporter/ns-suites results)
+        all-cases  (mapcat reporter/collect-test-cases ns-suites)
         total      (count all-cases)
         failures   (count (filter failure? all-cases))
         errors     (count (filter error? all-cases))
@@ -412,11 +340,11 @@
 
 (defmethod junit :begin-test-run [_ _]
   (reset! run-state {:timestamp (LocalDateTime/now)
-                     :hostname  (hostname)})
-  (install-output-capture!))
+                     :hostname  (reporter/hostname)})
+  (reporter/install-output-capture! run-state wrap-try-test-case))
 
 (defmethod junit :end-test-run [_ m]
-  (uninstall-output-capture!)
+  (reporter/uninstall-output-capture! run-state)
   (let [results (:results m)
         path    (output-path)
         file    (io/file path)

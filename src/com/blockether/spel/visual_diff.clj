@@ -7,11 +7,11 @@
    https://github.com/mapbox/pixelmatch"
   (:require
    [com.blockether.spel.core :as core]
+   [com.blockether.spel.image-util :as image]
    [com.blockether.spel.page :as page]
    [com.blockether.spel.snapshot :as snapshot])
   (:import
-   [java.nio.file Files Path]
-   [java.util Base64]))
+   [java.nio.file Files Path]))
 
 (def ^:private js-pixelmatch
   "/*
@@ -340,41 +340,11 @@ function drawGrayPixel(img, i, alpha, output) {
     return regions;
 }")
 
-(defn- bytes->base64 [^bytes png-bytes]
-  (.encodeToString (Base64/getEncoder) png-bytes))
-
-(defn- file->bytes [^String path]
-  (Files/readAllBytes (Path/of path (into-array String []))))
-
 (defn- png-dimensions [^bytes png-bytes]
   (when (< (alength png-bytes) 24)
     (throw (ex-info "Invalid PNG bytes: header too short" {:byte-length (alength png-bytes)})))
-  (let [width  (bit-or (bit-shift-left (long (bit-and (long (aget png-bytes 16)) 0xFF)) 24)
-                 (bit-shift-left (long (bit-and (long (aget png-bytes 17)) 0xFF)) 16)
-                 (bit-shift-left (long (bit-and (long (aget png-bytes 18)) 0xFF)) 8)
-                 (long (bit-and (long (aget png-bytes 19)) 0xFF)))
-        height (bit-or (bit-shift-left (long (bit-and (long (aget png-bytes 20)) 0xFF)) 24)
-                 (bit-shift-left (long (bit-and (long (aget png-bytes 21)) 0xFF)) 16)
-                 (bit-shift-left (long (bit-and (long (aget png-bytes 22)) 0xFF)) 8)
-                 (long (bit-and (long (aget png-bytes 23)) 0xFF)))]
-    {:width width :height height}))
-
-(defn- ensure-playwright!
-  "Guards against anomaly maps from core/create. Throws if Playwright
-   initialization failed instead of passing a map to browser launch."
-  [pw]
-  (when (core/anomaly? pw)
-    (throw (ex-info (str "Failed to create Playwright: " (:anomaly/message pw))
-             (select-keys pw [:anomaly/category :anomaly/message])))))
-
-(defn- resolve-launch-fn
-  "Returns the browser launch function based on browser type string.
-   Reads SPEL_BROWSER env var as fallback. Defaults to chromium."
-  [browser-type]
-  (case (or browser-type (System/getenv "SPEL_BROWSER") "chromium")
-    "firefox" core/launch-firefox
-    "webkit" core/launch-webkit
-    core/launch-chromium))
+  {:width (image/png-axis-size png-bytes 16)
+   :height (image/png-axis-size png-bytes 20)})
 
 (defn- bbox-overlap-area
   "Returns the intersection area of two bounding boxes, or 0 if no overlap."
@@ -559,8 +529,8 @@ function drawGrayPixel(img, i, alpha, output) {
                                      :or {threshold 0.1 include-aa false alpha 0.5 denoise 25 dilate 3 merge-distance 50}}]
   (let [baseline-dims (png-dimensions baseline)
         current-dims (png-dimensions current)
-        baseline-b64 (bytes->base64 baseline)
-        current-b64 (bytes->base64 current)
+        baseline-b64 (image/bytes->base64 baseline)
+        current-b64 (image/bytes->base64 current)
         max-w (long (Math/max (long (:width baseline-dims)) (long (:width current-dims))))
         max-h (long (Math/max (long (:height baseline-dims)) (long (:height current-dims))))
         html (build-diff-html baseline-b64 current-b64 {:threshold threshold
@@ -569,10 +539,10 @@ function drawGrayPixel(img, i, alpha, output) {
                                                         :denoise denoise
                                                         :dilate dilate
                                                         :merge-distance merge-distance})
-        launch-fn (resolve-launch-fn nil)
+        launch-fn (image/resolve-launch-fn nil)
         result+diff
         (core/with-playwright [pw]
-          (ensure-playwright! pw)
+          (image/ensure-playwright! pw)
           (core/with-browser [browser (launch-fn pw {:headless true})]
             (core/with-page [pg (core/new-page browser)]
               (page/set-viewport-size! pg max-w max-h)
@@ -659,6 +629,6 @@ function drawGrayPixel(img, i, alpha, output) {
   "Compare two PNG screenshot files. See compare-screenshots for options."
   [^String baseline-path ^String current-path & opts]
   (apply compare-screenshots
-    (file->bytes baseline-path)
-    (file->bytes current-path)
+    (image/file->bytes baseline-path)
+    (image/file->bytes current-path)
     opts))

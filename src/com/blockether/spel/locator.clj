@@ -6,6 +6,7 @@
   (:require
    [com.blockether.spel.core :refer [safe java->clj ->js-arg tag-eval-source]]
    [com.blockether.spel.input :as input]
+   [com.blockether.spel.dom-util :as dom]
    [com.blockether.spel.options :as opts])
   (:import
    [com.microsoft.playwright Locator ElementHandle JSHandle FrameLocator
@@ -243,23 +244,13 @@
   ([^Locator loc direction]
    (scroll loc direction {}))
   ([^Locator loc direction opts]
-   (let [dir      (name (or direction :down))
-         amount   (long (get opts :amount 500))
-         smooth?  (boolean (get opts :smooth? false))
-         [dx dy]  (case dir
-                    "up"    [0 (- amount)]
-                    "down"  [0 amount]
-                    "left"  [(- amount) 0]
-                    "right" [amount 0]
-                    [0 amount])
-         behavior (if smooth? "'smooth'" "'instant'")
-         js-opts  (str "{left: " dx ", top: " dy ", behavior: " behavior "}")]
+   (let [{:keys [js-opts smooth? result]} (dom/scroll-options direction opts)]
      (safe (.evaluate loc (str "(el) => el.scrollBy(" js-opts ")")))
      (when smooth?
        ;; Event-driven settle instead of a blind sleep: resolves as soon as the
        ;; element's scroll offsets stop changing (self-capped for hidden tabs).
        (safe (.evaluate loc "(el, ms) => new Promise(res => { let last = null, stable = 0, done = false; const finish = () => { if (!done) { done = true; res(null); } }; const tick = () => { if (done) return; const p = Math.round(el.scrollLeft) + ',' + Math.round(el.scrollTop); if (p === last) { if (++stable >= 2) return finish(); } else { stable = 0; last = p; } requestAnimationFrame(tick); }; setTimeout(finish, ms); requestAnimationFrame(tick); })" (int 1000))))
-     {:scrolled dir :amount amount :smooth smooth?})))
+     result)))
 
 (defn dispatch-event
   "Dispatches a DOM event on the element.
