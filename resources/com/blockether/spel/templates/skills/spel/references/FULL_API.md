@@ -61,7 +61,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `context-storage-state` | [context] | Returns the storage state (cookies, localStorage) as a JSON string. |
 | `context-tracing` | [context] | Returns the Tracing for a context. |
 | `cookie->map` | [cookie] | Converts a Playwright Cookie Java object to a Clojure map. |
-| `create` | [] | Creates a new Playwright instance. |
+| `create` | [] \| [{:keys [source-dirs?], :or {source-dirs? true}}] | Creates a new Playwright instance. |
 | `event-consumer` | [label handler] \| [label handler on-error] | A `java.util.function.Consumer` around `guarded-handler` — the one way spel |
 | `fd-append` | [fd name value] | Appends a field to FormData. |
 | `fd-set` | [fd name value] | Sets a field in FormData. |
@@ -540,6 +540,7 @@ Auto-generated from source code. Each namespace lists public functions with args
 | `ref-css-selector` | [ref-id] | Returns the CSS selector for a snapshot ref id. |
 | `ref?` | [s] | True when a selector string is a snapshot ref. |
 | `resolve-ref` | [page ref-id] | Resolves a ref ID to a Playwright Locator. |
+| `resolve-scope` | [s] | Resolves a scope value to a CSS selector. |
 | `truncation-note` | [truncated] | One line saying the capture stopped on a budget, or nil when it did not. |
 
 ### `annotate` — Page annotation overlays
@@ -712,7 +713,7 @@ All Playwright Java enums from `com.microsoft.playwright.options` are registered
 | `ReducedMotion` | `REDUCE`, `NO_PREFERENCE` | Context options `:reduced-motion` |
 | `RouteFromHarUpdateContentPolicy` | `EMBED`, `ATTACH` | Route-from-HAR options `:update-content` |
 | `SameSiteAttribute` | `STRICT`, `LAX`, `NONE` | Cookie options `:same-site` |
-| `ScreenshotType` | `PNG`, `JPEG` | Screenshot options `:type` |
+| `ScreenshotType` | `PNG`, `JPEG`, `WEBP` | Screenshot options `:type` |
 | `ServiceWorkerPolicy` | `ALLOW`, `BLOCK` | Context options `:service-workers` |
 | `WaitForSelectorState` | `ATTACHED`, `DETACHED`, `VISIBLE`, `HIDDEN` | `page/wait-for-selector` options `:state` |
 | `WaitUntilState` | `LOAD`, `DOMCONTENTLOADED`, `NETWORKIDLE`, `COMMIT` | Navigation options `:wait-until` |

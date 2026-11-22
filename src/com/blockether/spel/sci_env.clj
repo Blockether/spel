@@ -1320,8 +1320,17 @@
     (vreset! !listener listener)
     (track-dialog-listener! pg listener)))
 
-(defn sci-on-dialog    [handler] (script-on-dialog (require-page!) handler))
-(defn sci-once-dialog  [handler] (script-once-dialog (require-page!) handler))
+(defn sci-on-dialog
+  "Registers a handler for dialogs.
+   The page then owns its dialogs: the handler must answer each one.
+   Returns the listener, for `off-dialog`."
+  [handler]
+  (script-on-dialog (require-page!) handler))
+(defn sci-once-dialog
+  "Registers a one-time handler for the next dialog.
+   The handler must answer it. Returns the listener, for `off-dialog`."
+  [handler]
+  (script-once-dialog (require-page!) handler))
 (defn sci-off-dialog
   "Removes a dialog handler, taking the listener `on-dialog` returned.
 
