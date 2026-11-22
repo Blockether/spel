@@ -267,6 +267,17 @@ if [[ "$HEIGHT" == "800" ]]; then
 else
   fail "screenshot -a --viewport → PNG height 800" "Got $HEIGHT"
 fi
+
+# Regression, issue #154: the time of an annotated capture grew with the square
+# of the number of controls. A page with 6000 controls exceeded the daemon
+# budget, and the daemon then dropped the page.
+"$SPEL" --session "$VIEW_SESSION" --json set viewport 1280 720 >/dev/null
+"$SPEL" --session "$VIEW_SESSION" --json open "data:text/html,<body></body>" >/dev/null
+"$SPEL" --session "$VIEW_SESSION" eval-js "document.body.innerHTML = Array.from({length: 6000}, (_, i) => '<button>b' + i + '</button>').join('')" >/dev/null 2>&1
+MANY_PATH="$TEST_TMP_DIR/test-cli-many.png"
+TEMP_FILES+=("$MANY_PATH")
+OUT=$(timeout 60 "$SPEL" --session "$VIEW_SESSION" --json screenshot -a "$MANY_PATH" 2>&1) || true
+assert_jq_eq "screenshot -a → 6000 controls annotated" "$OUT" '.annotated.count' '6000'
 "$SPEL" --session "$VIEW_SESSION" close >/dev/null 2>&1
 
 # =============================================================================

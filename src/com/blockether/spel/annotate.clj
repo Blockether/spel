@@ -11,6 +11,7 @@
      ;; ... inspect, screenshot, etc. ...
      (remove-overlays! page)                ;; clean up"
   (:require
+   [charred.api :as json]
    [clojure.string :as str]
    [com.blockether.spel.fonts :as fonts]
    [com.blockether.spel.page :as page])
@@ -96,42 +97,79 @@
       ;; each other (e.g., <a><img></a> where img fills the link)
       (or (> ow iw) (> oh ih)))))
 
+(def ^:private ^:const container-cell
+  "Side of one `remove-containers` grid cell, in CSS pixels."
+  128.0)
+
+(defn- container-cell-index
+  "Returns the grid cell index of the coordinate `v`.
+
+   The clamp keeps a huge coordinate inside `long`. It is monotonic, so a
+   coordinate between two others always gets a cell between their cells."
+  ^long [v]
+  (long (max -1.0e15 (min 1.0e15 (Math/floor (/ (double v) (double container-cell)))))))
+
 (defn remove-containers
   "Removes refs whose bbox fully contains another ref's bbox.
 
    When a parent element fully wraps a child (e.g., paragraph around a link),
    the parent is suppressed to avoid overlapping boxes and labels.
-   Ties on identical-size bboxes are broken by ref ID (lower ID kept)."
+   Ties on identical-size bboxes are broken by ref ID (lower ID kept).
+
+   A contained bbox starts inside its container. So the refs go into a grid by
+   their top-left corner, and each ref looks only at the cells that it covers.
+   The work grows with the number of refs, not with its square."
   [refs]
   (if (<= (count refs) 1)
     refs
-    (let [entries (vec refs)
-          bbox-area (fn ^long [{:keys [width height]}] (* (long width) (long height)))
-          suppressed
-          (into #{}
-            (for [[id-a info-a] entries
-                  [id-b info-b] entries
-                  :when (not= id-a id-b)
-                  :let [bbox-a (:bbox info-a)
-                        bbox-b (:bbox info-b)]
-                  :when (and bbox-a bbox-b
+    (let [bbox-area (fn ^long [{:keys [width height]}] (* (long width) (long height)))
+          ;; A zero-area child (invisible/hidden element) must not
+          ;; trigger suppression of a visible container (e.g., a 0×0
+          ;; hidden link inside a CSS-background logo div)
+          inner     (into []
+                      (keep (fn [[id info]]
+                              (when-let [bbox (:bbox info)]
+                                (let [area (long (bbox-area bbox))]
+                                  (when (pos? area) [id bbox area])))))
+                      refs)
+          grid      (reduce (fn [rows [_ bbox :as entry]]
+                              (update-in rows
+                                [(container-cell-index (:y bbox)) (container-cell-index (:x bbox))]
+                                (fnil conj []) entry))
+                      {} inner)
+          wraps?    (fn [id-a bbox-a ^long area-a [id-b bbox-b area-b]]
+                      ;; `long` here is what keeps the comparisons below off boxed
+                      ;; math; clj-kondo calls it redundant, the reflection check does not.
+                      (let [area-b (long area-b)]
+                        (and (not= id-a id-b)
                           (bbox-contains? bbox-a bbox-b)
-                          ;; Don't suppress mixed-content containers — they have
-                          ;; their own direct text content distinct from children
-                          (not (:mixed info-a)))
-                  ;; `long` here is what keeps the comparisons below off boxed
-                  ;; math; clj-kondo calls it redundant, the reflection check does not.
-                  :let [area-a (long (bbox-area bbox-a))
-                        area-b (long (bbox-area bbox-b))]
-                  ;; A zero-area child (invisible/hidden element) must not
-                  ;; trigger suppression of a visible container (e.g., a 0×0
-                  ;; hidden link inside a CSS-background logo div)
-                  :when (pos? area-b)
-                  :when (or (> area-a area-b)
-                          (and (= area-a area-b)
-                            (pos? (compare id-a id-b))))]
-              id-a))]
-      (apply dissoc refs suppressed))))
+                          (or (> area-a area-b)
+                            (and (= area-a area-b)
+                              (pos? (compare id-a id-b)))))))
+          container? (fn [[id-a info-a]]
+                       (when-let [bbox-a (:bbox info-a)]
+                         ;; Don't suppress mixed-content containers — they have
+                         ;; their own direct text content distinct from children
+                         (when-not (:mixed info-a)
+                           (let [area-a (long (bbox-area bbox-a))
+                                 wraps  (fn [entry] (wraps? id-a bbox-a area-a entry))
+                                 {:keys [x y width height]} bbox-a
+                                 x (double x) y (double y)
+                                 x0 (container-cell-index (- x 2.0))
+                                 x1 (container-cell-index (+ x (double width) 2.0))
+                                 y0 (container-cell-index (- y 2.0))
+                                 y1 (container-cell-index (+ y (double height) 2.0))
+                                 cells (* (double (inc (- x1 x0))) (double (inc (- y1 y0))))]
+                             ;; A ref that covers more cells than there are refs
+                             ;; reads the refs directly: that is the shorter list.
+                             (if (<= cells (double (count inner)))
+                               (some (fn [cy]
+                                       (when-let [row (get grid cy)]
+                                         (some (fn [cx] (some wraps (get row cx)))
+                                           (range x0 (inc x1)))))
+                                 (range y0 (inc y1)))
+                               (some wraps inner))))))]
+      (apply dissoc refs (into [] (comp (filter container?) (map key)) refs)))))
 
 (defn filter-annotatable
   "Filters refs to only those worth rendering as overlays.
@@ -256,8 +294,19 @@
      ;; Fallback: check the element directly by its data-pw-ref attribute.
      ;; When elementFromPoint misses (e.g., a transparent nav fully covers
      ;; a logo), verify the element itself is stylistically visible.
+      ;; One pass over the DOM, and only when a probe missed: a `querySelector`
+      ;; for each missed ref reads the whole document again for each one.
+      "var byRef=null;"
       "function directCheck(id){"
-      "  var el=document.querySelector('[data-pw-ref=\"'+id+'\"]');"
+      "  if(!byRef){"
+      "    byRef=Object.create(null);"
+      "    var tagged=document.querySelectorAll('[data-pw-ref]');"
+      "    for(var i=0;i<tagged.length;i++){"
+      "      var k=tagged[i].getAttribute('data-pw-ref');"
+      "      if(!(k in byRef))byRef[k]=tagged[i];"
+      "    }"
+      "  }"
+      "  var el=byRef[id];"
       "  if(!el)return false;"
       "  var s=getComputedStyle(el);"
       "  return s.display!=='none'&&s.visibility!=='hidden'&&parseFloat(s.opacity)>0;"
@@ -323,6 +372,217 @@
     (map-indexed (fn [idx entry] (assoc entry :mark (inc (long idx)))))
     vec))
 
+(def ^:private inject-js-body
+  "The body of the overlay script. `build-inject-js` gives it the entries.
+
+   The script is one loop over data, in four steps: read every rectangle, build
+   every box and mark, measure every mark, then place the marks. A step only
+   reads layout or only writes it, so the browser computes layout one time. A
+   script that measured each mark after it wrote the mark before made the
+   browser compute layout again for each ref."
+  (str
+    "  var sx = window.scrollX || 0;"
+    "  var sy = window.scrollY || 0;"
+    "  var de = document.documentElement;"
+    "  var docW = Math.max(de.scrollWidth, de.clientWidth);"
+    "  var docH = Math.max(de.scrollHeight, de.clientHeight);"
+    "  var container = document.createElement('div');"
+    "  container.setAttribute('data-spel-annotate', 'root');"
+    "  container.style.cssText = 'position:absolute;top:0;left:0;width:0;height:0;overflow:visible;z-index:2147483647;pointer-events:none;';"
+    "  document.documentElement.appendChild(container);"
+    "  function overlap(a, b) {"
+    "    var w = Math.min(a.r, b.r) - Math.max(a.l, b.l);"
+    "    var h = Math.min(a.b, b.b) - Math.max(a.t, b.t);"
+    "    return (w > 0 && h > 0) ? w * h : 0;"
+    "  }"
+    "  var MARK_GAP = 2;"
+    ;; A mark should not sit on top of a word, and the placed marks only know
+    ;; about other marks. So measure the page's own words ONCE, in document
+    ;; coordinates: a Range around each text node gives a line's box rather
+    ;; than its block's, which is the difference between \"this paragraph is
+    ;; busy\" and \"these 40 pixels are\". Hit-testing with elementFromPoint
+    ;; would only see the viewport; the whole page is annotated.
+    "  var texts = [];"
+    "  (function() {"
+    "    var tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n;"
+    "    while ((n = tw.nextNode())) {"
+    "      if (!n.nodeValue || !n.nodeValue.trim()) continue;"
+    "      var rg = document.createRange();"
+    "      rg.selectNode(n);"
+    "      var rs = rg.getClientRects();"
+    "      for (var i = 0; i < rs.length; i++) {"
+    "        var q = rs[i];"
+    "        if (q.width > 0 && q.height > 0) texts.push({l: q.left + sx, t: q.top + sy, r: q.right + sx, b: q.bottom + sy});"
+    "      }"
+    "    }"
+    "  })();"
+    ;; Bucketed by row so a long article costs a row scan, not a full scan.
+    "  var BUCKET = 64, byRow = {};"
+    "  for (var ti = 0; ti < texts.length; ti++) {"
+    "    var q = texts[ti];"
+    "    for (var rb = Math.floor(q.t / BUCKET); rb <= Math.floor(q.b / BUCKET); rb++) {"
+    "      (byRow[rb] = byRow[rb] || []).push(q);"
+    "    }"
+    "  }"
+    "  function textCost(r) {"
+    "    var c = 0;"
+    "    for (var rb = Math.floor(r.t / BUCKET); rb <= Math.floor(r.b / BUCKET); rb++) {"
+    "      var list = byRow[rb];"
+    "      if (!list) continue;"
+    "      for (var i = 0; i < list.length; i++) c += overlap(r, list[i]);"
+    "    }"
+    "    return c;"
+    "  }"
+    ;; Occupied mark rectangles, in the same rows as the words and for the same
+    ;; reason: a slot is scored against the marks near it, not against all of
+    ;; them. Each one keeps its first row and its placement number.
+    "  var takenRows = {}, takenCount = 0;"
+    "  function take(spot) {"
+    "    spot.row = Math.floor(spot.t / BUCKET);"
+    "    spot.seq = takenCount++;"
+    "    for (var rb = spot.row; rb <= Math.floor(spot.b / BUCKET); rb++) {"
+    "      (takenRows[rb] = takenRows[rb] || []).push(spot);"
+    "    }"
+    "  }"
+    ;; A mark that spans two rows is in two lists, so it counts only in the
+    ;; first row that it shares with `g`. The costs are added in placement
+    ;; order: the sum of fractions depends on the order, and a tie between two
+    ;; slots must not depend on the rows.
+    "  function takenCost(g) {"
+    "    var first = Math.floor(g.t / BUCKET), last = Math.floor(g.b / BUCKET), hits = null;"
+    "    for (var rb = first; rb <= last; rb++) {"
+    "      var list = takenRows[rb];"
+    "      if (!list) continue;"
+    "      for (var i = 0; i < list.length; i++) {"
+    "        var t = list[i];"
+    "        if (rb !== Math.max(t.row, first)) continue;"
+    "        var o = overlap(g, t);"
+    "        if (o > 0) (hits = hits || []).push([t.seq, o]);"
+    "      }"
+    "    }"
+    "    return hits;"
+    "  }"
+    ;; Covering a NEIGHBOUR is what makes an annotated page unreadable; covering
+    ;; the TAIL of the element the mark NAMES is not, because the reader already
+    ;; has that row in the table and the words that identify a control are its
+    ;; first ones. So own text is discounted almost to nothing EXCEPT over the
+    ;; element's head, where a number on the first letters is the very thing the
+    ;; marks were accused of: `Story number 12` read as `12ory number 12`.
+    "  function markCost(r, own) {"
+    "    var hw = Math.min(60, Math.max(12, (own.r - own.l) * 0.3));"
+    "    var head = {l: own.l, t: own.t, r: Math.min(own.r, own.l + hw), b: own.b};"
+    "    var onHead = overlap(r, head);"
+    "    var c = textCost(r) - 0.95 * Math.max(0, overlap(r, own) - onHead) + 2 * onHead;"
+    "    if (c < 0) c = 0;"
+    ;; Marks are kept a PIXEL APART, not merely non-overlapping: two numbers
+    ;; whose boxes touch read as one longer number, and a slot that only just
+    ;; misses on this machine's sub-pixel rounding lands on the neighbour on the
+    ;; next one. Scoring the mark's rectangle grown by `MARK_GAP` charges that
+    ;; near miss, so the cheapest slot is one with air around it.
+    "    var hits = takenCost({l: r.l - MARK_GAP, t: r.t - MARK_GAP, r: r.r + MARK_GAP, b: r.b + MARK_GAP});"
+    "    if (hits) {"
+    "      if (hits.length > 1) hits.sort(function(a, b) { return a[0] - b[0]; });"
+    "      for (var i = 0; i < hits.length; i++) c += 6 * hits[i][1];"
+    "    }"
+    "    return c;"
+    "  }"
+    ;; Score slots by what they cost. `mw` and `mh` are the mark's size in the DOM.
+    "  function placeMark(mark, x, y, w, h, mw, mh) {"
+    ;; Candidates are [left, top, drift]: drift is how far the slot sits from
+    ;; the element it names. A number that wandered into the page margin names
+    ;; nothing the reader can find, so the search is SHORT — every slot touches
+    ;; the box or sits within two mark widths of it, and drift is expensive.
+    ;; Outside first, above before beside, because a mark dropped at a box's
+    ;; top-left eats the first letters of the word it points at.
+    "    var cands = [[x, y - mh, 0], [x + w - mw, y - mh, 0], [x - mw, y, 0], [x + w, y, 0],"
+    "                 [x, y + h, 0], [x + w - mw, y + h, 0], [x - mw, y - mh, 0], [x + w, y - mh, 0],"
+    "                 [x - mw, y + h - mh, 0], [x + w, y + h - mh, 0]];"
+    "    if (w >= mw + 4 && h >= mh + 4) { cands.push([x + w - mw - 1, y + 1, 0]); cands.push([x + 1, y + 1, 0]); }"
+    "    cands.push([x, y, 0]);"
+    ;; A dense row (a list of small links) can leave every touching slot on ink.
+    ;; Then a step ALONG the row is allowed, and two forces decide how far. Drift
+    ;; is priced per pixel against the pixels of type the slot would bury, so a
+    ;; number crosses a gutter to reach clear paper and refuses to wander when
+    ;; the paper it would reach is inked anyway. And the walk is bounded by the
+    ;; element's OWN width: a row-wide link owns the white space beside it, while
+    ;; a 40px button keeps its number within a mark or two — a number that drifts
+    ;; further than its element is wide has started naming its neighbour.
+    "    var maxD = Math.min(160, Math.max(2 * (mw + 2), w));"
+    "    for (var band = 0; band < 3; band++) {"
+    "      var by = [y, y - mh, y + h][band];"
+    "      for (var step = 1; step <= 10; step++) {"
+    "        var d = step * (mw + 2);"
+    "        if (d > maxD) break;"
+    "        cands.push([x + w + d, by, d]);"
+    "        cands.push([x - mw - d, by, d]);"
+    "      }"
+    "    }"
+    "    var own = {l: x, t: y, r: x + w, b: y + h};"
+    "    var spot = null, best = Infinity;"
+    "    for (var i = 0; i < cands.length; i++) {"
+    "      var cx = Math.min(Math.max(cands[i][0], 0), Math.max(0, docW - mw));"
+    "      var cy = Math.min(Math.max(cands[i][1], 0), Math.max(0, docH - mh));"
+    "      var r = {l: cx, t: cy, r: cx + mw, b: cy + mh};"
+    ;; Ties go to the earlier (more natural) slot; that bias is far below the
+    ;; area of any real overlap.
+    "      var c = markCost(r, own) + cands[i][2] * 0.45 + i * 0.05;"
+    "      if (c < best) { best = c; spot = r; }"
+    "      if (best === 0) break;"
+    "    }"
+    "    mark.style.left = spot.l + 'px';"
+    "    mark.style.top = spot.t + 'px';"
+    "    take(spot);"
+    "  }"
+    ;; One pass over the DOM finds every ref. A `querySelector` for each ref
+    ;; reads the whole document again for each one. The first element with an
+    ;; id wins, as `querySelector` does.
+    "  var byRef = Object.create(null);"
+    "  var tagged = document.querySelectorAll('[data-pw-ref]');"
+    "  for (var i = 0; i < tagged.length; i++) {"
+    "    var id = tagged[i].getAttribute('data-pw-ref');"
+    "    if (!(id in byRef)) byRef[id] = tagged[i];"
+    "  }"
+    "  var frag = document.createDocumentFragment(), marks = [];"
+    "  for (var i = 0; i < items.length; i++) {"
+    "    var ref = items[i][0], num = items[i][1], el = byRef[ref];"
+    "    if (!el) continue;"
+    "    var r = el.getBoundingClientRect();"
+    "    var x = r.left + sx, y = r.top + sy, w = r.width, h = r.height;"
+    "    var color = palette[(num - 1) % palette.length];"
+    "    if (showBoxes) {"
+    "      var box = document.createElement('div');"
+    "      box.setAttribute('data-spel-annotate', 'box');"
+    "      box.setAttribute('data-spel-ref', ref);"
+    "      var bw = (w < 48 || h < 24) ? 1 : 2;"
+    "      box.style.cssText = 'position:absolute;pointer-events:none;box-sizing:border-box;border:' + bw + 'px solid ' + color + ';';"
+    "      box.style.top = y + 'px';"
+    "      box.style.left = x + 'px';"
+    "      box.style.width = w + 'px';"
+    "      box.style.height = h + 'px';"
+    "      frag.appendChild(box);"
+    "    }"
+    "    if (showMarks) {"
+    "      var mark = document.createElement('div');"
+    "      mark.setAttribute('data-spel-annotate', 'mark');"
+    "      mark.setAttribute('data-spel-ref', ref);"
+    "      mark.textContent = showDims ? num + ' ' + Math.round(w) + 'x' + Math.round(h) : '' + num;"
+    ;; The white ring keeps the number readable when the cheapest
+    ;; slot still lands on ink.
+    "      mark.style.cssText = 'position:absolute;pointer-events:none;background:' + color"
+    "        + ';color:#ffffff;font:700 10px/12px ' + markFont"
+    "        + ';padding:0 1px;white-space:nowrap;box-shadow:0 0 0 1px rgba(255,255,255,0.95);';"
+    "      frag.appendChild(mark);"
+    "      marks.push([mark, x, y, w, h]);"
+    "    }"
+    "  }"
+    "  container.appendChild(frag);"
+    "  var sizes = [];"
+    "  for (var i = 0; i < marks.length; i++) sizes.push([marks[i][0].offsetWidth, marks[i][0].offsetHeight]);"
+    "  for (var i = 0; i < marks.length; i++) {"
+    "    var m = marks[i];"
+    "    placeMark(m[0], m[1], m[2], m[3], m[4], sizes[i][0], sizes[i][1]);"
+    "  }"))
+
 (defn- build-inject-js
   "Builds JavaScript that injects annotation overlays into the page DOM.
 
@@ -347,175 +607,26 @@
    and capped at two mark widths, and the cheapest slot wins.
 
    All elements get a data-spel-annotate attribute for cleanup.
-   Refs should be pre-filtered to visible-only before calling this."
-  [refs opts]
-  (let [show-boxes (get opts :show-boxes true)
-        show-marks (get opts :show-badges true)
-        show-dims  (get opts :show-dimensions false)]
-    (str
-      "(function() {"
-      "  var sx = window.scrollX || 0;"
-      "  var sy = window.scrollY || 0;"
-      "  var de = document.documentElement;"
-      "  var docW = Math.max(de.scrollWidth, de.clientWidth);"
-      "  var docH = Math.max(de.scrollHeight, de.clientHeight);"
-      "  var container = document.createElement('div');"
-      "  container.setAttribute('data-spel-annotate', 'root');"
-      "  container.style.cssText = 'position:absolute;top:0;left:0;width:0;height:0;overflow:visible;z-index:2147483647;pointer-events:none;';"
-      "  document.documentElement.appendChild(container);"
-      "  function overlap(a, b) {"
-      "    var w = Math.min(a.r, b.r) - Math.max(a.l, b.l);"
-      "    var h = Math.min(a.b, b.b) - Math.max(a.t, b.t);"
-      "    return (w > 0 && h > 0) ? w * h : 0;"
-      "  }"
-      ;; Occupied mark rectangles, in placement order.
-      "  var taken = [];"
-      "  var MARK_GAP = 2;"
-      ;; A mark should not sit on top of a word, and `taken` only knows about
-      ;; other marks. So measure the page's own words ONCE, in document
-      ;; coordinates: a Range around each text node gives a line's box rather
-      ;; than its block's, which is the difference between \"this paragraph is
-      ;; busy\" and \"these 40 pixels are\". Hit-testing with elementFromPoint
-      ;; would only see the viewport; the whole page is annotated.
-      "  var texts = [];"
-      "  (function() {"
-      "    var tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n;"
-      "    while ((n = tw.nextNode())) {"
-      "      if (!n.nodeValue || !n.nodeValue.trim()) continue;"
-      "      var rg = document.createRange();"
-      "      rg.selectNode(n);"
-      "      var rs = rg.getClientRects();"
-      "      for (var i = 0; i < rs.length; i++) {"
-      "        var q = rs[i];"
-      "        if (q.width > 0 && q.height > 0) texts.push({l: q.left + sx, t: q.top + sy, r: q.right + sx, b: q.bottom + sy});"
-      "      }"
-      "    }"
-      "  })();"
-      ;; Bucketed by row so a long article costs a row scan, not a full scan.
-      "  var BUCKET = 64, byRow = {};"
-      "  for (var ti = 0; ti < texts.length; ti++) {"
-      "    var q = texts[ti];"
-      "    for (var rb = Math.floor(q.t / BUCKET); rb <= Math.floor(q.b / BUCKET); rb++) {"
-      "      (byRow[rb] = byRow[rb] || []).push(q);"
-      "    }"
-      "  }"
-      "  function textCost(r) {"
-      "    var c = 0;"
-      "    for (var rb = Math.floor(r.t / BUCKET); rb <= Math.floor(r.b / BUCKET); rb++) {"
-      "      var list = byRow[rb];"
-      "      if (!list) continue;"
-      "      for (var i = 0; i < list.length; i++) c += overlap(r, list[i]);"
-      "    }"
-      "    return c;"
-      "  }"
-      ;; Covering a NEIGHBOUR is what makes an annotated page unreadable; covering
-      ;; the TAIL of the element the mark NAMES is not, because the reader already
-      ;; has that row in the table and the words that identify a control are its
-      ;; first ones. So own text is discounted almost to nothing EXCEPT over the
-      ;; element's head, where a number on the first letters is the very thing the
-      ;; marks were accused of: `Story number 12` read as `12ory number 12`.
-      "  function markCost(r, own) {"
-      "    var hw = Math.min(60, Math.max(12, (own.r - own.l) * 0.3));"
-      "    var head = {l: own.l, t: own.t, r: Math.min(own.r, own.l + hw), b: own.b};"
-      "    var onHead = overlap(r, head);"
-      "    var c = textCost(r) - 0.95 * Math.max(0, overlap(r, own) - onHead) + 2 * onHead;"
-      "    if (c < 0) c = 0;"
-      ;; Marks are kept a PIXEL APART, not merely non-overlapping: two numbers
-      ;; whose boxes touch read as one longer number, and a slot that only just
-      ;; misses on this machine's sub-pixel rounding lands on the neighbour on the
-      ;; next one. Scoring the mark's rectangle grown by `MARK_GAP` charges that
-      ;; near miss, so the cheapest slot is one with air around it.
-      "    var g = {l: r.l - MARK_GAP, t: r.t - MARK_GAP, r: r.r + MARK_GAP, b: r.b + MARK_GAP};"
-      "    for (var i = 0; i < taken.length; i++) c += 6 * overlap(g, taken[i]);"
-      "    return c;"
-      "  }"
-      ;; Measure the mark in the DOM, then score slots by what they cost.
-      "  function placeMark(mark, x, y, w, h) {"
-      "    container.appendChild(mark);"
-      "    var mw = mark.offsetWidth, mh = mark.offsetHeight;"
-      ;; Candidates are [left, top, drift]: drift is how far the slot sits from
-      ;; the element it names. A number that wandered into the page margin names
-      ;; nothing the reader can find, so the search is SHORT — every slot touches
-      ;; the box or sits within two mark widths of it, and drift is expensive.
-      ;; Outside first, above before beside, because a mark dropped at a box's
-      ;; top-left eats the first letters of the word it points at.
-      "    var cands = [[x, y - mh, 0], [x + w - mw, y - mh, 0], [x - mw, y, 0], [x + w, y, 0],"
-      "                 [x, y + h, 0], [x + w - mw, y + h, 0], [x - mw, y - mh, 0], [x + w, y - mh, 0],"
-      "                 [x - mw, y + h - mh, 0], [x + w, y + h - mh, 0]];"
-      "    if (w >= mw + 4 && h >= mh + 4) { cands.push([x + w - mw - 1, y + 1, 0]); cands.push([x + 1, y + 1, 0]); }"
-      "    cands.push([x, y, 0]);"
-      ;; A dense row (a list of small links) can leave every touching slot on ink.
-      ;; Then a step ALONG the row is allowed, and two forces decide how far. Drift
-      ;; is priced per pixel against the pixels of type the slot would bury, so a
-      ;; number crosses a gutter to reach clear paper and refuses to wander when
-      ;; the paper it would reach is inked anyway. And the walk is bounded by the
-      ;; element's OWN width: a row-wide link owns the white space beside it, while
-      ;; a 40px button keeps its number within a mark or two — a number that drifts
-      ;; further than its element is wide has started naming its neighbour.
-      "    var maxD = Math.min(160, Math.max(2 * (mw + 2), w));"
-      "    for (var band = 0; band < 3; band++) {"
-      "      var by = [y, y - mh, y + h][band];"
-      "      for (var step = 1; step <= 10; step++) {"
-      "        var d = step * (mw + 2);"
-      "        if (d > maxD) break;"
-      "        cands.push([x + w + d, by, d]);"
-      "        cands.push([x - mw - d, by, d]);"
-      "      }"
-      "    }"
-      "    var spot = null, best = Infinity;"
-      "    for (var i = 0; i < cands.length; i++) {"
-      "      var cx = Math.min(Math.max(cands[i][0], 0), Math.max(0, docW - mw));"
-      "      var cy = Math.min(Math.max(cands[i][1], 0), Math.max(0, docH - mh));"
-      "      var r = {l: cx, t: cy, r: cx + mw, b: cy + mh};"
-      ;; Ties go to the earlier (more natural) slot; that bias is far below the
-      ;; area of any real overlap.
-      "      var c = markCost(r, {l: x, t: y, r: x + w, b: y + h}) + cands[i][2] * 0.45 + i * 0.05;"
-      "      if (c < best) { best = c; spot = r; }"
-      "      if (best === 0) break;"
-      "    }"
-      "    mark.style.left = spot.l + 'px';"
-      "    mark.style.top = spot.t + 'px';"
-      "    taken.push(spot);"
-      "  }"
-      (apply str
-        (for [{:keys [ref mark bbox]} (refs->entries refs)
-              :let [{:keys [width height]} bbox
-                    color (nth mark-palette (mod (dec (long mark)) (count mark-palette)))]
-              :when (and (pos? (double width)) (pos? (double height)))]
-          (str
-            "  (function() {"
-            "    var el = document.querySelector('[data-pw-ref=\"" ref "\"]');"
-            "    if (!el) return;"
-            "    var r = el.getBoundingClientRect();"
-            "    var x = r.left + sx, y = r.top + sy, w = r.width, h = r.height;"
-            (when show-boxes
-              (str
-                "    var box = document.createElement('div');"
-                "    box.setAttribute('data-spel-annotate', 'box');"
-                "    box.setAttribute('data-spel-ref', '" ref "');"
-                "    var bw = (w < 48 || h < 24) ? 1 : 2;"
-                "    box.style.cssText = 'position:absolute;pointer-events:none;box-sizing:border-box;border:' + bw + 'px solid " color ";';"
-                "    box.style.top = y + 'px';"
-                "    box.style.left = x + 'px';"
-                "    box.style.width = w + 'px';"
-                "    box.style.height = h + 'px';"
-                "    container.appendChild(box);"))
-            (when show-marks
-              (str
-                "    var mark = document.createElement('div');"
-                "    mark.setAttribute('data-spel-annotate', 'mark');"
-                "    mark.setAttribute('data-spel-ref', '" ref "');"
-                "    mark.textContent = '" mark "'"
-                (when show-dims " + ' ' + Math.round(w) + 'x' + Math.round(h)")
-                ";"
-                ;; The white ring keeps the number readable when the cheapest
-                ;; slot still lands on ink.
-                "    mark.style.cssText = 'position:absolute;pointer-events:none;background:" color
-                ";color:#ffffff;font:700 10px/12px " brand-mono
-                ";padding:0 1px;white-space:nowrap;box-shadow:0 0 0 1px rgba(255,255,255,0.95);';"
-                "    placeMark(mark, x, y, w, h);"))
-            "  })();")))
-      "})();")))
+   `entries` is the result of `refs->entries` for refs that are pre-filtered
+   to visible-only. The script is `inject-js-body` and its data: the size of
+   the script does not grow with the code for each ref."
+  [entries opts]
+  (str
+    "(function(items, palette, markFont, showBoxes, showMarks, showDims) {"
+    inject-js-body
+    "})("
+    (json/write-json-str
+      (into []
+        (keep (fn [{:keys [ref mark bbox]}]
+                (when (and (pos? (double (:width bbox))) (pos? (double (:height bbox))))
+                  [ref mark])))
+        entries))
+    "," (json/write-json-str mark-palette)
+    "," (json/write-json-str brand-mono)
+    "," (boolean (get opts :show-boxes true))
+    "," (boolean (get opts :show-badges true))
+    "," (boolean (get opts :show-dimensions false))
+    ");"))
 
 ;; =============================================================================
 ;; Scope filtering (restrict annotations to a DOM subtree)
@@ -619,11 +730,12 @@
          in-viewport (if vp (visible-refs vp annotatable) annotatable)
           ;; Phase 3: JS-side elementFromPoint occlusion check
          visible-ids (check-visible-refs page in-viewport)
-         visible     (select-keys in-viewport visible-ids)]
-     (when (seq visible)
-       (page/evaluate page (build-inject-js visible opts)))
-     {:count   (count visible)
-      :entries (refs->entries visible)})))
+         visible     (select-keys in-viewport visible-ids)
+         entries     (refs->entries visible)]
+     (when (seq entries)
+       (page/evaluate page (build-inject-js entries opts)))
+     {:count   (count entries)
+      :entries entries})))
 
 (defn remove-overlays!
   "Removes all annotation overlays from the page DOM.

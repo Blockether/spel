@@ -25,9 +25,27 @@
    "e2" {:role "link"   :name "Home"   :bbox {:x 5  :y 50 :width 40 :height 15}}
    "e3" {:role "heading" :name "Title" :bbox {:x 10 :y 5  :width 80 :height 20}}})
 
-(def ^:private build-inject-js
-  "Access private build-inject-js for unit testing."
-  #'sut/build-inject-js)
+(defn- inject-js
+  "The overlay script for `refs`, as `inject-overlays!` builds it."
+  [refs opts]
+  (#'sut/build-inject-js (sut/refs->entries refs) opts))
+
+(def ^:private controls-html
+  "<html><body style='margin:20px'><h1>Title</h1><button>Submit</button> <a href='#'>Home</a></body></html>")
+
+(defn- drawn
+  "Draws the overlays for `controls-html` and returns the drawn nodes as
+   [kind text] pairs, without the root."
+  [pg opts]
+  (page/set-content! pg controls-html)
+  (let [snap  (snapshot/capture-snapshot pg)
+        _     (sut/inject-overlays! pg (:refs snap) opts)
+        nodes (page/evaluate pg
+                (str "Array.from(document.querySelectorAll('[data-spel-annotate]'))"
+                  ".filter(function(e){return e.getAttribute('data-spel-annotate') !== 'root';})"
+                  ".map(function(e){return [e.getAttribute('data-spel-annotate'), e.textContent];})"))]
+    (sut/remove-overlays! pg)
+    (mapv vec nodes)))
 
 ;; =============================================================================
 ;; Unit Tests — bundled typography
@@ -58,13 +76,13 @@
   (describe "basic JS generation"
     (it "produces a non-empty JS string"
 
-      (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
+      (core/with-testing-page [_pg] (let [js (inject-js test-refs {})]
                                       (expect (string? js))
                                       (expect (pos? (count js))))))
 
     (it "contains the root container setup"
 
-      (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
+      (core/with-testing-page [_pg] (let [js (inject-js test-refs {})]
                                       (expect (.contains ^String js "data-spel-annotate"))
                                       (expect (.contains ^String js "z-index:2147483647"))
                                       (expect (.contains ^String js "pointer-events:none")))))
@@ -74,12 +92,8 @@
       ;; Regression: the label spelled "e4khqh textbox 153x21", ~150px of ink for
       ;; a 153x21 control, so on a form every badge covered the neighbouring
       ;; field's own label. The mark is the number; the table carries the rest.
-      (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
-                                      (expect (.contains ^String js "mark.textContent = '1'"))
-                                      (expect (.contains ^String js "mark.textContent = '3'"))
-                                      (expect (not (.contains ^String js "e1 button")))
-                                      (expect (not (.contains ^String js "e2 link")))
-                                      (expect (not (.contains ^String js "Math.round(w)"))))))
+      (core/with-testing-page [pg] (let [marks (keep (fn [[kind text]] (when (= "mark" kind) text)) (drawn pg {}))]
+                                     (expect (= ["1" "2" "3"] (sort marks))))))
 
     (it "numbers marks in reading order, exactly as refs->entries reports them"
 
@@ -89,12 +103,12 @@
 
     (it "stamps the ref on the drawn mark so a click target stays reachable"
 
-      (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
+      (core/with-testing-page [_pg] (let [js (inject-js test-refs {})]
                                       (expect (.contains ^String js "data-spel-ref")))))
 
     (it "uses the Blockether brand palette (amber box, ink chip)"
 
-      (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
+      (core/with-testing-page [_pg] (let [js (inject-js test-refs {})]
         ;; box + mark → the first palette colour, one hue per entry
                                       (expect (.contains ^String js "#d7263d"))
                                       (expect (.contains ^String js "#ffffff"))
@@ -102,14 +116,6 @@
                                       (expect (.contains ^String js "JetBrains Mono"))))))
 
   (describe "mark placement"
-    (it "measures the mark in the DOM and takes the first free slot"
-
-      (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
-                                      (expect (.contains ^String js "function placeMark"))
-                                      (expect (.contains ^String js "function markCost"))
-                                      (expect (.contains ^String js "mark.offsetWidth"))
-                                      (expect (.contains ^String js "taken.push(spot)")))))
-
     (it "keeps the mark off an isolated control and parks it in the margin beside it"
 
       (core/with-testing-page [pg]
@@ -132,64 +138,56 @@
 
     (it "clamps every candidate inside the document"
 
-      (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {})]
+      (core/with-testing-page [_pg] (let [js (inject-js test-refs {})]
                                       (expect (.contains ^String js "docW - mw"))
                                       (expect (.contains ^String js "docH - mh"))))))
 
   (describe "option toggles"
     (it "excludes boxes when :show-boxes false"
 
-      (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {:show-boxes false})]
+      (core/with-testing-page [pg] (let [kinds (frequencies (map first (drawn pg {:show-boxes false})))]
         ;; Should still have marks, but no box outline divs
-                                      (expect (.contains ^String js "mark.textContent"))
-                                      (expect (not (.contains ^String js "box.style.cssText"))))))
+                                     (expect (= {"mark" 3} kinds)))))
 
     (it "excludes marks when :show-badges false"
 
-      (core/with-testing-page [_pg] (let [js (build-inject-js test-refs {:show-badges false})]
-        ;; No mark elements
-                                      (expect (not (.contains ^String js "mark.textContent")))
-        ;; But should still have boxes with an outline (width adapts to the element)
-                                      (expect (.contains ^String js "px solid")))))
+      (core/with-testing-page [pg] (let [kinds (frequencies (map first (drawn pg {:show-badges false})))]
+        ;; No mark elements, but the boxes stay
+                                     (expect (= {"box" 3} kinds)))))
 
     (it "adds dimensions to the mark only when :show-dimensions true"
 
-      (core/with-testing-page [_pg] (let [off (build-inject-js test-refs {})
-                                          on  (build-inject-js test-refs {:show-dimensions true})]
-                                      (expect (not (.contains ^String off "Math.round(w)")))
-                                      (expect (.contains ^String on "Math.round(w)"))
-                                      (expect (.contains ^String on "Math.round(h)")))))
+      (core/with-testing-page [pg] (let [texts (fn [opts] (keep (fn [[kind text]] (when (= "mark" kind) text)) (drawn pg opts)))]
+                                     (expect (every? #(re-matches #"\d+" %) (texts {})))
+                                     (expect (= 3 (count (texts {:show-dimensions true}))))
+                                     (expect (every? #(re-matches #"\d+ \d+x\d+" %) (texts {:show-dimensions true}))))))
 
-    (it "generates minimal JS with all options disabled"
+    (it "draws nothing with all options disabled"
 
-      (core/with-testing-page [_pg] (let [js-all  (build-inject-js test-refs {})
-                                          js-none (build-inject-js test-refs {:show-boxes false
-                                                                              :show-badges false
-                                                                              :show-dimensions false})]
-        ;; All-disabled should be smaller — only the container
-                                      (expect (< (count js-none) (count js-all)))))))
+      (core/with-testing-page [pg] (expect (= [] (drawn pg {:show-boxes false
+                                                            :show-badges false
+                                                            :show-dimensions false}))))))
 
   (describe "edge cases"
     (it "handles empty refs map"
 
-      (core/with-testing-page [_pg] (let [js (build-inject-js {} {})]
+      (core/with-testing-page [_pg] (let [js (inject-js {} {})]
                                       (expect (string? js))
         ;; Should still set up the container
                                       (expect (.contains ^String js "data-spel-annotate")))))
 
     (it "handles single ref"
 
-      (core/with-testing-page [_pg] (let [js (build-inject-js {"e1" {:role "button" :name "OK"
+      (core/with-testing-page [_pg] (let [js (inject-js {"e1" {:role "button" :name "OK"
                                                                      :bbox {:x 10 :y 10 :width 30 :height 20}}} {})]
-                                      (expect (.contains ^String js "mark.textContent = '1'"))
-                                      (expect (.contains ^String js "data-pw-ref")))))
+                                      (expect (.contains ^String js "[[\"e1\",1]]")))))
 
     (it "skips refs with zero-size bbox"
 
-      (core/with-testing-page [_pg] (let [js (build-inject-js {"e1" {:role "button" :name "Hidden"
+      (core/with-testing-page [_pg] (let [js (inject-js {"e1" {:role "button" :name "Hidden"
                                                                      :bbox {:x 0 :y 0 :width 0 :height 0}}} {})]
         ;; Zero-size bbox should be filtered out
-                                      (expect (not (.contains ^String js "data-pw-ref=\"e1\""))))))))
+                                      (expect (not (.contains ^String js "\"e1\""))))))))
 
 ;; =============================================================================
 ;; Unit Tests — annotation filtering
@@ -325,6 +323,26 @@
         ;; e2 must NOT be suppressed — the zero-area ghost shouldn't trigger
         ;; container dedup
                                       (expect (contains? result "e2")))))
+
+    (it "finds a child in another grid cell than its container's corner"
+
+      ;; The dedup reads refs from a grid by position. With this many refs it
+      ;; uses the grid, and the child is far from the corner of its container.
+      (core/with-testing-page [_pg] (let [filler (into {} (for [i (range 200)]
+                                                            [(str "f" i) {:role "link" :bbox {:x (+ 2000 (* 50 i)) :y 3000 :width 30 :height 10}}]))
+                                          refs   (assoc filler
+                                                   "e1" {:role "dialog" :bbox {:x 100 :y 100 :width 600 :height 400}}
+                                                   "e2" {:role "button" :bbox {:x 600 :y 450 :width 40 :height 20}})
+                                          result (sut/remove-containers refs)]
+                                      (expect (= 201 (count result)))
+                                      (expect (not (contains? result "e1")))
+                                      (expect (contains? result "e2")))))
+
+    (it "finds a child of a container that covers more cells than there are refs"
+
+      (core/with-testing-page [_pg] (let [refs {"e1" {:role "dialog" :bbox {:x 0 :y 0 :width 20000 :height 20000}}
+                                                "e2" {:role "button" :bbox {:x 15000 :y 15000 :width 40 :height 20}}}]
+                                      (expect (= ["e2"] (keys (sut/remove-containers refs)))))))
 
     (it "handles empty refs"
 
