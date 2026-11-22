@@ -1244,15 +1244,95 @@
 ;; =============================================================================
 
 (defn sci-on-console   [handler] (page/on-console (require-page!) handler))
-(defn sci-on-dialog    [handler] (page/on-dialog (require-page!) handler))
-(defn sci-once-dialog  [handler] (page/once-dialog (require-page!) handler))
+
+;; Regression, issue #156: the daemon has a dialog listener on each
+;; page. Playwright calls the listeners of a page in the sequence of their
+;; registration, so the daemon answered an alert first and the answer of the
+;; script listener failed. A page with a script listener owns its dialogs.
+(defonce ^:private !script-dialog-listeners
+  ;; {Page #{listener}}: the dialog listeners that scripts registered.
+  (atom {}))
+
+(defn- track-dialog-listener!
+  "Records `listener` as a script dialog listener of `pg`. Forgets closed pages.
+
+   Returns:
+   `listener`."
+  [^Page pg listener]
+  (swap! !script-dialog-listeners
+    (fn [by-page]
+      (-> (into {} (remove (fn [[^Page p _]] (.isClosed p))) by-page)
+        (update pg (fnil conj #{}) listener))))
+  listener)
+
+(defn- untrack-dialog-listener!
+  "Forgets `listener` as a script dialog listener of `pg`.
+
+   Returns:
+   nil."
+  [pg listener]
+  (swap! !script-dialog-listeners
+    (fn [by-page]
+      (let [others (disj (get by-page pg #{}) listener)]
+        (if (seq others)
+          (assoc by-page pg others)
+          (dissoc by-page pg)))))
+  nil)
+
+(defn script-dialog-listener?
+  "Returns true when a script has a dialog listener on `pg`. The daemon then
+   leaves each dialog of that page to the script.
+
+   Params:
+   `pg` - Page instance.
+
+   Returns:
+   Boolean."
+  [pg]
+  (boolean (seq (get @!script-dialog-listeners pg))))
+
+(defn script-on-dialog
+  "`page/on-dialog` for a script: the page then owns its dialogs.
+
+   Params:
+   `pg`      - Page instance.
+   `handler` - Function that receives a Dialog.
+
+   Returns:
+   The listener, for `off-dialog`."
+  [pg handler]
+  (track-dialog-listener! pg (page/on-dialog pg handler)))
+
+(defn script-once-dialog
+  "`page/once-dialog` for a script: the page owns its next dialog.
+
+   Params:
+   `pg`      - Page instance.
+   `handler` - Function that receives a Dialog.
+
+   Returns:
+   The listener, for `off-dialog`."
+  [pg handler]
+  (let [!listener (volatile! nil)
+        listener  (page/once-dialog pg (fn [dialog]
+                                         (untrack-dialog-listener! pg @!listener)
+                                         (handler dialog)))]
+    (vreset! !listener listener)
+    (track-dialog-listener! pg listener)))
+
+(defn sci-on-dialog    [handler] (script-on-dialog (require-page!) handler))
+(defn sci-once-dialog  [handler] (script-once-dialog (require-page!) handler))
 (defn sci-off-dialog
   "Removes a dialog handler, taking the listener `on-dialog` returned.
 
    Playwright unregisters by object identity, so the handler function itself
    removes nothing — pass back what `(spel/on-dialog ...)` answered."
   [listener]
-  (throw-if-anomaly (page/off-dialog (require-page!) listener)))
+  (let [pg     (require-page!)
+        result (page/off-dialog pg listener)]
+    (when-not (anomaly/anomaly? result)
+      (untrack-dialog-listener! pg listener))
+    (throw-if-anomaly result)))
 (defn sci-on-page-error [handler] (page/on-page-error (require-page!) handler))
 (defn sci-on-request   [handler] (page/on-request (require-page!) handler))
 (defn sci-on-response  [handler] (page/on-response (require-page!) handler))
@@ -1294,8 +1374,31 @@
 ;; --- High-level dialog convenience ---
 
 (def ^:private !sci-dialog-handler
-  "Atom holding the currently active dialog Consumer handler for SCI convenience functions."
+  "Atom holding the `[page listener]` of the auto-accept or auto-dismiss handler, or nil."
   (atom nil))
+
+(defn- replace-auto-dialog-handler!
+  "Removes the auto-accept or auto-dismiss handler, then registers `answer!` on
+   the current page when it is given.
+
+   Params:
+   `answer!` - Function that receives a Dialog and answers it, or nil.
+
+   Returns:
+   nil."
+  [answer!]
+  (let [^Page pg (require-page!)]
+    (when-let [[^Page old-pg old] @!sci-dialog-handler]
+      (.offDialog old-pg old)
+      (untrack-dialog-listener! old-pg old)
+      (reset! !sci-dialog-handler nil))
+    (when answer!
+      (let [listener (reify java.util.function.Consumer
+                       (accept [_ dialog] (answer! dialog)))]
+        (.onDialog pg listener)
+        (track-dialog-listener! pg listener)
+        (reset! !sci-dialog-handler [pg listener])))
+    nil))
 
 (defn sci-auto-accept-dialogs!
   "Registers a persistent dialog handler that auto-accepts all dialogs.
@@ -1304,40 +1407,20 @@
   ([]
    (sci-auto-accept-dialogs! ""))
   ([prompt-text]
-   (let [^Page pg (require-page!)]
-     (when-let [old @!sci-dialog-handler]
-       (.offDialog pg old))
-     (let [handler (reify java.util.function.Consumer
-                     (accept [_ dialog]
-                       (.accept ^Dialog dialog (or prompt-text ""))))]
-       (reset! !sci-dialog-handler handler)
-       (.onDialog pg handler))
-     nil)))
+   (replace-auto-dialog-handler! (fn [^Dialog dialog] (.accept dialog (or prompt-text ""))))))
 
 (defn sci-auto-dismiss-dialogs!
   "Registers a persistent dialog handler that auto-dismisses all dialogs.
    Removes any previous handler first.
    Returns nil."
   []
-  (let [^Page pg (require-page!)]
-    (when-let [old @!sci-dialog-handler]
-      (.offDialog pg old))
-    (let [handler (reify java.util.function.Consumer
-                    (accept [_ dialog]
-                      (.dismiss ^Dialog dialog)))]
-      (reset! !sci-dialog-handler handler)
-      (.onDialog pg handler))
-    nil))
+  (replace-auto-dialog-handler! (fn [^Dialog dialog] (.dismiss dialog))))
 
 (defn sci-clear-dialog-handler!
   "Removes the current auto-accept/auto-dismiss dialog handler.
    Returns nil."
   []
-  (let [^Page pg (require-page!)]
-    (when-let [old @!sci-dialog-handler]
-      (.offDialog pg old)
-      (reset! !sci-dialog-handler nil))
-    nil))
+  (replace-auto-dialog-handler! nil))
 
 ;; =============================================================================
 ;; Routing
@@ -3047,8 +3130,8 @@
                         ['wait-for-file-chooser   page/wait-for-file-chooser]
                         ['emulate-media!          page/emulate-media!]
                         ['on-console              page/on-console]
-                        ['on-dialog               page/on-dialog]
-                        ['once-dialog             page/once-dialog]
+                        ['on-dialog               script-on-dialog]
+                        ['once-dialog             script-once-dialog]
                         ['on-page-error           page/on-page-error]
                         ['on-request              page/on-request]
                         ['on-response             page/on-response]

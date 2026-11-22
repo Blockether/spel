@@ -1628,16 +1628,15 @@
 
 (defonce ^:private !console-messages (atom []))
 (defonce ^:private !page-errors (atom []))
-(defonce ^:private !dialog-handler (atom nil))
 
-;; Tracks a dialog that is currently blocking the page. The info map holds
-;; :type / :message / :default-value. `dialog_status` reads this atom.
+;; The dialog that blocks a page now: :type, :message, :default-value and the
+;; :dialog itself. `dialog_status` reads it; `dialog_accept` and
+;; `dialog_dismiss` answer its :dialog.
 (defonce ^:private !pending-dialog (atom nil))
 
-;; A promise that the default dialog listener blocks on, waiting for an
-;; explicit response via `dialog_accept` / `dialog_dismiss`. Delivered by those
-;; handlers with a `[action text]` pair.
-(defonce ^:private !pending-dialog-promise (atom nil))
+;; The `[action text]` answer that `dialog_accept` or `dialog_dismiss` gave
+;; before a dialog was open. The next dialog takes it.
+(defonce ^:private !dialog-answer (atom nil))
 (defonce ^:private !tracked-requests (atom []))
 (def ^:private max-tracked-requests 500)
 (defonce ^:private !routes (atom {}))
@@ -2376,6 +2375,81 @@
                                 :pages (assoc live pg (str "t" next))}))))]
     [(get-in after [:pages pg]) (contains? (:pages before) pg)]))
 
+;; Regression, issue #156: the dialog listener waited on a promise for
+;; `dialog accept`. Playwright runs a listener on the thread that runs the
+;; current command, so the wait stopped that command for the whole 25 s budget
+;; and no later command could answer the dialog: the page stayed blocked.
+(defn- answer-dialog!
+  "Answers `dialog` with an `[action text]` pair: `:accept` accepts it, each
+   other action dismisses it. A dialog that is already closed is not an error.
+
+   Returns:
+   nil."
+  [^Dialog dialog [action text]]
+  (try
+    (if (= :accept action)
+      (.accept dialog (or text ""))
+      (.dismiss dialog))
+    (catch Exception _ nil))
+  nil)
+
+(defn- on-dialog!
+  "Handles a dialog that a page of this session opened. Never waits.
+
+   - An answer from an earlier `dialog accept` or `dialog dismiss` goes to this
+     dialog, one time.
+   - `alert` and `beforeunload` are accepted, unless `--no-auto-dialog` is set:
+     they carry no decision and would stop each navigation.
+   - Each other dialog stays open in `!pending-dialog` until `dialog accept` or
+     `dialog dismiss` answers it.
+
+   A page with a dialog listener of a script owns its dialogs: this fn does
+   nothing for them.
+
+   Returns:
+   nil."
+  [^Dialog dialog]
+  (when-not (sci-env/script-dialog-listener? (.page dialog))
+    (let [dtype      (.type dialog)
+          [answer _] (reset-vals! !dialog-answer nil)]
+      (cond
+        answer
+        (answer-dialog! dialog answer)
+
+        (and (contains? #{"alert" "beforeunload"} dtype)
+          (not (get-in @!state [:launch-flags "no-auto-dialog"])))
+        (answer-dialog! dialog [:accept nil])
+
+        :else
+        (reset! !pending-dialog {:type          dtype
+                                 :message       (.message dialog)
+                                 :default-value (.defaultValue dialog)
+                                 :dialog        dialog}))))
+  nil)
+
+(defn- pending-dialog
+  "Returns the dialog that blocks a page now, or nil. A dialog whose page is
+   closed is gone, so this forgets it."
+  []
+  (when-let [info @!pending-dialog]
+    (let [^Page owner (.page ^Dialog (:dialog info))]
+      (if (and owner (.isClosed owner))
+        (reset! !pending-dialog nil)
+        info))))
+
+(defn- answer-or-keep-dialog-answer!
+  "Gives `answer` to the pending dialog, or keeps it for the next dialog.
+
+   Returns:
+   True when no dialog was pending and the answer waits for the next one."
+  [answer]
+  (if-let [info (pending-dialog)]
+    (do (answer-dialog! (:dialog info) answer)
+        (reset! !pending-dialog nil)
+        false)
+    (do (reset! !dialog-answer answer)
+        true)))
+
 (defn- instrument-page!
   "Registers spel's console, page-error and response listeners on `pg` — exactly
    once per page, however often it is called — and tags everything they capture
@@ -2417,6 +2491,10 @@
         ;; interrupt whatever that thread happens to be doing. The command
         ;; watchdog reads the record and interrupts its own worker.
         (page/on-crash pg (fn [_] (note-page-crash! pg)))
+        ;; Each tab gets the dialog listener. On the first tab only, a
+        ;; `confirm` in a later tab or after `set device` was dismissed with no
+        ;; record, because Playwright dismisses a dialog that has no listener.
+        (page/on-dialog pg on-dialog!)
         (page/on-response pg (fn [^Response resp] (track-response! resp tab)))
         ;; A request that never reaches a response — refused connection, DNS
         ;; failure, TLS error, a route that aborted it — fires ONLY this event.
@@ -2859,54 +2937,6 @@
                (:playwright/exception result)))
       result)))
 
-(defn- install-default-dialog-handler!
-  "Installs the default Dialog listener on the page. Behavior:
-
-   - `alert` and `beforeunload` are auto-accepted immediately, unless the user
-     passed `--no-auto-dialog`. These dialogs are informational and blocking
-     on them would hang every page navigation.
-   - `confirm` and `prompt` are STORED in `!pending-dialog` and left open.
-     The caller must respond explicitly via `dialog_accept`/`dialog_dismiss`,
-     giving the agent full control over decisions.
-   - When `--no-auto-dialog` is set, EVERY dialog (including alert) goes into
-     `!pending-dialog` and requires explicit handling.
-
-   Responses to other commands while a dialog is pending carry a `:warning`
-   field so the LLM notices the blocked state."
-  [^Page page no-auto?]
-  (reset! !pending-dialog nil)
-  (reset! !pending-dialog-promise nil)
-  (when-let [old @!dialog-handler]
-    (try (.offDialog page old) (catch Exception _ nil)))
-  (let [handler (reify java.util.function.Consumer
-                  (accept [_ dialog]
-                    (let [^Dialog d dialog
-                          dtype   (.type d)
-                          info    {:type    dtype
-                                   :message (.message d)
-                                   :default-value (.defaultValue d)}]
-                      (if (and (not no-auto?)
-                            (contains? #{"alert" "beforeunload"} dtype))
-                        (try (.accept d)
-                             (catch Exception _ nil))
-                        ;; Park until an explicit response arrives on the
-                        ;; promise. Playwright dispatches onDialog on its own
-                        ;; event thread so blocking here is safe.
-                        (let [p (promise)]
-                          (reset! !pending-dialog info)
-                          (reset! !pending-dialog-promise p)
-                          (let [[action text] @p]
-                            (try
-                              (case action
-                                :accept  (.accept d (or text ""))
-                                :dismiss (.dismiss d)
-                                (.dismiss d))
-                              (catch Exception _ nil))
-                            (reset! !pending-dialog nil)
-                            (reset! !pending-dialog-promise nil)))))))]
-    (reset! !dialog-handler handler)
-    (.onDialog page handler)))
-
 (defn- browser-engine-rejection
   "Rejects unknown engines, live engine changes and unsupported Lightpanda options."
   [incoming]
@@ -2998,7 +3028,6 @@
            p (new-spel-page! (:context @!state))]
        (page/set-default-timeout! p
          (double (or (get flags "timeout") default-action-timeout-ms)))
-       (install-default-dialog-handler! p (boolean (get flags "no-auto-dialog")))
        (focus-page! p)))
    (when-not (:browser @!state)
      (let [flags       (get @!state :launch-flags {})
@@ -3233,9 +3262,7 @@
        (when-let [pg-inst (:page @!state)]
          (page/set-default-timeout! pg-inst
            (double (or (get flags "timeout") default-action-timeout-ms)))
-          ;; Default dialog handler: auto-accept alert/beforeunload unless
-          ;; --no-auto-dialog is set; queue confirm/prompt for explicit handling.
-         (install-default-dialog-handler! pg-inst (boolean (get flags "no-auto-dialog")))
+         (reset! !pending-dialog nil)
          (reset! !console-messages [])
          (reset! !page-errors [])
          (reset! !tracked-requests [])
@@ -5130,45 +5157,19 @@
 ;; --- Phase 4: Dialogs ---
 
 (defmethod handle-cmd "dialog_accept" [_ {:strs [text]}]
-  ;; If a dialog is already pending (parked in the default handler), respond
-  ;; to it via the promise. Otherwise install a one-shot handler for the NEXT
-  ;; dialog — backward compat for callers that call `dialog accept` before the
-  ;; dialog fires.
-  (if-let [p @!pending-dialog-promise]
-    (do (deliver p [:accept text])
-        {:dialog_handler "accept" :text text :pending false})
-    (do (when-let [old @!dialog-handler]
-          (try (.offDialog ^Page (pg) old) (catch Exception _ nil)))
-        (let [handler (reify java.util.function.Consumer
-                        (accept [_ dialog]
-                          (try (.accept ^Dialog dialog (or text ""))
-                               (catch Exception _ nil))
-                          (install-default-dialog-handler! (pg)
-                            (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
-          (reset! !dialog-handler handler)
-          (.onDialog ^Page (pg) handler))
-        {:dialog_handler "accept" :text text :pending true})))
+  ;; `:pending` is true when no dialog was open: the answer waits for the next
+  ;; dialog, for callers that answer before the click that opens it.
+  {:dialog_handler "accept" :text text
+   :pending (answer-or-keep-dialog-answer! [:accept text])})
 
 (defmethod handle-cmd "dialog_dismiss" [_ _]
-  (if-let [p @!pending-dialog-promise]
-    (do (deliver p [:dismiss nil])
-        {:dialog_handler "dismiss" :pending false})
-    (do (when-let [old @!dialog-handler]
-          (try (.offDialog ^Page (pg) old) (catch Exception _ nil)))
-        (let [handler (reify java.util.function.Consumer
-                        (accept [_ dialog]
-                          (try (.dismiss ^Dialog dialog)
-                               (catch Exception _ nil))
-                          (install-default-dialog-handler! (pg)
-                            (boolean (get (get @!state :launch-flags {}) "no-auto-dialog")))))]
-          (reset! !dialog-handler handler)
-          (.onDialog ^Page (pg) handler))
-        {:dialog_handler "dismiss" :pending true})))
+  {:dialog_handler "dismiss"
+   :pending (answer-or-keep-dialog-answer! [:dismiss nil])})
 
 (defmethod handle-cmd "dialog_status" [_ _]
   ;; Reports whether a dialog is currently blocking the page. Agents poll this
   ;; before issuing actions that would otherwise be silently stalled.
-  (if-let [info @!pending-dialog]
+  (if-let [info (pending-dialog)]
     {:pending true
      :type (:type info)
      :message (:message info)
@@ -6820,9 +6821,12 @@
      :error      (str "command '" action "' exceeded the daemon budget of "
                    budget-ms "ms and was interrupted")
      :error_code "command_timeout"
-     :hint       (str "Raise the ceiling with SPEL_COMMAND_BUDGET_MS=<ms> if the work is "
-                   "genuinely long; the daemon is still alive and `spel health` shows "
-                   "what is running.")
+     :hint       (if-let [dialog @!pending-dialog]
+                   (str "A `" (:type dialog) "` dialog is open and blocks the page. Answer "
+                     "it with `spel dialog accept` or `spel dialog dismiss`.")
+                   (str "Raise the ceiling with SPEL_COMMAND_BUDGET_MS=<ms> if the work is "
+                     "genuinely long; the daemon is still alive and `spel health` shows "
+                     "what is running."))
      :command_id cid}))
 
 (defn- page-crash-response

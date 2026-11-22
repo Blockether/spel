@@ -1949,8 +1949,8 @@
    how many listeners spel put on one page without launching a browser.
 
    Params:
-   `!counts` - Atom holding {:console n :page-error n :response n :crash n :popup n
-                             :request-failed n}.
+   `!counts` - Atom holding {:console n :page-error n :response n :crash n :dialog n
+                             :popup n :request-failed n}.
 
    Returns:
    A `com.microsoft.playwright.Page` proxy that reports itself open; every
@@ -1961,6 +1961,7 @@
     (onPageError [_] (swap! !counts update :page-error (fnil inc 0)))
     (onResponse [_] (swap! !counts update :response (fnil inc 0)))
     (onCrash [_] (swap! !counts update :crash (fnil inc 0)))
+    (onDialog [_] (swap! !counts update :dialog (fnil inc 0)))
     (onPopup [_] (swap! !counts update :popup (fnil inc 0)))
     (onRequestFailed [_] (swap! !counts update :request-failed (fnil inc 0)))
     ;; A page command asks whether the tab is still open before it may use it,
@@ -1996,7 +1997,7 @@
       (let [counts (atom {})
             page   (counting-page counts)]
         (dotimes [_ 5] ((var-get #'sut/instrument-page!) page))
-        (expect (= {:console 1 :page-error 1 :response 1 :crash 1 :popup 1 :request-failed 1} @counts))))
+        (expect (= {:console 1 :page-error 1 :response 1 :crash 1 :dialog 1 :popup 1 :request-failed 1} @counts))))
 
     (it "instruments a second page on its own"
       (let [counts (atom {})
@@ -2004,7 +2005,7 @@
             second-page (counting-page counts)]
         ((var-get #'sut/instrument-page!) first-page)
         ((var-get #'sut/instrument-page!) second-page)
-        (expect (= {:console 2 :page-error 2 :response 2 :crash 2 :popup 2 :request-failed 2} @counts))))))
+        (expect (= {:console 2 :page-error 2 :response 2 :crash 2 :dialog 2 :popup 2 :request-failed 2} @counts))))))
 
 (defn- fake-console-message
   "A `ConsoleMessage` carrying only what `track-console-entry!` reads off it.
@@ -2225,6 +2226,7 @@
                         (onPageError [_])
                         (onResponse [_])
                         (onCrash [_])
+                        (onDialog [_])
                         (onRequestFailed [_])
                         (onPopup [c] (reset! !consumer c)))
             counts    (atom {})
@@ -2232,7 +2234,7 @@
         ((var-get #'sut/instrument-page!) opener)
         (expect (some? @!consumer))
         (.accept ^java.util.function.Consumer @!consumer popup)
-        (expect (= {:console 1 :page-error 1 :response 1 :crash 1 :popup 1 :request-failed 1} @counts))
+        (expect (= {:console 1 :page-error 1 :response 1 :crash 1 :dialog 1 :popup 1 :request-failed 1} @counts))
         (expect (some? ((var-get #'sut/tab-key-of) popup)))))))
 
 ;; =============================================================================

@@ -663,6 +663,38 @@ OUT=$("$SPEL" --json dialog accept "my prompt text" 2>&1)
 assert_jq_eq "dialog accept text → .text" "$OUT" '.text' 'my prompt text'
 "$SPEL" click "button[onclick='jsPrompt()']" >/dev/null 2>&1
 
+# Regression, issue #156: an open confirm() froze each command for the
+# full command budget, and `dialog accept` did not answer it. A tab that was
+# not the first tab had no dialog listener.
+OPEN_CONFIRM="() => { setTimeout(() => { window.__answer = confirm('sure?') }, 50); return 1 }"
+"$SPEL" eval-js "$OPEN_CONFIRM" >/dev/null 2>&1
+sleep 0.5
+OUT=$(timeout 10 "$SPEL" --json dialog status 2>&1)
+assert_jq "open confirm → dialog status shows it" "$OUT" '.pending == true and .type == "confirm" and .message == "sure?"'
+OUT=$(timeout 10 "$SPEL" --json dialog accept 2>&1)
+assert_jq "open confirm → dialog accept answers it" "$OUT" '.pending == false'
+OUT=$(timeout 10 "$SPEL" --json eval-js "() => window.__answer" 2>&1)
+assert_jq "open confirm → the page gets true" "$OUT" '.result == true'
+
+"$SPEL" tab new https://the-internet.herokuapp.com/javascript_alerts >/dev/null 2>&1
+"$SPEL" eval-js "$OPEN_CONFIRM" >/dev/null 2>&1
+sleep 0.5
+OUT=$(timeout 10 "$SPEL" --json dialog dismiss 2>&1)
+assert_jq "open confirm in a new tab → dialog dismiss answers it" "$OUT" '.pending == false'
+OUT=$(timeout 10 "$SPEL" --json eval-js "() => window.__answer" 2>&1)
+assert_jq "open confirm in a new tab → the page gets false" "$OUT" '.result == false'
+"$SPEL" tab close >/dev/null 2>&1
+
+# A page with a dialog listener of a script owns its dialogs: the listener of
+# the daemon must not answer them first.
+OUT=$(timeout 10 "$SPEL" --json eval-sci '(spel/auto-accept-dialogs! "typed") (spel/eval-js "prompt(\"name?\", \"x\")")' 2>&1)
+assert_contains "script dialog listener → answers the prompt" "$OUT" 'typed'
+OUT=$(timeout 10 "$SPEL" --json eval-sci '(spel/eval-js "alert(\"hi\"); \"after-alert\"")' 2>&1)
+assert_contains "script dialog listener → answers the alert" "$OUT" 'after-alert'
+"$SPEL" eval-sci '(spel/clear-dialog-handler!)' >/dev/null 2>&1
+OUT=$(timeout 10 "$SPEL" --json dialog status 2>&1)
+assert_jq "script dialog listener → leaves no pending dialog" "$OUT" '.pending == false'
+
 nav "https://example.com"
 
 # =============================================================================
