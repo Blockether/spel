@@ -212,6 +212,9 @@
     return text;
   }
 
+  const NAME_FROM_CONTENT_ROLES = new Set(['button', 'link', 'menuitem', 'menuitemcheckbox',
+    'menuitemradio', 'tab', 'option', 'treeitem', 'checkbox', 'radio', 'switch']);
+
   function getName(el, flat) {
     // 1. aria-label
     const ariaLabel = el.getAttribute('aria-label');
@@ -249,6 +252,13 @@
       const text = (flat ? flatText(flat) : (el.textContent || '')).trim();
       if (text.length <= 200) return text;
       return text.substring(0, 197) + '...';
+    }
+
+    // 6b. Roles named by their content take the text of child elements too:
+    //     <button><span>Save</span></button> had no name (issue #176).
+    if (NAME_FROM_CONTENT_ROLES.has(getRole(el))) {
+      const text = (flat ? flatText(flat) : (el.innerText || '')).replace(/\\s+/g, ' ').trim();
+      if (text) return text.length <= 200 ? text : text.substring(0, 197) + '...';
     }
 
     // 7. Content preview for container elements with meaningful roles

@@ -313,6 +313,26 @@
 ;; content-hash ref system.
 ;; =============================================================================
 
+;; Regression, issue #176: a button or link whose text is in a child element
+;; had no name, so `find` by name and the snapshot line could not name it.
+(defdescribe name-from-content-test
+  "Content-named roles take the text of their child elements"
+  (around [f] (core/with-testing-browser (f)))
+
+  (it "names a button and a link by the text of their children"
+    (core/with-testing-page [pg]
+      (page/set-content! pg
+        (str "<button><span>Save draft</span></button>"
+          "<a href='#x'><span><b>Read</b> docs</span></a>"
+          "<div role='button'><span>Div   button</span></div>"))
+      (let [named (set (keep (fn [[_ info]]
+                               (when (#{"button" "link"} (:role info))
+                                 [(:role info) (:name info)]))
+                         (:refs (sut/capture-snapshot pg))))]
+        (expect (contains? named ["button" "Save draft"]))
+        (expect (contains? named ["link" "Read docs"]))
+        (expect (contains? named ["button" "Div button"]))))))
+
 (defdescribe ref-stability-controlled-test
   "Comprehensive ref stability tests using controlled HTML.
 
