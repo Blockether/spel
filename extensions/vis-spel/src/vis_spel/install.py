@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-DEFAULT_VERSION = "0.9.55"
+DEFAULT_VERSION = "0.9.56"
 MIN_VERSION = (0, 9, 33)
 MAX_BINARY = 256 * 1024 * 1024
 
