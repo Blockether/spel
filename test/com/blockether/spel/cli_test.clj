@@ -3041,7 +3041,46 @@
               (expect (true? (:refused result)))
               (expect (false? (:killed result)))
               (expect (= pid (:pid result)))
+              ;; Regression, issue #186: the text output was a bare "REFUSED ".
+              (expect (str/includes? (str (:error result)) "was not signaled"))
               (expect (.isAlive (java.lang.ProcessHandle/current)))))))))
+
+  ;; Regression, issue #186: a killed daemon left its socket file, and `close`
+  ;; refused instead of removing it.
+  (it "closes a session whose socket file accepts no connection"
+    (let [s    (dfr-session)
+          sock (io/file (str (daemon/socket-path s)))]
+      (spit sock "")
+      (try
+        (with-redefs [sut/daemon-process-for-session (constantly nil)]
+          (let [result (#'sut/close-session! s)]
+            (expect (true? (:closed result)))
+            (expect (not (.exists sock)))))
+        (finally (.delete sock)))))
+
+  ;; Regression, issue #178: the list asked `session_info` first, waited behind a
+  ;; long command and showed `ok` for a degraded session.
+  (it "lists a busy session from health without asking session_info"
+    (let [asked (atom [])]
+      (with-redefs [sut/send-command! (fn [_ cmd _]
+                                        (swap! asked conj (:action cmd))
+                                        {:success true
+                                         :data {:status "busy"
+                                                :in_flight [{:id "c1" :action "evaluate"}]
+                                                :browser {:page_url "http://x.test/"}}})]
+        (let [row (#'sut/enrich-session-with-info {:name "s"})]
+          (expect (= ["health"] @asked))
+          (expect (= "busy" (:status row)))
+          (expect (= "http://x.test/" (:url row)))))))
+
+  (it "keeps the health status of an idle session that answers session_info"
+    (with-redefs [sut/send-command! (fn [_ cmd _]
+                                      (if (= "health" (:action cmd))
+                                        {:success true :data {:status "degraded" :in_flight []}}
+                                        {:success true :data {:url "http://x.test/"}}))]
+      (let [row (#'sut/enrich-session-with-info {:name "s"})]
+        (expect (= "degraded" (:status row)))
+        (expect (= "http://x.test/" (:url row))))))
 
   ;; Regression, issue #172: a Windows CIM query that timed out gave no command
   ;; line, and health called the session's own daemon a stale pid.

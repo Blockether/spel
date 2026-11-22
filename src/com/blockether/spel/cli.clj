@@ -3435,6 +3435,8 @@
              :current  current-session}
       (seq external-cdp) (assoc :external_cdp external-cdp))))
 
+(declare socket-connectable?)
+
 (defn- close-session!
   "Gracefully closes a verified daemon session and waits for browser teardown.
    Never removes the session files or reports success while its process is alive.
@@ -3454,8 +3456,12 @@
        {:session session :pid file-pid :closed false :refused true
         :error "PID file names an unrelated process; use spel health to diagnose"}
 
+       ;; Regression, issue #186: after the daemon was killed, its socket file
+       ;; stayed and `close` refused with "Cannot verify the daemon owning this
+       ;; socket". A socket that accepts no connection has no owner.
        (nil? daemon)
-       (if (Files/exists (daemon/socket-path session) (into-array java.nio.file.LinkOption []))
+       (if (and (Files/exists (daemon/socket-path session) (into-array java.nio.file.LinkOption []))
+             (socket-connectable? session))
          {:session session :closed false :refused true
           :error "Cannot verify the daemon owning this socket; use spel health to diagnose"}
          (do (cleanup-session-files! session)
@@ -3570,7 +3576,9 @@
    starting a new one. Staying silent is what makes a restart look like the
    command misbehaving — the replacement daemon really does start blank."
   [session e attempt]
-  (log/warn! "daemon not responding: session=" session " attempt=" attempt
+  ;; Logged at info: warnings are mirrored to stderr, and the line below already
+  ;; tells the user (issue #186: the same event printed twice).
+  (log/info! "daemon not responding: session=" session " attempt=" attempt
     " cause=" (transport-cause e))
   (binding [*out* *err*]
     (println (str "spel: daemon not responding (" (transport-cause e) ") — restarting"
@@ -3585,7 +3593,7 @@
   [session]
   (when-let [pid (read-pid session)]
     (let [reason (daemon-exit-reason session)]
-      (log/warn! "daemon gone: session=" session " pid=" pid
+      (log/info! "daemon gone: session=" session " pid=" pid
         (when reason (str " reason=" reason)))
       (binding [*out* *err*]
         (println (str "spel: daemon " pid " for session '" session "' is gone"
@@ -3982,6 +3990,10 @@
         {:session session :pid file-pid :killed false
          :method  (if unsafe-live? "refused stale pid" "already gone")
          :refused unsafe-live?
+         ;; Regression, issue #186: this case printed a bare "REFUSED ".
+         :error   (when unsafe-live?
+                    (str "removed the stale session files; pid " file-pid
+                      " is not this session's daemon and was not signaled"))
          :alive   unsafe-live?})
       (let [killed? (force-terminate-tree! pid)]
         (cleanup-session-files! session)
@@ -4834,7 +4846,7 @@
                        (cond
                          closed  (str "closed" (when pid (str " pid " pid)) " (" method ")")
                          killed  (str "killed pid " pid " (" method ")")
-                         refused (str "REFUSED " error)
+                         refused (str "not killed: " error)
                          error   (str "NOT CLOSED " error)
                          :else   "no daemon running")))))
         (System/exit (if success? 0 1))))
