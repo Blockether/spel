@@ -1910,6 +1910,10 @@
       (doseq [flag ["--text" "--url" "--fn" "--load"]]
         (expect (= (str "wait " flag " needs a value.") (:error (cmd ["wait" flag]))))))
 
+    (it "parses dialog accept --next with and without text"
+      (expect (= {:text "hi" :next true} (select-keys (cmd ["dialog" "accept" "--next" "hi"]) [:text :next])))
+      (expect (true? (:next (cmd ["dialog" "dismiss" "--next"])))))
+
     (it "reports click without a target as a parse error"
       (expect (string? (:error (cmd ["click"])))))
 

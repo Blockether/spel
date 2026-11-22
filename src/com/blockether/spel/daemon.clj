@@ -2532,6 +2532,11 @@
         (reset! !last-dialog-claim {:at (System/currentTimeMillis) :info info})
         info))))
 
+(def ^:private dialog-answer-grace-ms
+  "How long after one dialog answer another answer, with no dialog open,
+   counts as concurrent rather than as an answer for the next dialog."
+  1000)
+
 (defn- own-command-started
   "Start time of the ledger row of the calling thread, or nil."
   []
@@ -2544,26 +2549,29 @@
    Regression, issue #192: of two concurrent answers, the one that lost the claim kept its
    answer for the NEXT dialog, which then got an answer that nobody gave it.
    When another command claimed a dialog while this command ran, this command
-   fails with `dialog_already_answered` and keeps nothing. `issued-at`, the
-   start of the client process, counts as the start of this command: a client
-   that started before the claim can arrive after it.
+   fails with `dialog_already_answered` and keeps nothing. A client process
+   that two agents start together can arrive after the other one answered, so
+   a claim up to `dialog-answer-grace-ms` before the client started (param
+   `issued_at`) also counts. Param `next` keeps the answer in all cases.
 
    Returns:
    The dialog info that got the answer, or nil when no dialog was pending and
    the answer waits for the next one."
-  [answer issued-at]
+  [answer {:strs [issued_at next]}]
   (if-let [info (claim-pending-dialog!)]
     (do (answer-dialog! (:dialog info) answer)
         info)
     (let [{:keys [at info]} @!last-dialog-claim
-          started (->> [(own-command-started) issued-at] (filter number?) (map long) seq
+          started (->> [(own-command-started) issued_at] (filter number?) (map long)
                     (apply min Long/MAX_VALUE))]
-      (when (and at (>= (long at) (long started)))
+      (when (and at (not next)
+              (>= (long at) (- (long started) (long dialog-answer-grace-ms))))
         (throw (ex-info (str "A concurrent command answered the " (name (or (:type info) "dialog"))
                           " dialog '" (:message info) "' first. This answer was not used "
                           "and is not kept for the next dialog.")
                  {:error_code "dialog_already_answered"
-                  :hint       "Run `spel dialog status` to see whether another dialog is open."})))
+                  :hint       (str "Run `spel dialog status` to see whether another dialog is open. "
+                                "To answer the next dialog, add --next.")})))
       (reset! !dialog-answer answer)
       nil)))
 
@@ -5441,11 +5449,11 @@
   ;; `:pending` is true when no dialog was open: the answer waits for the next
   ;; dialog, for callers that answer before the click that opens it.
   (dialog-answer-response "accept" text
-    (answer-or-keep-dialog-answer! [:accept text] (get params "issued_at"))))
+    (answer-or-keep-dialog-answer! [:accept text] params)))
 
 (defmethod handle-cmd "dialog_dismiss" [_ params]
   (dialog-answer-response "dismiss" nil
-    (answer-or-keep-dialog-answer! [:dismiss nil] (get params "issued_at"))))
+    (answer-or-keep-dialog-answer! [:dismiss nil] params)))
 
 (defmethod handle-cmd "dialog_status" [_ _]
   ;; Reports whether a dialog is currently blocking the page. Agents poll this

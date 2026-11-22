@@ -1573,6 +1573,7 @@ Auto-generated from CLI help text. Run `spel --help` for the full reference.
 | `frame list` | List all frames |
 | `dialog accept [text]` | Accept dialog |
 | `dialog dismiss` | Dismiss dialog |
+| `dialog accept --next` | Keep the answer for the next dialog (also just after another answer) |
 
 ### Debug
 

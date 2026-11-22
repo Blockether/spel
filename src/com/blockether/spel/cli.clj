@@ -1062,11 +1062,18 @@
       "Subcommands:"
       "  accept [text]    Accept the dialog, optionally with input text"
       "  dismiss          Dismiss the dialog"
+      "  status           Show the dialog that waits for an answer"
+      ""
+      "Options:"
+      "  --next           Keep the answer for the next dialog, also just after"
+      "                   another answer. Without it, an answer within 1 s of"
+      "                   another answer fails with dialog_already_answered."
       ""
       "Examples:"
       "  spel dialog accept"
       "  spel dialog accept \"my input\""
-      "  spel dialog dismiss"])
+      "  spel dialog dismiss"
+      "  spel dialog accept --next      # before the click that opens it"])
 
    "trace"
    (str/join \newline
@@ -2960,9 +2967,12 @@
           ;; Dialogs
             "dialog"   (let [sub (first cmd-args)]
                          (case sub
-                           "accept"  {:action "dialog_accept" :text (second cmd-args)
-                                      :issued_at (process-started-ms)}
-                           "dismiss" {:action "dialog_dismiss" :issued_at (process-started-ms)}
+                           "accept"  (cond-> {:action    "dialog_accept"
+                                              :text      (first (remove #{"--next"} (rest cmd-args)))
+                                              :issued_at (process-started-ms)}
+                                       (some #{"--next"} cmd-args) (assoc :next true))
+                           "dismiss" (cond-> {:action "dialog_dismiss" :issued_at (process-started-ms)}
+                                       (some #{"--next"} cmd-args) (assoc :next true))
                            "status"  {:action "dialog_status"}
                            {:error (str "Unknown dialog command: " sub)}))
 

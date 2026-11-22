@@ -3338,21 +3338,24 @@
       (try
         (reset! !answer nil)
         (reset! !claim {:at (System/currentTimeMillis) :info {:type "confirm" :message "m"}})
-        (let [e (try (#'sut/answer-or-keep-dialog-answer! [:accept nil] nil) nil
+        (let [e (try (#'sut/answer-or-keep-dialog-answer! [:accept nil] {}) nil
                      (catch clojure.lang.ExceptionInfo e e))]
           (expect (= "dialog_already_answered" (:error_code (ex-data e))))
           (expect (nil? @!answer)))
         ;; A claim before this command started is an earlier dialog: keep the answer.
         (reset! !claim {:at 1 :info {:type "confirm" :message "m"}})
-        (expect (nil? (#'sut/answer-or-keep-dialog-answer! [:accept nil] nil)))
+        (expect (nil? (#'sut/answer-or-keep-dialog-answer! [:accept nil] {})))
         (expect (= [:accept nil] @!answer))
-        ;; A client process that started before the claim was concurrent.
+        ;; A client process that started just after the claim was concurrent.
         (reset! !answer nil)
         (reset! !claim {:at 5000 :info {:type "confirm" :message "m"}})
         (expect (= "dialog_already_answered"
-                  (try (#'sut/answer-or-keep-dialog-answer! [:accept nil] 4000) nil
+                  (try (#'sut/answer-or-keep-dialog-answer! [:accept nil] {"issued_at" 5500}) nil
                        (catch clojure.lang.ExceptionInfo e (:error_code (ex-data e))))))
         (expect (nil? @!answer))
+        ;; --next keeps the answer even then.
+        (expect (nil? (#'sut/answer-or-keep-dialog-answer! [:dismiss nil] {"issued_at" 5500 "next" true})))
+        (expect (= [:dismiss nil] @!answer))
         (finally
           (swap! !ledger dissoc cid)
           (reset! !claim (first before))
