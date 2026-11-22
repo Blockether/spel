@@ -218,6 +218,44 @@
     refs))
 
 ;; =============================================================================
+;; Ref lookup (JS-side, shared by every script that reads data-pw-ref)
+;; =============================================================================
+
+(def ^:private ref-lookup-js
+  "JS functions that find the elements a snapshot tagged.
+
+   A selector query on the document does not enter a shadow tree, so
+   `capture-snapshot` records each open shadow root that it tags in
+   `window.__spelRefRoots`.
+
+   `spelRefScopes()` - the document and those shadow roots.
+   `spelByRef()`     - map of ref id to its first element.
+   `spelQuery(sel)`  - the first element that matches `sel` in those scopes."
+  (str
+    "function spelRefScopes(){"
+    "  return [document].concat(Array.from(window.__spelRefRoots||[]));"
+    "}"
+    "function spelByRef(){"
+    "  var byRef=Object.create(null);"
+    "  spelRefScopes().forEach(function(scope){"
+    "    var tagged=scope.querySelectorAll('[data-pw-ref]');"
+    "    for(var i=0;i<tagged.length;i++){"
+    "      var k=tagged[i].getAttribute('data-pw-ref');"
+    "      if(!(k in byRef))byRef[k]=tagged[i];"
+    "    }"
+    "  });"
+    "  return byRef;"
+    "}"
+    "function spelQuery(sel){"
+    "  var scopes=spelRefScopes();"
+    "  for(var i=0;i<scopes.length;i++){"
+    "    var hit=scopes[i].querySelector(sel);"
+    "    if(hit)return hit;"
+    "  }"
+    "  return null;"
+    "}"))
+
+;; =============================================================================
 ;; DOM visibility check (JS-side, detects occlusion via data-pw-ref)
 ;; =============================================================================
 
@@ -267,20 +305,32 @@
                   "]}"))]
     (str
       "(function(){"
+      ref-lookup-js
       "var checks=[" (apply str (interpose "," items)) "];"
       "var vw=window.innerWidth,vh=window.innerHeight;"
       "var visible=[];"
+     ;; The element at a point, also inside open shadow trees: the document
+     ;; answers with the shadow host.
+      "function hit(px,py){"
+      "  var el=document.elementFromPoint(px,py);"
+      "  while(el&&el.shadowRoot){"
+      "    var inner=el.shadowRoot.elementFromPoint(px,py);"
+      "    if(!inner||inner===el)break;"
+      "    el=inner;"
+      "  }"
+      "  return el;"
+      "}"
      ;; Helper: probe a single point, piercing invisible overlays.
      ;; Returns true if the hit element (or ancestor) has matching data-pw-ref.
       "function probe(px,py,id){"
       "  if(px<0||py<0||px>=vw||py>=vh)return false;"
       "  var hidden=[];"
-      "  var el=document.elementFromPoint(px,py);"
+      "  var el=hit(px,py);"
       "  while(el){"
       "    var s=getComputedStyle(el);"
       "    if(parseFloat(s.opacity)===0||s.visibility==='hidden'||s.pointerEvents==='none'){"
       "      el.style.display='none';hidden.push(el);"
-      "      el=document.elementFromPoint(px,py);"
+      "      el=hit(px,py);"
       "    }else{break;}"
       "  }"
       "  hidden.forEach(function(h){h.style.display='';});"
@@ -288,7 +338,9 @@
       "  var node=el;"
       "  while(node&&node!==document.documentElement){"
       "    if(node.getAttribute&&node.getAttribute('data-pw-ref')===id)return true;"
-      "    node=node.parentElement;"
+     ;; Up the flat tree: a slotted node continues at its slot, and the top
+     ;; of a shadow tree continues at the host.
+      "    node=node.assignedSlot||node.parentElement||(node.parentNode&&node.parentNode.host)||null;"
       "  }"
       "  return false;"
       "}"
@@ -299,14 +351,7 @@
       ;; for each missed ref reads the whole document again for each one.
       "var byRef=null;"
       "function directCheck(id){"
-      "  if(!byRef){"
-      "    byRef=Object.create(null);"
-      "    var tagged=document.querySelectorAll('[data-pw-ref]');"
-      "    for(var i=0;i<tagged.length;i++){"
-      "      var k=tagged[i].getAttribute('data-pw-ref');"
-      "      if(!(k in byRef))byRef[k]=tagged[i];"
-      "    }"
-      "  }"
+      "  if(!byRef)byRef=spelByRef();"
       "  var el=byRef[id];"
       "  if(!el)return false;"
       "  var s=getComputedStyle(el);"
@@ -537,12 +582,7 @@
     ;; One pass over the DOM finds every ref. A `querySelector` for each ref
     ;; reads the whole document again for each one. The first element with an
     ;; id wins, as `querySelector` does.
-    "  var byRef = Object.create(null);"
-    "  var tagged = document.querySelectorAll('[data-pw-ref]');"
-    "  for (var i = 0; i < tagged.length; i++) {"
-    "    var id = tagged[i].getAttribute('data-pw-ref');"
-    "    if (!(id in byRef)) byRef[id] = tagged[i];"
-    "  }"
+    "  var byRef = spelByRef();"
     "  var frag = document.createDocumentFragment(), marks = [];"
     "  for (var i = 0; i < items.length; i++) {"
     "    var ref = items[i][0], num = items[i][1], el = byRef[ref];"
@@ -614,6 +654,7 @@
   [entries opts]
   (str
     "(function(items, palette, markFont, showBoxes, showMarks, showDims) {"
+    ref-lookup-js
     inject-js-body
     "})("
     (json/write-json-str
@@ -637,17 +678,25 @@
   "Returns a set of ref IDs whose elements are descendants of the scope selector.
 
    Scope can be a CSS selector or a snapshot ref (@e2yrjz).
-   Queries the DOM for all `data-pw-ref` elements inside the scoped element.
+   Finds each `data-pw-ref` element below the scoped element in the flat tree,
+   so a ref in a shadow tree or in a slot of the scope counts.
    Requires that `capture-snapshot` has already been called (elements tagged)."
   [^Page page ^String scope-selector]
   (let [css-sel (snapshot/resolve-scope scope-selector)
         js (str "(function(){"
-             "var scope=document.querySelector(" (json/write-json-str css-sel) ");"
+             ref-lookup-js
+             "var scope=spelQuery(" (json/write-json-str css-sel) ");"
              "if(!scope)return [];"
              "var refs=[];"
-             "scope.querySelectorAll('[data-pw-ref]').forEach(function(el){"
-             "  refs.push(el.getAttribute('data-pw-ref'));"
-             "});"
+             ;; Up the flat tree: a slotted node continues at its slot, and the
+             ;; top of a shadow tree continues at the host.
+             "function up(n){return n.assignedSlot||n.parentNode||n.host;}"
+             "var byRef=spelByRef();"
+             "for(var id in byRef){"
+             "  for(var n=up(byRef[id]);n;n=up(n)){"
+             "    if(n===scope){refs.push(id);break;}"
+             "  }"
+             "}"
              "return refs;"
              "})()")
         result (page/evaluate page js)]
@@ -801,12 +850,14 @@
                 (str "{id:'" ref-id "'}"))]
     (str
       "(function(){"
+      ref-lookup-js
       ;; No animation — matches the ejected overlay's static brand style.
       "var sx=window.scrollX||0,sy=window.scrollY||0;"
       "var items=[" (apply str (interpose "," items)) "];"
       "var count=0;"
+      "var byRef=spelByRef();"
       "items.forEach(function(item){"
-      "  var el=document.querySelector('[data-pw-ref=\"'+item.id+'\"]');"
+      "  var el=byRef[item.id];"
       "  if(!el)return;"
       "  var r=el.getBoundingClientRect();"
       "  if(r.width===0&&r.height===0)return;"

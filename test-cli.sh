@@ -119,6 +119,33 @@ assert_jq_contains "snapshot -i -C → has refs" "$OUT" '.snapshot' '[@e'
 OUT=$("$SPEL" --json snapshot -s "body" 2>&1)
 assert_jq_contains "snapshot -s body → has refs" "$OUT" '.snapshot' '[@e'
 
+# Regression, issue #158: the snapshot did not enter an open shadow root, so
+# the controls of a web component had no ref and no annotation.
+SHADOW_SESSION="shadow-$$"
+"$SPEL" --session "$SHADOW_SESSION" open "data:text/html,<nav aria-label='Main'><x-card>Slotted label</x-card></nav><p>Outside</p>" >/dev/null 2>&1
+"$SPEL" --session "$SHADOW_SESSION" eval-js "(() => { const root = document.querySelector('x-card').attachShadow({mode: 'open'}); root.innerHTML = '<button><slot></slot></button>'; root.querySelector('button').onclick = () => { document.title = 'shadow clicked'; }; return 1; })()" >/dev/null 2>&1
+OUT=$("$SPEL" --session "$SHADOW_SESSION" --json snapshot 2>&1)
+assert_jq_contains "snapshot → lists a button in a shadow root" "$OUT" '.snapshot' 'button "Slotted label"'
+SHADOW_REF=$(echo "$OUT" | jq -r '.snapshot' | sed -n 's/.*button "Slotted label" \[@\(e[a-z0-9]*\)\].*/\1/p' | head -1)
+NAV_REF=$(echo "$OUT" | jq -r '.snapshot' | sed -n 's/.*navigation "Main" \[@\(e[a-z0-9]*\)\].*/\1/p' | head -1)
+"$SPEL" --session "$SHADOW_SESSION" click "@$SHADOW_REF" >/dev/null 2>&1
+OUT=$("$SPEL" --session "$SHADOW_SESSION" --json get title 2>&1)
+assert_jq_eq "click @ref → reaches the button in the shadow root" "$OUT" '.title' 'shadow clicked'
+SHADOW_PATH="$TEST_TMP_DIR/test-cli-shadow.png"
+TEMP_FILES+=("$SHADOW_PATH")
+OUT=$("$SPEL" --session "$SHADOW_SESSION" --json screenshot -a "$SHADOW_PATH" 2>&1)
+assert_jq "screenshot -a → marks the button in the shadow root" "$OUT" \
+  "[.annotated.entries[] | select(.ref == \"$SHADOW_REF\")] | length == 1"
+
+# Regression, issue #159: a ref scope gave an empty snapshot, and a scope with
+# no match gave exit code 0 with no message.
+OUT=$("$SPEL" --session "$SHADOW_SESSION" --json snapshot -s "@$NAV_REF" 2>&1)
+assert_jq_contains "snapshot -s @ref → the subtree of the ref" "$OUT" '.snapshot' 'button "Slotted label"'
+assert_jq "snapshot -s @ref → nothing outside the ref" "$OUT" '.snapshot | contains("Outside") | not'
+OUT=$("$SPEL" --session "$SHADOW_SESSION" --json snapshot -s "#no-such-scope" 2>&1) || true
+assert_jq_eq "snapshot -s with no match → scope_not_found" "$OUT" '.error_code' 'scope_not_found'
+"$SPEL" --session "$SHADOW_SESSION" close >/dev/null 2>&1
+
 # Discover dynamic refs for hash-based ref system
 # Snapshot on example.com — extract actual ref keys from tree text
 SNAP_JSON=$( "$SPEL" --json snapshot 2>&1 )

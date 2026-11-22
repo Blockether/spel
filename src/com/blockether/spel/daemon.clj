@@ -4010,6 +4010,10 @@
                                                            device        (assoc :device device))))]
     ;; A crashed renderer or an aborted capture is surfaced on the command that
     ;; caused it — never rendered as a successful snapshot with an empty tree.
+    (when (and sel (not (anomaly/anomaly? snap)) (nil? (:tree snap)))
+      (throw (ex-info (str "Nothing to snapshot in scope " (pr-str sel)
+                        ": no element matches it, or the element has no visible content.")
+               {:error_code "scope_not_found"})))
     (if (anomaly/anomaly? snap)
       snap
       (let [_          (publish-refs! snap)

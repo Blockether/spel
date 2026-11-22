@@ -730,3 +730,28 @@
           (expect (map? (:annotated result)))
           (let [img (ImageIO/read (ByteArrayInputStream. png))]
             (expect (some? img))))))))
+
+
+;; Regression, issue #158: the annotation scripts looked for refs with a query
+;; on the document, which does not enter a shadow tree.
+(defdescribe shadow-dom-annotation-test
+  "Annotations reach the controls in open shadow roots"
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "a button in a shadow root"
+    (it "is visible, gets a mark, and counts under a scope that holds its host"
+      (core/with-testing-page [pg]
+        (page/set-content! pg "<main><x-button>Slotted label</x-button></main><button>Outside</button>")
+        (page/evaluate pg
+          (str "document.querySelector('x-button').attachShadow({mode: 'open'})"
+            ".innerHTML = '<button><slot></slot></button>'"))
+        (let [refs   (:refs (snapshot/capture-snapshot pg))
+              shadow (some (fn [[id r]] (when (= "Slotted label" (:name r)) id)) refs)
+              marked (fn [opts]
+                       (let [ids (set (map :ref (:entries (sut/inject-overlays! pg refs opts))))]
+                         (sut/remove-overlays! pg)
+                         ids))]
+          (expect (some? shadow))
+          (expect (contains? (set (sut/check-visible-refs pg refs)) shadow))
+          (expect (= 2 (count (marked {}))))
+          (expect (= #{shadow} (marked {:scope "main"}))))))))

@@ -31,10 +31,35 @@
    them. Chromium has them only behind a flag, so the walker's own role and
    name rules give the result there."
   "(() => {
+  // A selector query on the document does not enter a shadow tree, so the
+  // capture records each open shadow root that it tags. The next capture and
+  // the annotation scripts read that set to reach those refs again.
+  const refScopes = [document].concat(Array.from(window.__spelRefRoots || []));
+
+  // A query that also looks into open shadow trees, for the scope only.
+  function deepQuery(root, sel) {
+    const hit = root.querySelector(sel);
+    if (hit) return hit;
+    for (const host of root.querySelectorAll('*')) {
+      const inner = host.shadowRoot && deepQuery(host.shadowRoot, sel);
+      if (inner) return inner;
+    }
+    return null;
+  }
+
+  // The scope is resolved BEFORE the clean-up: a ref scope names the attribute
+  // that the clean-up removes.
+  const _scopeSel = typeof __SCOPE__ === 'string' ? __SCOPE__ : null;
+  const _root = _scopeSel ? deepQuery(document, _scopeSel) : document.body;
+
   // Clean up any previous refs
-  document.querySelectorAll('[data-pw-ref]').forEach(el => {
-    el.removeAttribute('data-pw-ref');
-  });
+  for (const scope of refScopes) {
+    scope.querySelectorAll('[data-pw-ref]').forEach(el => {
+      el.removeAttribute('data-pw-ref');
+    });
+  }
+  const shadowRefRoots = new Set();
+  window.__spelRefRoots = shadowRefRoots;
 
   let counter = 0;
   const refs = {};
@@ -156,7 +181,44 @@
     return byControl.get(el) || null;
   }
 
-  function getName(el) {
+  // An id names an element of the same tree: the document, or the shadow
+  // tree that holds the element.
+  function byId(el, id) {
+    const root = el.getRootNode();
+    return (root.getElementById ? root : document).getElementById(id);
+  }
+
+  // The flat tree is the tree that the page shows: a shadow host shows its
+  // open shadow tree, and a slot shows the nodes assigned to it. Outside a
+  // shadow tree the light DOM is the flat tree. The answer is then null, so
+  // an ordinary page pays one property read for each element.
+  let shadowDepth = 0;
+  function flatChildNodes(el) {
+    const shadow = el.shadowRoot;
+    if (!shadow && shadowDepth === 0) return null;
+    const out = [];
+    for (const n of (shadow || el).childNodes) {
+      if (n.nodeType === 1 && n.localName === 'slot') {
+        const assigned = n.assignedNodes({ flatten: true });
+        for (const a of (assigned.length ? assigned : n.childNodes)) out.push(a);
+      } else {
+        out.push(n);
+      }
+    }
+    return out;
+  }
+
+  const NO_TEXT_TAGS = new Set(['style', 'script', 'noscript', 'template']);
+  function flatText(nodes) {
+    let text = '';
+    for (const n of nodes) {
+      if (n.nodeType === 3 || (n.nodeType === 1 && !NO_TEXT_TAGS.has(n.localName)))
+        text += n.textContent || '';
+    }
+    return text;
+  }
+
+  function getName(el, flat) {
     // 1. aria-label
     const ariaLabel = el.getAttribute('aria-label');
     if (ariaLabel) return ariaLabel.trim();
@@ -165,7 +227,7 @@
     const labelledBy = el.getAttribute('aria-labelledby');
     if (labelledBy) {
       const parts = labelledBy.split(/\\s+/).map(id => {
-        const ref = document.getElementById(id);
+        const ref = byId(el, id);
         return ref ? (ref.textContent || '').trim() : '';
       }).filter(Boolean);
       if (parts.length) return parts.join(' ');
@@ -189,8 +251,8 @@
     if (placeholder) return placeholder.trim();
 
     // 6. Leaf text for simple elements
-    if (el.children.length === 0) {
-      const text = (el.textContent || '').trim();
+    if (flat ? !flat.some(n => n.nodeType === 1) : el.children.length === 0) {
+      const text = (flat ? flatText(flat) : (el.textContent || '')).trim();
       if (text.length <= 200) return text;
       return text.substring(0, 197) + '...';
     }
@@ -386,7 +448,7 @@
     const describedBy = el.getAttribute('aria-describedby');
     if (describedBy) {
       const desc = describedBy.split(/\\s+/).map(id => {
-        const ref = document.getElementById(id);
+        const ref = byId(el, id);
         return ref ? (ref.textContent || '').trim() : '';
       }).filter(Boolean).join(' ');
       if (desc) attrs.description = desc.substring(0, 200);
@@ -524,27 +586,30 @@
     // Skip annotation overlay elements injected by spel annotate
     if (el.hasAttribute('data-spel-annotate')) return null;
 
+    const flat = flatChildNodes(el);
     const role = getRole(el);
-    const name = getName(el);
+    const name = getName(el, flat);
     const attrs = getAttributes(el, role);
 
     // Walk children
     const children = [];
-    for (const child of el.children) {
+    if (el.shadowRoot) shadowDepth++;
+    for (const child of (flat || el.children)) {
       const node = walk(child, depth + 1);
       if (node) children.push(node);
     }
+    if (el.shadowRoot) shadowDepth--;
 
     // Get text content — leaf text for childless elements, direct text nodes for mixed content
     let leafText = null;
     if (children.length === 0) {
-      const text = (el.textContent || '').trim();
+      const text = (flat ? flatText(flat) : (el.textContent || '')).trim();
       if (text && !name) {
         leafText = text.length <= 200 ? text : text.substring(0, 197) + '...';
       }
     } else {
       const parts = [];
-      for (const n of el.childNodes) {
+      for (const n of (flat || el.childNodes)) {
         if (n.nodeType === 3) {
           const t = n.textContent.trim();
           if (t) parts.push(t);
@@ -605,6 +670,10 @@
       ref = stableRef(el, effectiveRole, name);
       counter++;
       el.setAttribute('data-pw-ref', ref);
+      if (shadowDepth > 0) {
+        const root = el.getRootNode();
+        if (root !== document) shadowRefRoots.add(root);
+      }
       const rect = el.getBoundingClientRect();
       const href = getHref(el);
       const inputType = getInputType(el);
@@ -651,14 +720,14 @@
     };
   }
 
-  const _scopeSel = typeof __SCOPE__ === 'string' ? __SCOPE__ : null;
-  const _root = _scopeSel ? document.querySelector(_scopeSel) : document.body;
   // The result travels as a JSON STRING: Playwright's own serializer walks the
   // returned value and refuses an object nested more than a few hundred levels
   // deep ('object reference chain is too long'), which made a page nested far
   // below the walker's depth budget impossible to snapshot at all.
   if (!_root) return JSON.stringify({ tree: null, refs: {}, counter: 0 });
   let tree;
+  // A scope inside a shadow tree starts the walk in the flat tree.
+  if (_root.getRootNode() !== document) shadowDepth = 1;
   try {
     tree = walk(_root, 0);
   } catch (e) {
@@ -1142,7 +1211,12 @@
    `page` - Playwright Page instance."
   [^Page page]
   (page/evaluate page
-    "(() => { document.querySelectorAll('[data-pw-ref]').forEach(el => { el.removeAttribute('data-pw-ref'); }); })()"))
+    "(() => {
+       for (const scope of [document].concat(Array.from(window.__spelRefRoots || []))) {
+         scope.querySelectorAll('[data-pw-ref]').forEach(el => { el.removeAttribute('data-pw-ref'); });
+       }
+       window.__spelRefRoots = null;
+     })()"))
 
 (defn ref-bounding-box
   "Returns the bounding box for a ref from the last snapshot.

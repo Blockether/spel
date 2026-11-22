@@ -1611,3 +1611,95 @@
         (let [snap (sut/capture-full-snapshot pg)]
           (expect (str/includes? (:tree snap) "Only"))
           (expect (every? #(not (str/starts-with? % "f")) (keys (:refs snap)))))))))
+
+
+(def ^:private shadow-page-script
+  "Builds a page of web components: a slot with text, a named slot, a slot
+   with fallback content, a shadow tree in a shadow tree, and ids that exist
+   only in a shadow tree."
+  (str
+    "(() => {"
+    "const host = (tag, html, light) => { const el = document.createElement(tag);"
+    "  if (light) el.innerHTML = light; el.attachShadow({mode: 'open'}).innerHTML = html;"
+    "  document.body.appendChild(el); return el; };"
+    "const btn = host('x-button', '<style>button{color:red}</style><button><slot></slot></button>', 'Slotted label');"
+    "btn.shadowRoot.querySelector('button').onclick = () => { document.title = 'shadow clicked'; };"
+    "host('x-panel', '<header><slot name=\"title\"></slot></header><footer><slot name=\"footer\">Fallback footer</slot></footer>',"
+    "  '<h2 slot=\"title\">Panel title</h2><i slot=\"none\">Unslotted</i>');"
+    "host('x-outer', '<nav aria-label=\"Inner nav\"><div id=\"deep\"></div></nav>')"
+    "  .shadowRoot.getElementById('deep').attachShadow({mode: 'open'}).innerHTML = '<button>Deep</button>';"
+    "host('x-field', '<span id=\"lbl\">Email address</span><input aria-labelledby=\"lbl\">');"
+    "})()"))
+
+(defn- shadow-ref-count
+  "Number of ref attributes in the document and in each open shadow tree."
+  [pg]
+  (long (page/evaluate pg
+          (str "(() => { const count = root => { let n = root.querySelectorAll('[data-pw-ref]').length;"
+            "root.querySelectorAll('*').forEach(el => { if (el.shadowRoot) n += count(el.shadowRoot); });"
+            "return n; }; return count(document); })()"))))
+
+(defn- ref-of
+  "The ref id of the first ref with this role and name."
+  [refs role ref-name]
+  (some (fn [[id r]] (when (= [role ref-name] [(:role r) (:name r)]) id)) refs))
+
+;; Regression, issue #158: the walker read `el.children` only, so the content of
+;; an open shadow root had no node and no ref. A page of web components gave an
+;; almost empty snapshot.
+(defdescribe snapshot-shadow-dom-test
+  "capture-snapshot walks the tree that a page with open shadow roots shows"
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "a shadow host"
+    (it "shows its shadow tree, with each slot replaced by its nodes"
+      (core/with-testing-page [pg]
+        (page/set-content! pg "<h1>Host</h1>")
+        (page/evaluate pg shadow-page-script)
+        (let [snap  (sut/capture-snapshot pg)
+              names (set (map (juxt :role :name) (vals (:refs snap))))]
+          (expect (contains? names ["heading" "Host"]))
+          (expect (contains? names ["button" "Slotted label"]))
+          (expect (contains? names ["heading" "Panel title"]))
+          (expect (contains? names ["contentinfo" "Fallback footer"]))
+          (expect (contains? names ["button" "Deep"]))
+          (expect (contains? names ["textbox" "Email address"]))
+          (expect (not (str/includes? (:tree snap) "Unslotted")))
+          (expect (not (str/includes? (:tree snap) "color:red"))))))
+
+    (it "gives refs that act on the page and that the next capture removes"
+      (core/with-testing-page [pg]
+        (page/set-content! pg "<h1>Host</h1>")
+        (page/evaluate pg shadow-page-script)
+        (let [refs (:refs (sut/capture-snapshot pg))]
+          (.click (sut/resolve-ref pg (ref-of refs "button" "Slotted label")))
+          (expect (= "shadow clicked" (page/title pg)))
+          (expect (= (count refs) (shadow-ref-count pg)))
+          (page/evaluate pg "document.querySelectorAll('x-button, x-panel, x-outer, x-field').forEach(el => { el.hidden = true; })")
+          (expect (= 1 (:counter (sut/capture-snapshot pg))))
+          (expect (= 1 (shadow-ref-count pg)))
+          (sut/clear-refs! pg)
+          (expect (= 0 (shadow-ref-count pg))))))))
+
+;; Regression, issue #159: the capture removed all ref attributes first and then
+;; looked for the scope by that attribute, so a ref scope gave an empty tree.
+(defdescribe snapshot-ref-scope-test
+  "capture-snapshot walks the subtree of a ref scope"
+  (around [f] (core/with-testing-browser (f)))
+
+  (describe "a snapshot ref as the scope"
+    (it "gives the subtree of the element with that ref"
+      (core/with-testing-page [pg]
+        (page/set-content! pg "<nav aria-label='Main'><a href='#a'>Alpha</a></nav><button>Outside</button>")
+        (let [nav    (ref-of (:refs (sut/capture-snapshot pg)) "navigation" "Main")
+              scoped (sut/capture-snapshot pg {:scope (str "@" nav)})]
+          (expect (str/includes? (:tree scoped) "Alpha"))
+          (expect (not (str/includes? (:tree scoped) "Outside"))))))
+
+    (it "finds a ref and a selector in a shadow tree"
+      (core/with-testing-page [pg]
+        (page/set-content! pg "<h1>Host</h1>")
+        (page/evaluate pg shadow-page-script)
+        (let [nav (ref-of (:refs (sut/capture-snapshot pg)) "navigation" "Inner nav")]
+          (expect (str/includes? (:tree (sut/capture-snapshot pg {:scope (str "@" nav)})) "Deep"))
+          (expect (str/includes? (:tree (sut/capture-snapshot pg {:scope "footer"})) "Fallback footer")))))))

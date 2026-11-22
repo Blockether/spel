@@ -180,7 +180,7 @@
       "  -C, --cursor         Include cursor/pointer elements"
       "  -F, --flat           Flat output (no nesting, all elements at same level)"
       "  -d, --depth N        Limit tree depth to N levels"
-      "  -s, --selector SEL   Scope snapshot to CSS selector (alias: --scope)"
+      "  -s, --selector SEL   Scope snapshot to a CSS selector or an @ref (alias: --scope)"
       "  -a, --all            Include all iframes in snapshot"
       "  -S, --styles         Include computed CSS styles per element"
       "      --minimal        Styles: 16 core properties (with -S)"
