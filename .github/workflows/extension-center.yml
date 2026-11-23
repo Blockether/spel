@@ -1,0 +1,32 @@
+name: Vis Extension Center
+
+# A release that a person publishes starts this workflow. It starts the publication in the Vis
+# Extension Center at once. The schedule in Blockether/vis also publishes the release, but GitHub
+# starts scheduled runs some hours late.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: ${{ !github.event.release.prerelease && startsWith(github.event.release.tag_name, 'vis-spel/v') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release in the Vis Extension Center
+        env:
+          GH_TOKEN: ${{ secrets.VIS_EXTENSION_PUBLISH_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::Set the VIS_EXTENSION_PUBLISH_TOKEN secret. Without it, the schedule in Blockether/vis publishes this release some hours later."
+            exit 0
+          fi
+          gh workflow run extension-publish.yml --repo Blockether/vis \
+            -f repository_url="https://github.com/$GITHUB_REPOSITORY" \
+            -f subdirectory="extensions/vis-spel" \
+            -f release_tag="$RELEASE_TAG" \
+            -f revision="$GITHUB_SHA"
