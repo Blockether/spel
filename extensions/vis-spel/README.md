@@ -83,7 +83,7 @@ See the [browser guide](docs/browser-workflows.md) for native versions, private 
 ## Development
 
 ```bash
-uv sync --locked
-uv run pytest
-uv run ruff check . && uv run ruff format --check .
+uv sync --locked --group dev
+uv run --group dev pytest
+uv run --group dev ruff check . && uv run --group dev ruff format --check .
 ```

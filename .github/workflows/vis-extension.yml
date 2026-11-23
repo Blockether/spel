@@ -26,9 +26,9 @@ jobs:
           python-version: ${{ matrix.python }}
       # setup-uv publishes no major tags from v8: pin the full version.
       - uses: astral-sh/setup-uv@v10.4.0
-      - run: uv sync --locked
-      - run: uv run ruff check . && uv run ruff format --check .
-      - run: uv run --with pyright==1.1.414 pytest -q
+      - run: uv sync --locked --group dev
+      - run: uv run --group dev ruff check . && uv run --group dev ruff format --check .
+      - run: uv run --group dev --with pyright==1.1.414 pytest -q
       - name: Install verified native Spel and browser prerequisites
         if: matrix.python == '3.14'
         env:
@@ -43,4 +43,4 @@ jobs:
         env:
           SPEL_INTEGRATION: '1'
           SPEL_LIGHTPANDA: '1'
-        run: uv run pytest tests/test_native.py -q
+        run: uv run --group dev pytest tests/test_native.py -q

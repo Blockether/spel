@@ -16,6 +16,9 @@ Issues = "https://github.com/Blockether/spel/issues"
 category = "tools"
 source_paths = ["src"]
 
+[tool.uv]
+default-groups = []
+
 [dependency-groups]
 dev = ["pytest>=8.3,<10", "ruff>=0.12,<1"]
 
