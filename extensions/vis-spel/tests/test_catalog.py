@@ -31,7 +31,7 @@ def test_catalog_is_available_without_registration_or_configuration(
     (namespace,) = namespaces
     assert isinstance(namespace, vis.NamespaceSpec)
     assert namespace.name == "spel"
-    assert len(namespace.members) == 21
+    assert len(namespace.members) == 23
     assert not hasattr(spel, "native_help")
     assert _tool(spel, "spel.prepare_profile").returns.name == "BrowserProfile"
     assert _tool(spel, "spel.prepare_profile").tag == "mutation"
@@ -69,6 +69,8 @@ def test_catalog_help_and_registry_share_public_names_and_tags():
             "spel.prepare_profile",
             "spel.reserve",
             "spel.hand_over",
+            "spel.share",
+            "spel.unshare",
             "spel.connect",
             "spel.open",
             "spel.command",

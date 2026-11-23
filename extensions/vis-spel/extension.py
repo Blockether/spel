@@ -16,8 +16,10 @@ PROMPT = r"""# Browser automation with Spel
    another task's reservation or the native default session. Release a reservation
    explicitly; a reload does not close it. Only one reservation can use a profile.
    After a reload, find your own id with `spel.reservations()`. If a label or profile is
-   taken, ask the session named in the error to release it or to call
-   `spel.hand_over(id, your_session_id)`. Never prepare a second profile for it.
+   taken, ask the session named in the error to share it with
+   `spel.share(id, your_session_id)`, to hand it over with
+   `spel.hand_over(id, your_session_id)` or to release it. Never prepare a second profile
+   for it. A shared reservation is one browser for every session: agree who acts.
    A reservation with no owner shows its id in `spel.reservations()`: take it yourself.
    In your own extension, call `vis.tools.spel.*`; never run a native `spel` binary.
    CDP needs a fresh Chromium reservation **without** a managed profile and an explicitly

@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+import vis_spel
 from vis_spel import Spel, SpelError, _execute
 from vis_spel.install import DEFAULT_VERSION
 
@@ -251,6 +252,83 @@ def test_native_managed_profile_persists_auth_storage_across_sessions(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_native_shared_reservation_drives_one_browser(tmp_path, monkeypatch):
+    installed = Spel().installed()
+    assert installed is not None
+    binary = os.environ.get("SPEL_TEST_BINARY", installed.executable)
+    code, version, _ = _execute(binary, ["version"])
+    assert code == 0 and version.strip().startswith("spel ")
+    client = Spel(tmp_path / "shared")
+    with client._db() as db:
+        db.execute(
+            "INSERT INTO installation VALUES (1, ?, ?, 1)",
+            (version.strip().removeprefix("spel "), binary),
+        )
+    client.prepare_profile("login")
+    owner, guest, outsider = (str(uuid.uuid4()) for _ in range(3))
+    current = threading.local()
+    monkeypatch.setattr(vis_spel, "_caller", lambda: getattr(current, "id", owner))
+
+    class Page(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = b"<title>Shared reservation</title><input id='name'>"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Page)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    lease = client.reserve("shared", profile="login")
+    try:
+        client.open(lease.id, f"http://127.0.0.1:{server.server_port}/")
+        client.share(lease.id, guest)
+        current.id = guest
+        (seen,) = Spel(client._home).reservations(label="shared")
+        assert seen.id == lease.id and not seen.is_owned
+        client.evaluate(
+            seen.id,
+            "() => { document.querySelector('#name').value = 'from guest'; window.hits = 0 }",
+        )
+        with pytest.raises(SpelError, match="shared with this session"):
+            client.reserve("again", profile="login")
+
+        def hit(session):
+            current.id = session
+            for _ in range(5):
+                Spel(client._home).evaluate(lease.id, "() => { window.hits += 1 }")
+
+        workers = [threading.Thread(target=hit, args=(who,)) for who in (owner, guest)]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=120)
+        current.id = outsider
+        assert client.reservations(label="shared")[0].id is None
+        current.id = owner
+        assert client.evaluate(
+            lease.id,
+            "() => ({name: document.querySelector('#name').value, hits: window.hits})",
+        ).data["result"] == {"name": "from guest", "hits": 10}
+        client.unshare(lease.id, guest)
+        current.id = guest
+        assert client.reservations(label="shared")[0].id is None
+    finally:
+        current.id = owner
+        client.release(lease.id)
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+    assert client.reservations() == ()
+    with client._db() as db:
+        assert db.execute("SELECT COUNT(*) FROM shares").fetchone()[0] == 0
 
 
 # Regression, issue #138: full_page=False returned an annotated full-page PNG

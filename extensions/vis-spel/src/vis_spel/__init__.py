@@ -64,9 +64,12 @@ class ReservationStatus:
         "Vis session that holds it, or None when it was made outside Vis or before vis-spel 0.1.22.",
     ]
     is_owned: Annotated[bool, "True when the calling Vis session holds it."]
+    shared: Annotated[
+        tuple[str, ...], "Vis sessions besides the owner that it is shared with."
+    ]
     id: Annotated[
         str | None,
-        "Reservation ID for the owner session, and for every Vis session when there is no owner; else None.",
+        "Reservation ID for the owner and the sessions it is shared with, and for every Vis session when there is no owner; else None.",
     ]
 
 
@@ -210,6 +213,16 @@ def _caller() -> str | None:
         return vis.session.id
     except (AttributeError, ImportError, RuntimeError):
         return None
+
+
+def _session_id(to: str) -> str:
+    """Return the bare id of a Vis session id or a vis_session_id#<uuid> marker."""
+    match = _VIS_SESSION.fullmatch(to) if isinstance(to, str) else None
+    if match is None:
+        raise ValueError(
+            "to must be a Vis session id or a vis_session_id#<uuid> marker"
+        )
+    return match.group(1)
 
 
 def _execute(
@@ -398,6 +411,14 @@ class Spel:
             connection.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS reservations_profile ON reservations(profile) WHERE profile IS NOT NULL"
             )
+            # One row per session, so concurrent shares never overwrite each other.
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS shares (reservation TEXT NOT NULL, session TEXT NOT NULL, PRIMARY KEY (reservation, session))"
+            )
+            # A vis-spel before shares releases without them: drop what it left behind.
+            connection.execute(
+                "DELETE FROM shares WHERE reservation NOT IN (SELECT id FROM reservations)"
+            )
             with connection:
                 yield connection
         finally:
@@ -542,8 +563,9 @@ class Spel:
         instead. Keep the returned id. Holding the id allows a deliberate handover of
         control. The calling Vis session owns the reservation: after a reload,
         spel.reservations() shows it the id again. A duplicate label or profile fails
-        with the label of the holder and its owner session. Ask that owner to release
-        it or to call spel.hand_over; do not prepare a second profile for the same sign-in.
+        with the label of the holder and its owner session. Ask that owner to share it
+        with spel.share, to call spel.hand_over or to release it; do not prepare a
+        second profile for the same sign-in.
         A holder without an owner session can be taken: spel.reservations() shows its id.
 
         undetected=True uses Spel's Patchright driver (Spel 0.9.47+, Chromium only).
@@ -669,6 +691,12 @@ class Spel:
                 f"{what} is already reserved by this session as {row['label']!r}, id "
                 f"{row['id']}. Use that id, or release it before you reserve again."
             )
+        if caller is not None and caller in self._shared(row["id"]):
+            return SpelError(
+                f"{what} is already reserved as {row['label']!r} and shared with this "
+                f"session, id {row['id']}. Use that id; agree with the other sessions "
+                "who drives the page."
+            )
         target = repr(caller) if caller else "'<your session id>'"
         if not row["owner"]:
             return SpelError(
@@ -682,8 +710,9 @@ class Spel:
         return SpelError(
             f"{what} is already reserved as {row['label']!r} by Vis session "
             f"{row['owner']}. Ask the "
-            f"holder to call spel.release(id), or spel.hand_over(id, {target}) to give "
-            "it to this session; spel.reservations() then shows the id here. Do not "
+            f"holder to call spel.share(id, {target}) to use it together, "
+            f"spel.hand_over(id, {target}) to give it to this session, or "
+            "spel.release(id); spel.reservations() then shows the id here. Do not "
             "prepare a second profile for the same sign-in."
         )
 
@@ -694,8 +723,9 @@ class Spel:
 
         Use it to find your own id again after a reload, and to see which session holds
         a label or profile. Filter by an exact label or profile name. To get another
-        session's reservation, ask that session to release it or to call
-        spel.hand_over. A reservation made outside Vis or before vis-spel 0.1.22 has
+        session's reservation, ask that session to share it with spel.share, to call
+        spel.hand_over or to release it. A session it is shared with sees its id too.
+        A reservation made outside Vis or before vis-spel 0.1.22 has
         no owner, and nobody can hand it over: every Vis session sees its id, to take
         it with spel.hand_over or to release it.
         """
@@ -712,6 +742,11 @@ class Spel:
             rows = db.execute(
                 f"SELECT * FROM reservations{where} ORDER BY label", values
             ).fetchall()
+            shares = {}
+            for share in db.execute(
+                "SELECT reservation, session FROM shares ORDER BY rowid"
+            ):
+                shares.setdefault(share["reservation"], []).append(share["session"])
         return tuple(
             ReservationStatus(
                 label=row["label"],
@@ -721,8 +756,13 @@ class Spel:
                 created=row["created"],
                 owner=row["owner"],
                 is_owned=caller is not None and row["owner"] == caller,
+                shared=tuple(shares.get(row["id"], ())),
                 id=row["id"]
-                if caller is not None and row["owner"] in (caller, None)
+                if caller is not None
+                and (
+                    row["owner"] in (caller, None)
+                    or caller in shares.get(row["id"], ())
+                )
                 else None,
             )
             for row in rows
@@ -736,17 +776,61 @@ class Spel:
         receiving session finds the id with spel.reservations(). Anyone who still knows
         the id keeps control, so share the id only on purpose.
         """
-        match = _VIS_SESSION.fullmatch(to) if isinstance(to, str) else None
-        if match is None:
-            raise ValueError(
-                "to must be a Vis session id or a vis_session_id#<uuid> marker"
+        target = _session_id(to)
+        row = self._reservation(session)
+        with self._db() as db:
+            db.execute("UPDATE reservations SET owner=? WHERE id=?", (target, session))
+            db.execute(
+                "DELETE FROM shares WHERE reservation=? AND session=?",
+                (session, target),
             )
+        return Reservation(row["id"], row["name"], row["label"])
+
+    def share(self, session: str, to: str) -> Reservation:
+        """Share a reservation with another Vis session. The owner stays; both use one browser.
+
+        The reservation id is the proof of control: its owner, or a session it is
+        shared with, can share it. `to` takes a bare session id or a copied
+        vis_session_id#<uuid> marker; that session then finds the id with
+        spel.reservations(). Every session drives the same page, and commands run in
+        the order they arrive: agree who acts. Sharing twice changes nothing.
+        spel.unshare ends it; spel.release closes the browser for every session.
+        """
+        target = _session_id(to)
+        row = self._reservation(session)
+        if row["owner"] != target:
+            with self._db() as db:
+                db.execute(
+                    "INSERT OR IGNORE INTO shares (reservation, session) VALUES (?, ?)",
+                    (session, target),
+                )
+        return Reservation(row["id"], row["name"], row["label"])
+
+    def unshare(self, session: str, to: str) -> Reservation:
+        """Stop sharing a reservation with one Vis session. The browser keeps running.
+
+        That session no longer sees the id in spel.reservations(). An id that it
+        already holds still works, so share only on purpose. Unsharing twice changes
+        nothing.
+        """
+        target = _session_id(to)
         row = self._reservation(session)
         with self._db() as db:
             db.execute(
-                "UPDATE reservations SET owner=? WHERE id=?", (match.group(1), session)
+                "DELETE FROM shares WHERE reservation=? AND session=?",
+                (session, target),
             )
         return Reservation(row["id"], row["name"], row["label"])
+
+    def _shared(self, identifier: str) -> tuple[str, ...]:
+        with self._db() as db:
+            return tuple(
+                row["session"]
+                for row in db.execute(
+                    "SELECT session FROM shares WHERE reservation=? ORDER BY rowid",
+                    (identifier,),
+                )
+            )
 
     def _reservation(self, identifier: str):
         if not isinstance(identifier, str) or not re.fullmatch(
@@ -1462,6 +1546,7 @@ class Spel:
         result = self._run(session, ["close"], diagnostic=True)
         with self._db() as db:
             db.execute("DELETE FROM reservations WHERE id=?", (session,))
+            db.execute("DELETE FROM shares WHERE reservation=?", (session,))
         return result
 
 
@@ -1522,6 +1607,7 @@ def _presentation(label):
                             f"{item.label}  profile {item.profile or '-'}  "
                             f"{'started' if item.started else 'not started'}  "
                             f"{'this session' if item.is_owned else item.owner or 'no owner'}"
+                            f"{f'  shared with {len(item.shared)}' if item.shared else ''}"
                             for item in result
                         )
                     ),
@@ -1605,6 +1691,8 @@ _BINDINGS: list[tuple[str, str, bool, Literal["observation", "mutation"]]] = [
     ("reserve", "Reserve browser session", False, "mutation"),
     ("reservations", "List browser reservations", False, "observation"),
     ("hand_over", "Hand over browser session", True, "mutation"),
+    ("share", "Share browser session", True, "mutation"),
+    ("unshare", "Stop sharing browser session", True, "mutation"),
     ("connect", "Connect browser through CDP", True, "mutation"),
     ("open", "Open browser page", True, "mutation"),
     ("snapshot", "Read browser snapshot", True, "observation"),

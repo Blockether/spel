@@ -23,7 +23,7 @@ Use the `spel.*` tools in `py3`. First call `spel.installed()` to check for a na
 | --- | --- |
 | `releases`, `installed`, `install` | List, check or select native versions. |
 | `prepare_profile`, `reserve`, `release` | Prepare a private profile, reserve a session or close it. |
-| `reservations`, `hand_over` | Find a reservation or give it to another Vis session. |
+| `reservations`, `hand_over`, `share`, `unshare` | Find a reservation, give it to another Vis session or share it with several. |
 | `open`, `snapshot`, `command` | Open a page, inspect it or run an action. |
 | `evaluate`, `sci` | Run JavaScript or Clojure. |
 | `screenshot` | Save a PNG and optional reference legend. |

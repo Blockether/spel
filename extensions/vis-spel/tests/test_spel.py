@@ -112,6 +112,87 @@ def test_handover_moves_ownership_and_keeps_the_browser(client, caller):
     assert spel.reservations() == ()
 
 
+SESSION_C = "33333333-3333-4333-8333-333333333333"
+
+
+def test_share_lets_another_session_use_the_same_browser(client, caller):
+    spel, calls = client
+    spel.prepare_profile("work")
+    lease = spel.reserve("sign-in", profile="work", headed=True)
+    spel.open(lease.id, "about:blank")
+    started = len(calls)
+    assert spel.share(lease.id, f"vis_session_id#{SESSION_B}") == lease
+    assert spel.share(lease.id, SESSION_B) == lease
+    assert spel.share(lease.id, SESSION_A) == lease
+    assert len(calls) == started
+    (mine,) = spel.reservations()
+    assert (mine.owner, mine.is_owned, mine.shared) == (SESSION_A, True, (SESSION_B,))
+    caller["id"] = SESSION_B
+    (shared,) = spel.reservations(label="sign-in")
+    assert (shared.id, shared.owner, shared.is_owned) == (lease.id, SESSION_A, False)
+    with pytest.raises(SpelError, match=f"shared with this session, id {lease.id}"):
+        spel.reserve("again", profile="work")
+    spel.open(shared.id, "about:blank")
+    assert calls[-1][1][1] == lease.name
+    caller["id"] = SESSION_C
+    (outside,) = spel.reservations()
+    assert outside.id is None
+    message = str(pytest.raises(SpelError, spel.reserve, "sign-in").value)
+    assert f"spel.share(id, '{SESSION_C}')" in message
+    assert lease.id not in message
+
+
+def test_unshare_hides_the_id_and_keeps_the_browser(client, caller):
+    spel, calls = client
+    lease = spel.reserve("sign-in")
+    spel.share(lease.id, SESSION_B)
+    spel.share(lease.id, SESSION_C)
+    started = len(calls)
+    assert spel.unshare(lease.id, SESSION_B) == lease
+    assert spel.unshare(lease.id, SESSION_B) == lease
+    assert len(calls) == started
+    assert spel.reservations()[0].shared == (SESSION_C,)
+    caller["id"] = SESSION_B
+    assert spel.reservations()[0].id is None
+
+
+def test_handover_and_release_clear_the_shares(client, caller):
+    spel, _ = client
+    lease = spel.reserve("sign-in")
+    spel.share(lease.id, SESSION_B)
+    spel.share(lease.id, SESSION_C)
+    spel.hand_over(lease.id, SESSION_B)
+    (row,) = spel.reservations()
+    assert (row.owner, row.shared, row.id) == (SESSION_B, (SESSION_C,), None)
+    caller["id"] = SESSION_B
+    spel.release(lease.id)
+    renewed = spel.reserve("sign-in")
+    assert spel.reservations()[0].shared == ()
+    caller["id"] = SESSION_C
+    assert spel.reservations()[0].id is None
+    assert renewed.id != lease.id
+
+
+def test_a_release_by_an_older_vis_spel_leaves_no_share(client, caller):
+    spel, _ = client
+    lease = spel.reserve("sign-in")
+    spel.share(lease.id, SESSION_B)
+    with spel._db() as db:  # what vis-spel 0.1.35 does on release
+        db.execute("DELETE FROM reservations WHERE id=?", (lease.id,))
+    with spel._db() as db:
+        assert db.execute("SELECT COUNT(*) FROM shares").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("target", ["", "default", SESSION_B[:-1]])
+def test_share_needs_a_session_id(client, caller, target):
+    spel, _ = client
+    lease = spel.reserve("sign-in")
+    for method in (spel.share, spel.unshare):
+        with pytest.raises(ValueError, match="Vis session id"):
+            method(lease.id, target)
+    assert spel.reservations()[0].shared == ()
+
+
 @pytest.mark.parametrize("target", ["", "default", SESSION_B[:-1], "x" + SESSION_B])
 def test_handover_needs_a_session_id(client, caller, target):
     spel, _ = client

@@ -160,7 +160,7 @@ Only release your own reservation. Errors are not retried: after a timeout, insp
 | --- | --- |
 | `releases`, `installed`, `install` | List, inspect and select native versions |
 | `prepare_profile`, `reserve`, `release` | Prepare a private profile, reserve a session and close it gracefully |
-| `reservations`, `hand_over` | Find your own reservation ids, see who holds a label or profile, hand a session over |
+| `reservations`, `hand_over`, `share`, `unshare` | Find your own reservation ids, see who holds a label or profile, hand a session over or share it |
 | `open`, `snapshot`, `command` | Navigate, inspect and run session-scoped CLI actions |
 | `evaluate`, `sci` | Run page JavaScript or Spel Clojure via stdin |
 | `screenshot` | Save a PNG; annotated captures include a reference legend |
@@ -279,6 +279,19 @@ outside Vis, or before vis-spel 0.1.22, has no owner, so nobody can hand it over
 `spel.reservations()` shows its id to every Vis session: check `spel.health(id)`, then
 take it with `spel.hand_over(id, "<your session id>")` or release it.
 Do not prepare a second profile or copy cookies to get around a held reservation.
+
+To use one signed-in browser from several sessions at once, the owner shares it instead:
+
+```python
+await spel.share(lease.id, "vis_session_id#<other session id>")
+```
+
+The owner stays the owner. Each session it is shared with sees the id in
+`spel.reservations()` (its `shared` field lists them) and runs the same tools on the same
+page. Commands run in the order they arrive, so the sessions agree who acts.
+`spel.unshare(id, session)` hides the id from one session again; an id it already holds
+still works. `spel.hand_over` to a session that it is shared with makes that session the
+owner, and `spel.release` closes the browser and ends every share.
 
 ## Call Spel from your own extension
 
