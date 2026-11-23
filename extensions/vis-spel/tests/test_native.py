@@ -292,7 +292,7 @@ def test_native_shared_reservation_drives_one_browser(tmp_path, monkeypatch):
         client.share(lease.id, guest)
         current.id = guest
         (seen,) = Spel(client._home).reservations(label="shared")
-        assert seen.id == lease.id and not seen.is_owned
+        assert seen.id is not None and seen.id == lease.id and not seen.is_owned
         client.evaluate(
             seen.id,
             "() => { document.querySelector('#name').value = 'from guest'; window.hits = 0 }",
