@@ -2472,7 +2472,7 @@ wheels = [
 
 [[package]]
 name = "vis-agent"
-version = "0.5.30"
+version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "harbor" },
@@ -2482,14 +2482,14 @@ dependencies = [
     { name = "pydantic" },
     { name = "referencing" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bc/ac/50d82f01db2335dc916f5078600df26a3f8041a4cb09df36076f3a1dbedb/vis_agent-0.5.30.tar.gz", hash = "sha256:b8d32e3f9cd5a65da8a7791e232f0bcec8c4bdd2aca75d405cbb30c2c16bda0d", size = 752005, upload-time = "2026-11-22T14:49:44.459Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ea/03/a1b31b7e21ae5ba60539428daef7a80faa0287909b0a6fc5ddc7217f2398/vis_agent-0.6.0.tar.gz", hash = "sha256:69826cd626f59d3b77867451648e097bf1bc5bcbd912506f7c074edb685b66f9", size = 844590, upload-time = "2026-11-28T11:46:33.302Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/27/4224acf545ac3790bbe7ed88435f8bf5855caae2406f0c7ea02e8a96502e/vis_agent-0.5.30-py3-none-any.whl", hash = "sha256:704b0d38cb37ef44aea9420bd5d0a3a7581d0db199cf3b83eaa2e02fab615e1e", size = 535092, upload-time = "2026-11-22T14:49:42.748Z" },
+    { url = "https://files.pythonhosted.org/packages/e9/53/a43a1a20c527638c7dbcf9ece2e85171f1004728b4536d409e14b417bbf3/vis_agent-0.6.0-py3-none-any.whl", hash = "sha256:0d40c3056dff4e5228cc80c37439b9181d5583b8e5156de7be15fb767c1267e9", size = 604083, upload-time = "2026-11-28T11:46:31.954Z" },
 ]
 
 [[package]]
 name = "vis-spel"
-version = "0.1.36"
+version = "0.1.37"
 source = { virtual = "." }
 dependencies = [
     { name = "vis-agent" },
@@ -2502,7 +2502,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "vis-agent", specifier = ">=0.5.30" }]
+requires-dist = [{ name = "vis-agent", specifier = ">=0.6.0" }]
 
 [package.metadata.requires-dev]
 dev = [

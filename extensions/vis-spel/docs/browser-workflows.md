@@ -2,7 +2,7 @@
 
 ## Extension versions
 
-Requires Vis / `vis-agent` **0.5.30+**, Python 3.12+, Git and uv.
+Requires Vis / `vis-agent` **0.6.0+**, Python 3.12+, Git and uv.
 Extensions run with your user permissions; review the source before using `--trust`.
 
 Start Vis or run `/reload`. The extension registers `spel.*` tools; it does not
@@ -18,7 +18,7 @@ Use the repository and project folder to manage installed versions:
 
 ```bash
 vis-agent extension versions Blockether/spel --subdirectory extensions/vis-spel
-vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.36 --trust
+vis-agent extension update Blockether/spel --subdirectory extensions/vis-spel --version 0.1.37 --trust
 # To roll back: vis-agent extension rollback Blockether/spel --subdirectory extensions/vis-spel --version 0.1.1 --trust
 ```
 
