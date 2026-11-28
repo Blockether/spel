@@ -1,0 +1,1 @@
+2026-11-28T12:01:17.050Z WARN  [spel] event handler for route **/* threw: clojure.lang.ExceptionInfo: handler blew up at com.blockether.spel.page_test$route_handler_safety_test_186499__186500$fn__186503$fn__186611$it__5662__auto____186621$fn__186622$fn__186623$fn__186624.invoke(page_test.clj:544)

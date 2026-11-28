@@ -1,0 +1,26 @@
+## GET http://localhost:33647/health → 200 OK
+
+### Request Headers
+```
+X-Service: users
+```
+
+### Response Headers
+```
+content-length: 15
+content-type: application/json
+date: Sat, 28 Nov 2026 11:57:20 GMT
+```
+
+### Response Body
+```json
+{
+  "status": "ok"
+}
+```
+
+### cURL
+```bash
+curl 'http://localhost:33647/health' \
+  -H 'X-Service: users'
+```

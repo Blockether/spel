@@ -1,0 +1,11 @@
+content-encoding: br
+server: cloudflare
+age: 2127
+content-type: text/html; charset=utf-8
+alt-svc: h3=":443"; ma=86400
+allow: GET, HEAD
+cf-cache-status: HIT
+cf-ray: a61937cf6cb6503f-PDX
+date: Sat, 28 Nov 2026 12:01:26 GMT
+last-modified: Thu, 26 Nov 2026 17:29:13 GMT
+cache-control: max-age=14400
